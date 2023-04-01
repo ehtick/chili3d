@@ -37,6 +37,7 @@ type Keys =
     | "command.delete"
     | "command.redo"
     | "command.newGroup"
+    | "command.newFolder"
     | "command.undo"
     | "command.line"
     | "command.box"

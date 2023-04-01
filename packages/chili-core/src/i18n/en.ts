@@ -26,6 +26,7 @@ let en: I18n = {
     "command.undo": "Undo",
     "command.line": "Line",
     "command.newGroup": "New Group",
+    "command.newFolder": "New Folder",
     "snap.end": "End",
     "snap.mid": "Middle",
     "snap.center": "Center",

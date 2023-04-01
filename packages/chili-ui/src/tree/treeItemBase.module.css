@@ -1,9 +1,17 @@
-.itemText {
-    flex-grow: 1;
+.name {
+    flex: 1;
     font-size: 12px;
 }
 
-.itemVisibleIcon {
+.icon {
     width: 16px;
     height: 16px;
+}
+
+.selected {
+    background-color: var(--selected);
+}
+
+.parent-visible {
+    opacity: 0.56;
 }

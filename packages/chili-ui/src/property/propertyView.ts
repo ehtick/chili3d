@@ -1,6 +1,6 @@
 // Copyright 2022-2023 the Chili authors. All rights reserved. MPL-2.0 license.
 
-import { IDocument, GeometryModel, Model, Property, PubSub } from "chili-core";
+import { IDocument, GeometryModel, IModel, Property, PubSub, INode } from "chili-core";
 
 import { Control } from "../control";
 import { Expander } from "../expander";
@@ -21,21 +21,23 @@ export class PropertyView {
         PubSub.default.sub("selectionChanged", this.selectionChanged);
     }
 
-    private selectionChanged = (document: IDocument, args: Model[]) => {
+    private selectionChanged = (document: IDocument, selected: INode[], unselected: INode[]) => {
         Control.clear(this.panel);
-        if (args.length === 0) return;
-        this.addDefault(document, args);
-        this.addTransform(document, args);
-        this.addBody(args, document);
+        if (selected.length === 0) return;
+        this.addDefault(document, selected);
+        this.addTransform(document, selected);
+        this.addBody(selected, document);
     };
 
-    private addDefault(document: IDocument, args: Model[]) {
-        this.appendProperty(this.panel, document, args, Property.get(args.at(0), "name"));
+    private addDefault(document: IDocument, nodes: INode[]) {
+        this.appendProperty(this.panel, document, nodes, Property.get(nodes.at(0), "name"));
     }
 
-    private addBody(args: Model[], document: IDocument) {
-        if (!args.some((x) => Model.isGroup(x))) {
-            let bodies = args.map((x) => (x as GeometryModel).body);
+    private addBody(nodes: INode[], document: IDocument) {
+        nodes = nodes.filter((x) => INode.isModelNode(x));
+        if (nodes.length === 0) return;
+        if (!nodes.some((x) => INode.isModelGroup(x))) {
+            let bodies = nodes.map((x) => (x as GeometryModel).body);
             let body = new Expander(bodies[0].name);
             this.panel.appendChild(body.rootPanel);
             body.rootPanel.classList.add(style.expander);
@@ -45,13 +47,15 @@ export class PropertyView {
         }
     }
 
-    private addTransform(document: IDocument, args: Model[]) {
+    private addTransform(document: IDocument, nodes: INode[]) {
+        nodes = nodes.filter((x) => INode.isModelNode(x));
+        if (nodes.length === 0) return;
         let transform = new Expander("properties.group.transform");
         transform.rootPanel.classList.add(style.expander);
         this.panel.appendChild(transform.rootPanel);
-        this.appendProperty(transform.contenxtPanel, document, args, Property.get(args.at(0), "model.position"));
-        this.appendProperty(transform.contenxtPanel, document, args, Property.get(args.at(0), "model.rotation"));
-        this.appendProperty(transform.contenxtPanel, document, args, Property.get(args.at(0), "model.scale"));
+        this.appendProperty(transform.contenxtPanel, document, nodes, Property.get(nodes.at(0), "model.position"));
+        this.appendProperty(transform.contenxtPanel, document, nodes, Property.get(nodes.at(0), "model.rotation"));
+        this.appendProperty(transform.contenxtPanel, document, nodes, Property.get(nodes.at(0), "model.scale"));
     }
 
     private appendProperty(container: HTMLElement, document: IDocument, objs: any[], prop?: Property) {

@@ -2,12 +2,6 @@
 
 import { Logger } from "chili-core";
 
-export function customElement(tagName: string) {
-    return function (ctor: CustomElementConstructor) {
-        customElements.define(tagName, ctor);
-    };
-}
-
 export interface DomEvent<K extends keyof HTMLElementEventMap> {
     id: string;
     type: K;

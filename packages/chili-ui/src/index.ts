@@ -11,5 +11,6 @@ export * from "./ribbon/titlebar";
 export * from "./sidebar";
 export * from "./statusbar";
 export * from "./tab";
+export * from "./tree";
 export * from "./ui/ui";
 export * from "./viewport";

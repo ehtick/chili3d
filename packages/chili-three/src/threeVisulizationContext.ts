@@ -7,11 +7,12 @@ import {
     IVisualizationShape,
     LineType,
     GeometryModel,
-    Model,
     PubSub,
     RenderData,
     ShapeType,
     Transform,
+    INode,
+    IModel,
 } from "chili-core";
 import {
     BufferGeometry,
@@ -34,8 +35,8 @@ import {
 import { ThreeShape } from "./threeShape";
 
 export interface ModelInfo {
-    model: Model;
-    parent: Model | IDocument | undefined;
+    model: IModel;
+    parent: IModel | IDocument | undefined;
 }
 
 export class ThreeVisulizationContext implements IVisualizationContext {
@@ -48,15 +49,16 @@ export class ThreeVisulizationContext implements IVisualizationContext {
         this.tempShapes = new Group();
         this.hilightedShapes = new Group();
         scene.add(this.modelShapes, this.tempShapes, this.hilightedShapes);
-        PubSub.default.sub("modelAdded", this.handleAddModel);
-        PubSub.default.sub("modelRemoved", this.handleRemoveModel);
+        PubSub.default.sub("nodeAdded", this.handleAddModel);
+        PubSub.default.sub("nodeRemoved", this.handleRemoveModel);
         PubSub.default.sub("modelUpdate", this.handleModelUpdate);
         PubSub.default.sub("visibleChanged", this.handleVisibleChanged);
+        PubSub.default.sub("parentVisibleChanged", this.handleVisibleChanged);
     }
 
-    handleModelUpdate = (model: Model) => {
-        this.removeModel(model);
-        this.addModel(model);
+    handleModelUpdate = (model: IModel) => {
+        this.removeModel([model]);
+        this.addModel([model]);
     };
 
     hilighted(shape: IShape) {
@@ -76,7 +78,7 @@ export class ThreeVisulizationContext implements IVisualizationContext {
         return this.modelShapes.children.length;
     }
 
-    getShape(model: Model): IVisualizationShape | undefined {
+    getShape(model: IModel): IVisualizationShape | undefined {
         return this.modelShapes.getObjectByName(model.id) as ThreeShape;
     }
 
@@ -126,23 +128,24 @@ export class ThreeVisulizationContext implements IVisualizationContext {
         this.tempShapes.remove(shape);
     }
 
-    handleAddModel = (document: IDocument, model: Model) => {
-        this.addModel(model);
+    handleAddModel = (document: IDocument, nodes: INode[]) => {
+        this.addModel(nodes.map((x) => x as IModel).filter((x) => x.position !== undefined));
     };
 
-    handleRemoveModel = (document: IDocument, ...models: Model[]) => {
-        this.removeModel(...models);
+    handleRemoveModel = (document: IDocument, nodes: INode[]) => {
+        this.removeModel(nodes.map((x) => x as IModel).filter((x) => x.position !== undefined));
     };
 
-    private handleVisibleChanged = (model: Model) => {
+    private handleVisibleChanged = (model: IModel) => {
         let shape = this.getShape(model);
-        if (shape === undefined || shape.visible === model.visible) return;
-        shape.visible = model.visible;
+        let visible = model.visible && model.parentVisible;
+        if (shape === undefined || shape.visible === visible) return;
+        shape.visible = visible;
     };
 
-    addModel(...models: Model[]) {
+    addModel(models: IModel[]) {
         models.forEach((model) => {
-            if (Model.isGroup(model)) {
+            if (INode.isModelGroup(model)) {
                 let childGroup = new Group();
                 childGroup.name = model.id;
                 this.modelShapes.add(childGroup);
@@ -165,7 +168,7 @@ export class ThreeVisulizationContext implements IVisualizationContext {
         return new Matrix4().fromArray(transform.toArray());
     }
 
-    private handleTransformChanged = (model: Model, property: keyof Model) => {
+    private handleTransformChanged = (model: IModel, property: keyof IModel) => {
         let shape = this.modelShapes.getObjectByName(model.id);
         if (shape === undefined) return;
         if (property === "position") {
@@ -180,7 +183,7 @@ export class ThreeVisulizationContext implements IVisualizationContext {
         }
     };
 
-    removeModel(...models: Model[]) {
+    removeModel(models: IModel[]) {
         models.forEach((model) => {
             let obj = this.modelShapes.getObjectByName(model.id);
             if (obj === undefined) return;
