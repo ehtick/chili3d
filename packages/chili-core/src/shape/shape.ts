@@ -2,36 +2,10 @@
 
 import { Result } from "../foundation";
 import { Matrix4, Plane, Ray, XYZ } from "../math";
-import { ITrimmedCurve } from "./curve";
+import { ICurve, ITrimmedCurve } from "./curve";
 import { IShapeMeshData } from "./meshData";
 import { ShapeType } from "./shapeType";
-
-export enum CurveType {
-    Line,
-    Circle,
-    Ellipse,
-    Hyperbola,
-    Parabola,
-    BezierCurve,
-    BSplineCurve,
-    OffsetCurve,
-    OtherCurve,
-    TrimmedCurve,
-}
-
-export enum SurfaceType {
-    Plane,
-    Cylinder,
-    Cone,
-    Sphere,
-    Torus,
-    BezierSurface,
-    BSplineSurface,
-    SurfaceOfRevolution,
-    SurfaceOfExtrusion,
-    OffsetSurface,
-    OtherSurface,
-}
+import { ISurface } from "./surface";
 
 export enum Orientation {
     FORWARD,
@@ -45,6 +19,8 @@ export interface IShape {
     get id(): string;
     get mesh(): IShapeMeshData;
     matrix: Matrix4;
+    isClosed(): boolean;
+    isEmpty(): boolean;
     /**
      * they share the same TShape with the same Locations and Orientations.
      */
@@ -70,10 +46,12 @@ export interface IShape {
 export interface IVertex extends IShape {}
 
 export interface IEdge extends IShape {
+    update(curve: ICurve): void;
     intersect(other: IEdge | Ray): XYZ[];
     length(): number;
-    asCurve(): ITrimmedCurve;
+    curve(): ITrimmedCurve;
     offset(distance: number, dir: XYZ): Result<IEdge>;
+    trim(start: number, end: number): IEdge;
 }
 
 export enum JoinType {
@@ -90,6 +68,13 @@ export interface IWire extends IShape {
 export interface IFace extends IShape {
     normal(u: number, v: number): [point: XYZ, normal: XYZ];
     outerWire(): IWire;
+    surface(): ISurface;
+    segmentsOfEdgeOnFace(edge: IEdge):
+        | undefined
+        | {
+              start: number;
+              end: number;
+          };
 }
 
 export interface IShell extends IShape {}

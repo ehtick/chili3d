@@ -24,11 +24,19 @@ export const DefaultRibbon: RibbonTabProfile[] = [
                     "create.bezier",
                     "create.polygon",
                     "create.box",
+                    "create.thickSolid",
                 ],
             },
             {
                 groupName: "ribbon.group.modify",
-                items: ["modify.move", "modify.rotate", "modify.mirror", "create.offset", "modify.delete"],
+                items: [
+                    "modify.move",
+                    "modify.rotate",
+                    "modify.mirror",
+                    "create.offset",
+                    "modify.delete",
+                    "modify.break",
+                ],
             },
             {
                 groupName: "ribbon.group.converter",

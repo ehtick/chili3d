@@ -1,5 +1,6 @@
 import {
     I18nKeys,
+    ICurve,
     IDocument,
     IEdge,
     IFace,
@@ -24,6 +25,18 @@ export class TestEdge implements IEdge {
         readonly start: XYZ,
         readonly end: XYZ,
     ) {}
+    update(curve: ICurve): void {
+        throw new Error("Method not implemented.");
+    }
+    trim(start: number, end: number): IEdge {
+        throw new Error("Method not implemented.");
+    }
+    isClosed(): boolean {
+        throw new Error("Method not implemented.");
+    }
+    isEmpty(): boolean {
+        throw new Error("Method not implemented.");
+    }
     section(shape: IShape | Plane): IShape {
         throw new Error("Method not implemented.");
     }
@@ -58,7 +71,7 @@ export class TestEdge implements IEdge {
     length(): number {
         return this.start.distanceTo(this.end);
     }
-    asCurve(): ITrimmedCurve {
+    curve(): ITrimmedCurve {
         throw new Error("Method not implemented.");
     }
     get id(): string {

@@ -1,7 +1,21 @@
 // Copyright 2022-2023 the Chili authors. All rights reserved. AGPL-3.0 license.
 
-import { XYZ } from "../math";
-import { CurveType } from "./shape";
+import { Ray, XYZ } from "../math";
+import { IGeometry } from "./geometry";
+import { IEdge } from "./shape";
+
+export enum CurveType {
+    Line,
+    Circle,
+    Ellipse,
+    Hyperbola,
+    Parabola,
+    BezierCurve,
+    BSplineCurve,
+    OffsetCurve,
+    OtherCurve,
+    TrimmedCurve,
+}
 
 export enum Continuity {
     C0,
@@ -13,25 +27,45 @@ export enum Continuity {
     CN,
 }
 
-export interface ICurve {
+export interface ICurve extends IGeometry {
     get curveType(): CurveType;
-    parameter(point: XYZ): number;
+    uniformAbscissaByLength(length: number): XYZ[];
+    uniformAbscissaByCount(curveCount: number): XYZ[];
+    length(): number;
+    parameter(point: XYZ, tolerance: number): number | undefined;
     firstParameter(): number;
     lastParameter(): number;
     project(point: XYZ): XYZ[];
     value(parameter: number): XYZ;
     isCN(n: number): boolean;
+    trim(u1: number, u2: number): ITrimmedCurve;
     d0(u: number): XYZ;
     d1(u: number): { point: XYZ; vec: XYZ };
     d2(u: number): { point: XYZ; vec1: XYZ; vec2: XYZ };
     d3(u: number): { point: XYZ; vec1: XYZ; vec2: XYZ; vec3: XYZ };
     dn(u: number, n: number): XYZ;
+    reverse(): void;
     reversed(): ICurve;
-    nearestPoint(point: XYZ): XYZ;
+    nearestFromPoint(point: XYZ): {
+        point: XYZ;
+        parameter: number;
+        distance: number;
+    };
+    nearestExtrema(curve: ICurve | Ray):
+        | undefined
+        | {
+              isParallel: boolean;
+              distance: number;
+              p1: XYZ;
+              p2: XYZ;
+              u1: number;
+              u2: number;
+          };
     isClosed(): boolean;
     period(): number;
     isPeriodic(): boolean;
     continutity(): Continuity;
+    makeEdge(): IEdge;
 }
 
 export interface ILine extends ICurve {
@@ -106,6 +140,7 @@ export interface IBSplineCurve extends IBoundedCurve {
 
 export interface ITrimmedCurve extends IBoundedCurve {
     basisCurve(): ICurve;
+    setTrim(u1: number, u2: number): void;
 }
 
 export interface IOffsetCurve extends ICurve {

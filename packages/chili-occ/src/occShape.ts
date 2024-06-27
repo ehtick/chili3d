@@ -3,12 +3,14 @@
 import {
     ICompound,
     ICompoundSolid,
+    ICurve,
     IEdge,
     IFace,
     IShape,
     IShapeMeshData,
     IShell,
     ISolid,
+    ISurface,
     ITrimmedCurve,
     IVertex,
     IWire,
@@ -22,14 +24,16 @@ import {
     SerializedProperties,
     Serializer,
     ShapeType,
+    SurfaceType,
     XYZ,
 } from "chili-core";
 import { TopoDS_Edge, TopoDS_Face, TopoDS_Shape, TopoDS_Vertex, TopoDS_Wire } from "../occ-wasm/chili_occ";
 
 import { OccShapeConverter } from "./occConverter";
-import { OccTrimmedCurve } from "./occGeometry";
+import { OccCurve, OccTrimmedCurve } from "./occCurve";
 import { OccHelps } from "./occHelps";
 import { OccMesh } from "./occMesh";
+import { OccSurface } from "./occSurface";
 
 @Serializer.register("Shape", ["shape", "id"], OccShape.deserialize, OccShape.serialize)
 export class OccShape implements IShape {
@@ -40,12 +44,12 @@ export class OccShape implements IShape {
         return this._id;
     }
 
-    private _shape: TopoDS_Shape;
+    protected _shape: TopoDS_Shape;
     get shape() {
         return this._shape;
     }
 
-    private _mesh: IShapeMeshData | undefined;
+    protected _mesh: IShapeMeshData | undefined;
     get mesh(): IShapeMeshData {
         if (this._mesh === undefined) {
             this._mesh = new OccMesh(this);
@@ -57,6 +61,13 @@ export class OccShape implements IShape {
         this._id = id ?? Id.generate();
         this._shape = shape;
         this.shapeType = OccHelps.getShapeType(shape);
+    }
+    isEmpty(): boolean {
+        return occ.BOPTools_AlgoTools3D.IsEmptyShape(this.shape);
+    }
+
+    isClosed(): boolean {
+        return occ.BRep_Tool.IsClosed_1(this.shape);
     }
 
     section(shape: IShape | Plane): IShape {
@@ -193,6 +204,24 @@ export class OccEdge extends OccShape implements IEdge {
         super(shape, id);
     }
 
+    update(curve: ICurve) {
+        if (!(curve instanceof OccCurve)) {
+            throw new Error("Invalid curve");
+        }
+        let builder = new occ.BRepBuilderAPI_MakeEdge_24(new occ.Handle_Geom_Curve_2(curve.curve));
+        this._shape = builder.Edge();
+        this._mesh = undefined;
+    }
+
+    trim(start: number, end: number): IEdge {
+        let s: any = { current: 0 };
+        let e: any = { current: 0 };
+        let curve = occ.BRep_Tool.Curve_2(this.shape, s, e);
+
+        let edge = new occ.BRepBuilderAPI_MakeEdge_25(curve, start, end);
+        return new OccEdge(edge.Edge());
+    }
+
     intersect(other: IEdge | Ray): XYZ[] {
         if (other instanceof Ray) {
             let start = OccHelps.toPnt(other.location);
@@ -241,7 +270,7 @@ export class OccEdge extends OccShape implements IEdge {
         return Result.ok(new OccEdge(edge.Edge()));
     }
 
-    asCurve(): ITrimmedCurve {
+    curve(): ITrimmedCurve {
         let s: any = { current: 0 };
         let e: any = { current: 0 };
         let curve = occ.BRep_Tool.Curve_2(this.shape, s, e);
@@ -286,6 +315,21 @@ export class OccFace extends OccShape implements IFace {
         super(shape, id);
     }
 
+    segmentsOfEdgeOnFace(edge: IEdge): { start: number; end: number } | undefined {
+        let first: any = { current: 0 };
+        let last: any = { current: 0 };
+        if (
+            occ.BRep_Tool.CurveOnSurface_1(this.shape, (edge as OccEdge).shape, first, last, false).IsNull()
+        ) {
+            return undefined;
+        }
+
+        return {
+            start: first.current,
+            end: last.current,
+        };
+    }
+
     normal(u: number, v: number): [point: XYZ, normal: XYZ] {
         let pnt = new occ.gp_Pnt_1();
         let dir = new occ.gp_Vec_1();
@@ -297,6 +341,23 @@ export class OccFace extends OccShape implements IFace {
     outerWire(): IWire {
         let wire = occ.ShapeAnalysis.OuterWire(this.shape);
         return new OccWire(wire);
+    }
+
+    update(surface: ISurface) {
+        if (!(surface instanceof OccSurface)) {
+            return Result.err("Invalid surface");
+        }
+        let builder = new occ.BRepBuilderAPI_MakeFace_8(
+            new occ.Handle_Geom_Surface_2(surface.surface),
+            1e-3,
+        );
+        this._shape = builder.Face();
+        this._mesh = undefined;
+    }
+
+    surface(): ISurface {
+        let surface = occ.BRep_Tool.Surface_2(this.shape);
+        return OccHelps.wrapSurface(surface.get());
     }
 }
 
