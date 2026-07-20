@@ -9,7 +9,7 @@ import {
     CommandStore,
     I18n,
     type I18nKeys,
-    type ICanclableCommand,
+    type ICancelableCommand,
     type ICommand,
     type IDisposable,
     isCancelableCommand,
@@ -163,7 +163,7 @@ export class CommandContext extends HTMLElement implements IDisposable {
     private initContext() {
         const groupMap = new Map<I18nKeys, HTMLDivElement>();
         const isCancelable = isCancelableCommand(this.command);
-        const cancleProp: keyof ICanclableCommand = "cancel";
+        const cancleProp: keyof ICancelableCommand = "cancel";
 
         PropertyUtils.getProperties(this.command).forEach((property) => {
             if (isCancelable && property.name === cancleProp) return;

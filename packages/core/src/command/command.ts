@@ -9,15 +9,15 @@ export interface ICommand {
     execute(application: IApplication): Promise<void>;
 }
 
-export interface ICanclableCommand extends ICommand, IDisposable {
+export interface ICancelableCommand extends ICommand, IDisposable {
     cancel(): Promise<void>;
 }
 
-export function isCancelableCommand(command: ICommand): command is ICanclableCommand {
+export function isCancelableCommand(command: ICommand): command is ICancelableCommand {
     return "cancel" in command;
 }
 
-export abstract class CancelableCommand extends Observable implements ICanclableCommand {
+export abstract class CancelableCommand extends Observable implements ICancelableCommand {
     private static readonly _propertiesCache: Map<string, any> = new Map();
     protected readonly disposeStack: Set<IDisposable> = new Set();
 

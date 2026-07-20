@@ -5,7 +5,7 @@ import {
     type AsyncController,
     CancelableCommand,
     type IApplication,
-    type ICanclableCommand,
+    type ICancelableCommand,
     type ICommand,
     type IDisposable,
     type IDocument,
@@ -77,11 +77,11 @@ describe("Command System", () => {
         });
     });
 
-    describe("ICanclableCommand interface", () => {
-        test("should define ICanclableCommand interface correctly", () => {
+    describe("ICancelableCommand interface", () => {
+        test("should define ICancelableCommand interface correctly", () => {
             let cancelCalled = false;
             let disposeCalled = false;
-            const mockCancelableCommand: ICanclableCommand = {
+            const mockCancelableCommand: ICancelableCommand = {
                 execute: async () => {},
                 cancel: async () => {
                     cancelCalled = true;
@@ -104,7 +104,7 @@ describe("Command System", () => {
                 execute: async () => {},
             };
 
-            const mockCancelableCommand: ICanclableCommand = {
+            const mockCancelableCommand: ICancelableCommand = {
                 execute: async () => {},
                 cancel: async () => {},
                 dispose: () => {},
