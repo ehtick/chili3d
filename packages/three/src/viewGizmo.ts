@@ -170,6 +170,7 @@ export class ViewGizmo extends HTMLElement implements IViewGizmo {
     private readonly _onPointerDown = (e: PointerEvent) => {
         e.stopPropagation();
         this._canvas.setPointerCapture(e.pointerId);
+        this.cameraController.setRotateCenterToSelected();
     };
 
     private readonly _onPointerUp = (e: PointerEvent) => {

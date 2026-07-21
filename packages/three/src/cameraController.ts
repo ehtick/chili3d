@@ -159,6 +159,20 @@ export class CameraController extends Observable implements ICameraController {
     }
 
     startRotate(x: number, y: number): void {
+        this._rotateCenter = this.selectedNodesCenter();
+        if (this._rotateCenter) {
+            return;
+        }
+
+        const shape = this.view.detectVisual(x, y).at(0);
+        if (shape instanceof ThreeVisualObject) {
+            const box = new Box3();
+            box.setFromObject(shape);
+            this._rotateCenter = box.getCenter(new Vector3());
+        }
+    }
+
+    private selectedNodesCenter() {
         const box = new Box3();
         const nodes = this.view.document.selection.getSelectedNodes();
         if (nodes.length > 0) {
@@ -168,18 +182,13 @@ export class CameraController extends Observable implements ICameraController {
                     box.expandByObject(shape);
                 }
             }
-            this._rotateCenter = box.getCenter(new Vector3());
-            return;
+            return box.getCenter(new Vector3());
         }
+        return undefined;
+    }
 
-        const shape = this.view.detectVisual(x, y).at(0);
-        if (shape instanceof ThreeVisualObject) {
-            box.setFromObject(shape);
-            this._rotateCenter = box.getCenter(new Vector3());
-            return;
-        }
-
-        this._rotateCenter = undefined;
+    setRotateCenterToSelected() {
+        this._rotateCenter = this.selectedNodesCenter();
     }
 
     rotate(dx: number, dy: number): void {
