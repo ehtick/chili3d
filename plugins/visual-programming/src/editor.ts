@@ -1,7 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { I18n, type I18nKeys, type IDocument, Localize, PubSub } from "@chili3d/core";
+import { I18n, type I18nKeys, type IDocument, isDisposable, Localize, PubSub } from "@chili3d/core";
 import { button, div, label, span, svg } from "@chili3d/element";
 import { type LitArea2D, LitPlugin, Presets } from "@retejs/lit-plugin";
 import { html } from "lit";
@@ -89,18 +89,10 @@ export class Editor implements INodeEditor {
     private deleteSelectedNodes() {
         if (!this.selector) return;
 
-        const selectedEntities = Array.from(this.selector.entities.values());
-        const selectedNodeIds = new Set(selectedEntities.filter((e) => e.label === "node").map((e) => e.id));
-        if (selectedNodeIds.size === 0) return;
-
-        const connections = this.editor.getConnections();
-        for (const conn of connections) {
-            if (selectedNodeIds.has(conn.source) || selectedNodeIds.has(conn.target)) {
-                this.editor.removeConnection(conn.id);
-            }
-        }
-        for (const nodeId of selectedNodeIds) {
-            this.editor.removeNode(nodeId);
+        const selectedEntries = this.selector.entities.values().filter((e) => e.label === "node");
+        for (const entry of selectedEntries) {
+            const node = this.editor.getNode(entry.id);
+            if (node) this.removeNode(node);
         }
 
         this.selector.unselectAll();
@@ -343,15 +335,7 @@ export class Editor implements INodeEditor {
                 items.push({
                     label: "Delete",
                     key: "delete",
-                    handler: () => {
-                        const connections = this.editor
-                            .getConnections()
-                            .filter((c) => c.source === node.id || c.target === node.id);
-                        for (const conn of connections) {
-                            this.editor.removeConnection(conn.id);
-                        }
-                        this.editor.removeNode(node.id);
-                    },
+                    handler: () => this.removeNode(node),
                 });
                 return { searchBar: false, list: items };
             },
@@ -359,6 +343,19 @@ export class Editor implements INodeEditor {
         render.addPreset(Presets.contextMenu.setup());
         this.area.use(contextMenu);
     }
+
+    private readonly removeNode = (node: Schemes["Node"]) => {
+        const connections = this.editor
+            .getConnections()
+            .filter((c) => c.source === node.id || c.target === node.id);
+        for (const conn of connections) {
+            this.editor.removeConnection(conn.id);
+        }
+        this.editor.removeNode(node.id);
+
+        if (isDisposable(node)) node.dispose();
+        this.document.visual.update();
+    };
 
     private initArrange() {
         const arrange = new AutoArrangePlugin();
@@ -369,5 +366,9 @@ export class Editor implements INodeEditor {
         this.view.removeEventListener("click", this.handleViewClick);
         this.view.removeEventListener("mousemove", this.handleViewMouseMove);
         this.area.destroy();
+        this.editor.getNodes().forEach((n) => {
+            if (isDisposable(n)) n.dispose();
+        });
+        this.document.visual.update();
     }
 }

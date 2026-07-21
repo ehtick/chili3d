@@ -28,6 +28,7 @@ export abstract class GeometryBaseNode<
     implements IDisposable
 {
     protected visualId?: number;
+    private isDisposabled = false;
 
     private _visibility = true;
     get visibility() {
@@ -58,7 +59,10 @@ export abstract class GeometryBaseNode<
     }
 
     dispose(): void {
-        this.removeVisual();
+        if (!this.isDisposabled) {
+            this.removeVisual();
+            this.isDisposabled = true;
+        }
     }
 
     mesh(inputs: IShape[]): (VertexMeshData | EdgeMeshData | FaceMeshData)[] {
@@ -77,7 +81,7 @@ export abstract class GeometryBaseNode<
     updateVisual(inputs: IShape | IShape[]) {
         this.removeVisual();
 
-        if (this._visibility) {
+        if (this._visibility && !this.isDisposabled) {
             const shapes = flatTree(inputs);
             const mesh = this.mesh(shapes);
 
@@ -89,10 +93,10 @@ export abstract class GeometryBaseNode<
         }
     }
 
-    private removeVisual() {
+    private readonly removeVisual = () => {
         if (this.visualId) {
             this.editor.document.visual.context.removeMesh(this.visualId);
             this.visualId = undefined;
         }
-    }
+    };
 }
