@@ -173,12 +173,14 @@ export class ShapeFactory implements IShapeFactory {
         );
     }
 
-    replaceSubShape(shape: IShape, subShape: IShape, newSubShape: IShape): Result<IShape> {
-        const [occShape, occSubShape, occNewSubShape] = ensureOccShape([shape, subShape, newSubShape]);
+    replaceSubShapes(shape: IShape, oldSubShapes: IShape[], newSubShapes: IShape[]): Result<IShape> {
+        const occShape = ensureOccShape(shape);
+        const occOld = ensureOccShape(oldSubShapes);
+        const occNew = ensureOccShape(newSubShapes);
         return convertShapeResult(
-            wasm.ShapeFactory.replaceSubShape,
-            [occShape, occSubShape, occNewSubShape],
-            "Replace SubShape Error",
+            wasm.ShapeFactory.replaceSubShapes,
+            [occShape[0], occOld, occNew],
+            "Replace SubShapes Error",
         );
     }
 

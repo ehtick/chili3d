@@ -61,7 +61,7 @@ export interface IShapeFactory {
         newEdges: IEdge[];
     }>;
     removeSubShape(shape: IShape, subShapes: IShape[]): Result<IShape>;
-    replaceSubShape(shape: IShape, subShape: IShape, newSubShape: IShape): Result<IShape>;
+    replaceSubShapes(shape: IShape, oldSubShapes: IShape[], newSubShapes: IShape[]): Result<IShape>;
     curveProjection(curve: IEdge | IWire, targetFace: IFace, vec: XYZ): Result<IShape>;
     simplifyShape(
         shape: IShape,

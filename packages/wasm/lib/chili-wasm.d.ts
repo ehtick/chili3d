@@ -613,7 +613,6 @@ interface EmbindModule {
     fixSmallFace(_0: TopoDS_Shape, _1: number): ShapeResult;
     fixSolid(_0: TopoDS_Shape, _1: number): ShapeResult;
     curveProjection(_0: TopoDS_Shape, _1: TopoDS_Shape, _2: gp_Dir): ShapeResult;
-    replaceSubShape(_0: TopoDS_Shape, _1: TopoDS_Shape, _2: TopoDS_Shape): ShapeResult;
     sewing(_0: TopoDS_Shape, _1: TopoDS_Shape): ShapeResult;
     polygon(_0: Array<Vector3>): ShapeResult;
     bezier(_0: Array<Vector3>, _1: Array<number>): ShapeResult;
@@ -630,6 +629,7 @@ interface EmbindModule {
     removeFeature(_0: TopoDS_Shape, _1: Array<TopoDS_Shape>): ShapeResult;
     removeFillet(_0: TopoDS_Shape, _1: Array<TopoDS_Shape>): RemoveFilletResult;
     removeSubShape(_0: TopoDS_Shape, _1: Array<TopoDS_Shape>): ShapeResult;
+    replaceSubShapes(_0: TopoDS_Shape, _1: Array<TopoDS_Shape>, _2: Array<TopoDS_Shape>): ShapeResult;
     wire(_0: Array<TopoDS_Edge>): ShapeResult;
     shell(_0: Array<TopoDS_Face>): ShapeResult;
     face(_0: Array<TopoDS_Wire>): ShapeResult;

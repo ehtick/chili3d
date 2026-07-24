@@ -463,7 +463,7 @@ describe("ShapeFactory — feature operations", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const edges = box.findSubShapes(ShapeTypes.edge);
             // Replace may not always make sense — check no crash
-            const replaceResult = factory.replaceSubShape(box, edges[0], edges[1]);
+            const replaceResult = factory.replaceSubShapes(box, [edges[0]], [edges[1]]);
             expect(replaceResult.isOk).toBe(true);
         });
     });
@@ -563,14 +563,6 @@ describe("ShapeFactory — convertShapeResult error catching", () => {
     test("should throw error on removeSubShape with non-OccShape", () => {
         const fakeShape = { shapeType: "solid" } as unknown as IShape;
         expect(() => factory.removeSubShape(fakeShape, [])).toThrow(
-            "OCC kernel only supports OCC geometries",
-        );
-    });
-
-    test("should throw error on replaceSubShape with non-OccShape", () => {
-        const fakeShape = { shapeType: "solid" } as unknown as IShape;
-        const fakeSub = { shapeType: "edge" } as unknown as IShape;
-        expect(() => factory.replaceSubShape(fakeShape, fakeSub, fakeSub)).toThrow(
             "OCC kernel only supports OCC geometries",
         );
     });

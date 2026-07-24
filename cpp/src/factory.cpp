@@ -727,22 +727,21 @@ public:
             }
         }
 
-        ShapeFix_Shape fixer(reShape.Apply(source));
-        fixer.Perform();
-
-        return ShapeResult { fixer.Shape(), true, "" };
+        return ShapeResult { reShape.Apply(source), true, "" };
     }
 
-    static ShapeResult replaceSubShape(const TopoDS_Shape& shape, const TopoDS_Shape& subShape,
-        const TopoDS_Shape& newShape)
+    static ShapeResult replaceSubShapes(const TopoDS_Shape& shape,
+        const ShapeArray& oldShapes, const ShapeArray& newShapes)
     {
+        NCollection_Sequence<TopoDS_Shape> oldSeq = shapeArrayToSequenceOfShape(oldShapes);
+        NCollection_Sequence<TopoDS_Shape> newSeq = shapeArrayToSequenceOfShape(newShapes);
+
         BRepTools_ReShape reShape;
-        reShape.Replace(subShape, newShape);
+        for (int i = 1; i <= oldSeq.Length() && i <= newSeq.Length(); i++) {
+            reShape.Replace(oldSeq.Value(i), newSeq.Value(i));
+        }
 
-        ShapeFix_Shape fixer(reShape.Apply(shape));
-        fixer.Perform();
-
-        return ShapeResult { fixer.Shape(), true, "" };
+        return ShapeResult { reShape.Apply(shape), true, "" };
     }
 
     static ShapeResult sewing(const TopoDS_Shape& shape1, const TopoDS_Shape& shape2)
@@ -809,6 +808,6 @@ EMSCRIPTEN_BINDINGS(ShapeFactory)
         .class_function("removeFeature", &ShapeFactory::removeFeature)
         .class_function("removeFillet", &ShapeFactory::removeFillet)
         .class_function("removeSubShape", &ShapeFactory::removeSubShape)
-        .class_function("replaceSubShape", &ShapeFactory::replaceSubShape)
+        .class_function("replaceSubShapes", &ShapeFactory::replaceSubShapes)
         .class_function("sewing", &ShapeFactory::sewing);
 }
