@@ -19,7 +19,7 @@ export abstract class SnapEventHandler<D extends SnapData = SnapData> implements
     protected _snaped?: SnapResult;
     private _state: SnapState = "idle";
 
-    facePreviewOpion: MeshOption = { meshOpacity: 0.5 };
+    facePreviewOpion: MeshOption = { meshOpacity: 1 };
     isEnabled: boolean = true;
 
     constructor(
