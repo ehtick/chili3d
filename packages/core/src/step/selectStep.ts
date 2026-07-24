@@ -6,7 +6,7 @@ import type { AsyncController } from "../foundation";
 import type { I18nKeys } from "../i18n";
 import type { ShapeNode } from "../model";
 import type { INodeFilter, IShapeFilter } from "../selectionFilter";
-import type { ShapeType } from "../shape";
+import { ShapeTypes, ShapeTypeUtils, type ShapeType } from "../shape";
 import type { SnapResult } from "../snap";
 import type { VisualState } from "../visual";
 import type { IStep } from "./step";
@@ -72,7 +72,7 @@ export class SelectShapeStep extends SelectStep {
 export class GetOrSelectShapeStep extends SelectShapeStep {
     override execute(document: IDocument, controller: AsyncController): Promise<SnapResult | undefined> {
         const shapes = document.selection.getSelectedShapes().filter((x) => {
-            let isValid = x.shape.shapeType === this.snapeType;
+            let isValid = ShapeTypeUtils.contains(this.snapeType, x.shape.shapeType);
             if (this.options?.shapeFilter?.allow) {
                 isValid &&= this.options.shapeFilter.allow(x.shape, x.transform);
             }

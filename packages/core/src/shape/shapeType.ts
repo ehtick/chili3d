@@ -50,6 +50,10 @@ export class ShapeTypeUtils {
         }
     }
 
+    public static contains(type: ShapeType, target: ShapeType) {
+        return (type & target) !== 0;
+    }
+
     public static hasCompound(type: ShapeType): boolean {
         return (type & ShapeTypes.compound) !== 0;
     }
