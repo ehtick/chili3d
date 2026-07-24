@@ -498,7 +498,7 @@ describe("ShapeFactory — advanced operations", () => {
             // Sewing is complex — just check the method exists and doesn't crash
             const box1 = factory.box(plane, 10, 10, 10).value;
             const box2 = factory.box(shiftedPlane, 10, 10, 10).value;
-            const sewResult = factory.sewing(box1, box2);
+            const sewResult = factory.sewing([box1, box2]);
             expect(sewResult.isOk).toBe(true);
         });
     });

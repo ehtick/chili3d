@@ -412,9 +412,9 @@ export class ShapeFactory implements IShapeFactory {
             "SimplifyShape Error",
         );
     }
-    sewing(shape1: IShape, shape2: IShape): Result<IShape> {
-        const [occShape1, occShape2] = ensureOccShape([shape1, shape2]);
-        return convertShapeResult(wasm.ShapeFactory.sewing, [occShape1, occShape2], "Sewing Error");
+    sewing(shapes: IShape[]): Result<IShape> {
+        const occShapes = ensureOccShape(shapes);
+        return convertShapeResult(wasm.ShapeFactory.sewing, [occShapes], "Sewing Error");
     }
     combine(shapes: IShape[]): Result<ICompound> {
         return convertShapeResult(

@@ -20,6 +20,7 @@
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepFeat_MakePrism.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
@@ -744,14 +745,27 @@ public:
         return ShapeResult { reShape.Apply(shape), true, "" };
     }
 
-    static ShapeResult sewing(const TopoDS_Shape& shape1, const TopoDS_Shape& shape2)
+    static ShapeResult sewing(const ShapeArray& shapes)
     {
-        BRepBuilderAPI_Sewing sewing;
-        sewing.Add(shape1);
-        sewing.Add(shape2);
+        std::vector<TopoDS_Shape> shapeVector = emscripten::vecFromJSArray<TopoDS_Shape>(shapes);
 
+        BRepBuilderAPI_Sewing sewing;
+        for (auto& shape : shapeVector) {
+            sewing.Add(shape);
+        }
         sewing.Perform();
-        return ShapeResult { sewing.SewedShape(), true, "" };
+
+        TopoDS_Shape result = sewing.SewedShape();
+        if (result.ShapeType() == TopAbs_SHELL) {
+            BRepCheck_Analyzer analyzer(result);
+            if (analyzer.IsValid()) {
+                BRepBuilderAPI_MakeSolid mkSolid(TopoDS::Shell(result));
+                if (mkSolid.IsDone())
+                    result = mkSolid.Solid();
+            }
+        }
+
+        return ShapeResult { result, true, "" };
     }
 };
 
