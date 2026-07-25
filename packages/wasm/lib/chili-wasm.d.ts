@@ -633,6 +633,7 @@ interface EmbindModule {
     wire(_0: Array<TopoDS_Edge>): ShapeResult;
     shell(_0: Array<TopoDS_Face>): ShapeResult;
     face(_0: Array<TopoDS_Wire>): ShapeResult;
+    faceFromSurface(_0: Array<TopoDS_Wire>, _1: TopoDS_Face): ShapeResult;
     solid(_0: Array<TopoDS_Shell>): ShapeResult;
     cone(_0: Vector3, _1: Vector3, _2: number, _3: number, _4: number): ShapeResult;
     sphere(_0: Vector3, _1: number): ShapeResult;

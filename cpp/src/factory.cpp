@@ -24,6 +24,7 @@
 #include <BRepFeat_MakePrism.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
+#include <BRepLib.hxx>
 #include <BRepOffsetAPI_MakePipe.hxx>
 #include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
@@ -39,9 +40,11 @@
 #include <Geom_BezierCurve.hxx>
 #include <ShapeAnalysis_Edge.hxx>
 #include <ShapeAnalysis_WireOrder.hxx>
+#include <ShapeFix_Face.hxx>
 #include <ShapeFix_FixSmallFace.hxx>
 #include <ShapeFix_Shape.hxx>
 #include <ShapeFix_Solid.hxx>
+#include <ShapeFix_Wire.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -427,6 +430,38 @@ public:
         return ShapeResult { faceFix.Face(), true, "" };
     }
 
+    static ShapeResult faceFromSurface(const WireArray& wires, const TopoDS_Face& sourceFace)
+    {
+        std::vector<TopoDS_Wire> wiresVec = vecFromJSArray<TopoDS_Wire>(wires);
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(sourceFace);
+        for (auto& w : wiresVec) {
+            ShapeFix_Wire sfw(w, sourceFace, Precision::Confusion());
+            sfw.FixReorder();
+            sfw.FixConnected();
+            sfw.Perform();
+            w = sfw.Wire();
+        }
+
+        BRepBuilderAPI_MakeFace makeFace(surface, wiresVec[0]);
+        for (int i = 1; i < wiresVec.size(); i++) {
+            makeFace.Add(wiresVec[i]);
+        }
+        if (!makeFace.IsDone()) {
+            return ShapeResult { TopoDS_Shape(), false, "Failed to create face from surface" };
+        }
+
+        TopoDS_Face result = makeFace.Face();
+
+        // Rebuild pcurves on the new face — missing pcurves cause mesh defects.
+        BRepLib::BuildCurves3d(result, Precision::Confusion());
+
+        ShapeFix_Face faceFix(result);
+        faceFix.FixOrientation();
+        faceFix.Perform();
+
+        return ShapeResult { faceFix.Face(), true, "" };
+    }
+
     static ShapeResult shell(const FaceArray& faces)
     {
         std::vector<TopoDS_Face> facesVec = vecFromJSArray<TopoDS_Face>(faces);
@@ -636,6 +671,10 @@ public:
         return ShapeResult { fixer.Shape(), true, "" };
     }
 
+    static ShapeResult fixWire(const TopoDS_Wire& wire, double tolerance)
+    {
+    }
+
     static ShapeResult fixSolid(const TopoDS_Shape& shape, double tolerance)
     {
         ShapeFix_Solid fixer;
@@ -808,6 +847,7 @@ EMSCRIPTEN_BINDINGS(ShapeFactory)
         .class_function("line", &ShapeFactory::line)
         .class_function("wire", &ShapeFactory::wire)
         .class_function("face", &ShapeFactory::face)
+        .class_function("faceFromSurface", &ShapeFactory::faceFromSurface)
         .class_function("shell", &ShapeFactory::shell)
         .class_function("solid", &ShapeFactory::solid)
         .class_function("makeThickSolidBySimple", &ShapeFactory::makeThickSolidBySimple)

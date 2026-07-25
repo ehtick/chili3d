@@ -197,6 +197,24 @@ export class ShapeFactory implements IShapeFactory {
         const shapes = ensureOccShape(wire);
         return convertShapeResult(wasm.ShapeFactory.face, [shapes], "Face Error") as Result<IFace>;
     }
+    faceFromSurface(wires: IWire[], sourceFace: IFace): Result<IFace> {
+        if (wires.length === 0) {
+            return Result.err("The wire is empty.");
+        }
+        const normal = GeometryUtils.normal(wires[0]);
+        for (let i = 1; i < wires.length; i++) {
+            if (GeometryUtils.isCCW(normal, wires[i])) {
+                wires[i].reserve();
+            }
+        }
+        const shapes = ensureOccShape(wires);
+        const [occFace] = ensureOccShape(sourceFace);
+        return convertShapeResult(
+            wasm.ShapeFactory.faceFromSurface,
+            [shapes, occFace],
+            "FaceFromSurface Error",
+        ) as Result<IFace>;
+    }
     bezier(points: XYZLike[], weights?: number[]): Result<IEdge> {
         return convertShapeResult(
             wasm.ShapeFactory.bezier,

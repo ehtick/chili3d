@@ -10,6 +10,7 @@ export interface IShapeFactory {
     readonly kernelName: string;
     edge(curve: ICurve): IEdge;
     face(wire: IWire[]): Result<IFace>;
+    faceFromSurface(wires: IWire[], sourceFace: IFace): Result<IFace>;
     shell(faces: IFace[]): Result<IShell>;
     solid(shells: IShell[]): Result<ISolid>;
     bezier(points: XYZLike[], weights?: number[]): Result<IEdge>;
