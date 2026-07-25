@@ -419,7 +419,12 @@ public:
         if (!makeFace.IsDone()) {
             return ShapeResult { TopoDS_Shape(), false, "Failed to create face" };
         }
-        return ShapeResult { makeFace.Face(), true, "" };
+
+        ShapeFix_Face faceFix(makeFace.Face());
+        faceFix.FixOrientation();
+        faceFix.Perform();
+
+        return ShapeResult { faceFix.Face(), true, "" };
     }
 
     static ShapeResult shell(const FaceArray& faces)
