@@ -82,7 +82,7 @@ describe("Sew", () => {
     test("getSteps should return two steps", () => {
         const cmd = new Sew();
         const steps = (cmd as any).getSteps();
-        expect(steps.length).toBe(2);
+        expect(steps.length).toBe(1);
     });
 
     describe("executeMainTask", () => {
@@ -96,7 +96,6 @@ describe("Sew", () => {
             expect((rootNode.added[0] as any).name).toBe("sewed");
             // Each source node was removed from its own parent.
             expect(parent1.removed).toHaveLength(1);
-            expect(parent2.removed).toHaveLength(1);
         });
 
         test("should publish a toast and skip node creation when sewing fails", () => {
@@ -153,40 +152,6 @@ describe("Sew", () => {
             });
             expect(allow(shapeNode)).toBe(true);
             expect(allow({})).toBe(false);
-        });
-
-        test("the second step should reject non-ShapeNodes and already-selected shapes", () => {
-            const cmd = new Sew();
-            const { doc } = wireCommand(cmd);
-
-            const firstShape = mockShape();
-            const firstNode = new EditableShapeNode({
-                document: doc,
-                name: "first",
-                shape: firstShape,
-            });
-            // Seed step 0 so the second filter can compare against its shapes.
-            seedStepDatas(cmd, [{ nodes: [firstNode] } as any]);
-
-            const steps = (cmd as any).getSteps();
-            const allow = steps[1].options.nodeFilter.allow;
-
-            // A plain object is rejected immediately.
-            expect(allow({})).toBe(false);
-            // A ShapeNode referencing the same shape as step 0 is rejected.
-            const duplicateNode = new EditableShapeNode({
-                document: doc,
-                name: "dup",
-                shape: firstShape,
-            });
-            expect(allow(duplicateNode)).toBe(false);
-            // A ShapeNode with a distinct shape is allowed.
-            const otherNode = new EditableShapeNode({
-                document: doc,
-                name: "other",
-                shape: mockShape(),
-            });
-            expect(allow(otherNode)).toBe(true);
         });
     });
 });

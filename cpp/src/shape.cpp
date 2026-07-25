@@ -111,6 +111,9 @@ public:
         NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> map;
         TopExp::MapShapesAndAncestors(from, subShape.ShapeType(), ancestorType, map);
         auto index = map.FindIndex(subShape);
+        if (index < 1) {
+            return ShapeArray(val::array());
+        }
         auto shapes = map.FindFromIndex(index);
 
         return ShapeArray(val::array(shapes.begin(), shapes.end()));
