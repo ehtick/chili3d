@@ -6,7 +6,7 @@ import type { AsyncController } from "../foundation";
 import type { I18nKeys } from "../i18n";
 import type { ShapeNode } from "../model";
 import type { INodeFilter, IShapeFilter } from "../selectionFilter";
-import { ShapeTypes, ShapeTypeUtils, type ShapeType } from "../shape";
+import { type ShapeType, ShapeTypes, ShapeTypeUtils } from "../shape";
 import type { SnapResult } from "../snap";
 import type { VisualState } from "../visual";
 import type { IStep } from "./step";
