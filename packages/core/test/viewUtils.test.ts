@@ -210,9 +210,9 @@ describe("ViewUtils", () => {
 
             const plane = ViewUtils.raycastClosestPlane(view, start, end);
 
-            expect(plane).toBeDefined();
-            expect(plane.origin).toBeDefined();
-            expect(plane.normal).toBeDefined();
+            expect(plane).not.toBeNull();
+            expect(plane.origin).not.toBeNull();
+            expect(plane.normal).not.toBeNull();
         });
 
         test("should handle dynamic workplane disabled with perpendicular workplane", () => {
@@ -233,7 +233,7 @@ describe("ViewUtils", () => {
 
             const plane = ViewUtils.raycastClosestPlane(view, start, end);
 
-            expect(plane).toBeDefined();
+            expect(plane).not.toBeNull();
             expect(plane.origin.x).toBe(0);
             expect(plane.origin.y).toBe(0);
             expect(plane.origin.z).toBe(0);
@@ -256,7 +256,7 @@ describe("ViewUtils", () => {
 
             const plane = ViewUtils.raycastClosestPlane(view, start, end);
 
-            expect(plane).toBeDefined();
+            expect(plane).not.toBeNull();
             expect(plane.origin).toEqual(start);
         });
     });

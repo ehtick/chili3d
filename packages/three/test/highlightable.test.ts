@@ -12,38 +12,16 @@ describe("isHighlightable", () => {
         expect(isHighlightable(obj)).toBe(true);
     });
 
-    test("returns falsy for object missing highlight method", () => {
-        const obj = {
-            unhighlight() {},
-        };
-        expect(isHighlightable(obj)).toBeFalsy();
-    });
-
-    test("returns falsy for object missing unhighlight method", () => {
-        const obj = {
-            highlight() {},
-        };
-        expect(isHighlightable(obj)).toBeFalsy();
-    });
-
-    test("returns falsy for null", () => {
-        expect(isHighlightable(null)).toBeFalsy();
-    });
-
-    test("returns falsy for undefined", () => {
-        expect(isHighlightable(undefined)).toBeFalsy();
-    });
-
-    test("returns falsy for plain object", () => {
-        expect(isHighlightable({})).toBeFalsy();
-    });
-
-    test("returns falsy for string", () => {
-        expect(isHighlightable("hello")).toBeFalsy();
-    });
-
-    test("returns falsy for number", () => {
-        expect(isHighlightable(42)).toBeFalsy();
+    test.each([
+        ["object missing highlight method", { unhighlight() {} }],
+        ["object missing unhighlight method", { highlight() {} }],
+        ["null", null],
+        ["undefined", undefined],
+        ["plain object", {}],
+        ["string", "hello"],
+        ["number", 42],
+    ])("returns falsy for %s", (_name, value) => {
+        expect(isHighlightable(value)).toBeFalsy();
     });
 
     test("class implementing IHighlightable passes the check", () => {

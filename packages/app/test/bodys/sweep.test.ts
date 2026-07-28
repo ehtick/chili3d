@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, ShapeTypes } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { SweepedNode } from "../../src/bodys/sweep";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, createMockWire, setupShapeFactoryMock } from "./_utils";
 
 describe("SweepedNode", () => {
@@ -114,10 +114,10 @@ describe("SweepedNode", () => {
             });
             const w: any = wire;
             const node = new SweepedNode({ document: doc, profile: [w], path: w, round: false });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.profile = [w] as any;
-            expect(events).toContain("profile");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("profile");
         });
 
         test("should emit on path change", () => {
@@ -128,11 +128,11 @@ describe("SweepedNode", () => {
             });
             const w: any = wire;
             const node = new SweepedNode({ document: doc, profile: [w], path: w, round: false });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             // Must use a different object reference to trigger change detection
             node.path = { ...w } as any;
-            expect(events).toContain("path");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("path");
         });
 
         test("should emit on round change", () => {
@@ -143,31 +143,26 @@ describe("SweepedNode", () => {
             });
             const w: any = wire;
             const node = new SweepedNode({ document: doc, profile: [w], path: w, round: false });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.round = true;
-            expect(events).toContain("round");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("round");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.sweep with correct parameters", () => {
             const wire = createMockWire();
-            let calledWith: any[] = [];
+            const sweep = rs.fn(() => Result.ok(createMockShape()));
             setupShapeFactoryMock({
                 wire: () => Result.ok(wire as any),
-                sweep: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
+                sweep,
             });
             const w: any = wire;
             const node = new SweepedNode({ document: doc, profile: [w], path: w, round: true });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(calledWith[0]).toEqual([w]);
-            expect(calledWith[1]).toBe(w);
-            expect(calledWith[2]).toBe(true);
+            expect(sweep).toHaveBeenCalledWith([w], w, true);
         });
 
         test("should return Result.err when shapeFactory.sweep fails", () => {

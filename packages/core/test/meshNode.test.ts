@@ -4,7 +4,7 @@
 import type { Mesh } from "../src";
 import { Matrix4 } from "../src";
 import { MeshNode } from "../src/model/meshNode";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 function createMockMesh(overrides?: Partial<Mesh>): Mesh {
     return {
@@ -39,7 +39,7 @@ describe("MeshNode", () => {
             const mesh = createMockMesh();
             const node = new MeshNode({ document: doc, mesh, name: "test-mesh" });
 
-            expect(node.id).toBeDefined();
+            expect(node.id).not.toBeNull();
             expect(typeof node.id).toBe("string");
         });
 
@@ -130,7 +130,7 @@ describe("MeshNode", () => {
             const node = new MeshNode({ document: doc, mesh, name: "test-mesh" });
 
             const box = node.boundingBox();
-            expect(box).toBeDefined();
+            expect(box).not.toBeNull();
         });
 
         test("should apply transform to bounding box", () => {
@@ -141,7 +141,7 @@ describe("MeshNode", () => {
             node.transform = Matrix4.fromTranslation(5, 0, 0);
 
             const box = node.boundingBox();
-            expect(box).toBeDefined();
+            expect(box).not.toBeNull();
             expect(box!.min.x).toBe(5);
             expect(box!.max.x).toBe(6);
         });

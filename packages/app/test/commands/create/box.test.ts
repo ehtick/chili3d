@@ -22,7 +22,7 @@ afterAll(() => restoreApp());
 describe("Box", () => {
     test("should have command metadata", () => {
         const data = (Box as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.box");
         expect(data.icon).toBe("icon-box");
     });

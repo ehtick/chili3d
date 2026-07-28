@@ -8,7 +8,7 @@ import { XYZ } from "../../src/math";
 import type { SnapData, SnapEventHandler, SnapResult } from "../../src/snap";
 import { SnapStep } from "../../src/step/step";
 import type { CursorType } from "../../src/visual";
-import { createMockSelection, TestDocument } from "../mocks";
+import { createMockSelection, TestDocument } from "../../test-utils";
 
 // ============================================================================
 // Test helpers — concrete SnapStep subclass for testing

@@ -22,7 +22,7 @@ afterAll(() => restoreApp());
 describe("Revolve", () => {
     test("should have command metadata", () => {
         const data = (Revolve as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.revol");
         expect(data.icon).toBe("icon-revolve");
     });

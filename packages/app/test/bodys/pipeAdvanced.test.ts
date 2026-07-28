@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { ShapeTypes } from "@chili3d/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
 import { beforeEach, describe, expect, test } from "@rstest/core";
 import { PipeNode } from "../../src/bodys/pipe";
-import { createMockDocument } from "../_helpers";
 import { createMockWireWithEdgeLoop } from "./_utils";
 
 describe("PipeNode advanced", () => {

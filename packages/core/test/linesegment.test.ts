@@ -3,8 +3,8 @@
 
 import { LineSegment, XYZ } from "../src";
 
-describe("test linesegment", () => {
-    test("test constructor", () => {
+describe("LineSegment", () => {
+    test("should create a line segment and reject equal start and end", () => {
         const start = new XYZ({ x: 0, y: 0, z: 0 });
         const end = new XYZ({ x: 1, y: 0, z: 0 });
         const segment = new LineSegment({ start, end });
@@ -14,7 +14,7 @@ describe("test linesegment", () => {
         expect(() => new LineSegment({ start, end: start })).toThrow("start and end can not be equal");
     });
 
-    test("test distanceTo with parallel segments", () => {
+    test("should compute distance between parallel segments", () => {
         const seg1 = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
             end: new XYZ({ x: 1, y: 0, z: 0 }),
@@ -50,7 +50,7 @@ describe("test linesegment", () => {
         expect(result4.distance).toBeCloseTo(Math.sqrt(2));
     });
 
-    test("test distanceTo with intersecting segments", () => {
+    test("should return zero distance for intersecting segments", () => {
         const seg1 = new LineSegment({
             start: new XYZ({ x: -1, y: 0, z: 0 }),
             end: new XYZ({ x: 1, y: 0, z: 0 }),
@@ -65,7 +65,7 @@ describe("test linesegment", () => {
         expect(result.pointOnRight).toStrictEqual(new XYZ({ x: 0, y: 0, z: 0 }));
     });
 
-    test("test distanceTo with skew segments", () => {
+    test("should compute distance between skew segments", () => {
         const seg1 = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
             end: new XYZ({ x: 1, y: 0, z: 0 }),
@@ -86,7 +86,7 @@ describe("test linesegment", () => {
         expect(result2.distance).toBeCloseTo(0.5);
     });
 
-    test("test distanceTo with collinear segments", () => {
+    test("should compute distance between collinear segments", () => {
         const seg1 = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
             end: new XYZ({ x: 1, y: 0, z: 0 }),
@@ -114,7 +114,7 @@ describe("test linesegment", () => {
         expect(result2.distance).toBeCloseTo(0);
     });
 
-    test("test distanceToPoint", () => {
+    test("should compute distance from a point to the segment", () => {
         const segment = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
             end: new XYZ({ x: 2, y: 0, z: 0 }),
@@ -139,7 +139,7 @@ describe("test linesegment", () => {
         expect(segment3D.distanceToPoint(point3D)).toBeCloseTo(1);
     });
 
-    test("test distanceTo where closest point is at the start of both segments", () => {
+    test("should clamp closest points at the start of both segments", () => {
         // sN becomes 0 because closest on this is at start, tN clamped to 0
         const seg1 = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
@@ -157,7 +157,7 @@ describe("test linesegment", () => {
         expect(result.tc).toBeLessThanOrEqual(1);
     });
 
-    test("test distanceTo with non-parallel, closest at s=1 edge", () => {
+    test("should clamp the closest point at the end of a non-parallel segment", () => {
         // Seg1 short, seg2 long: closest point should clamp to end of seg1
         const seg1 = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
@@ -174,7 +174,7 @@ describe("test linesegment", () => {
         expect(result.tc).toBeLessThanOrEqual(1);
     });
 
-    test("test distanceTo with endpoints touching yields zero distance", () => {
+    test("should return zero distance when endpoints touch", () => {
         const seg1 = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
             end: new XYZ({ x: 1, y: 0, z: 0 }),
@@ -187,7 +187,7 @@ describe("test linesegment", () => {
         expect(result.distance).toBeCloseTo(0);
     });
 
-    test("test distanceTo returns valid sc and tc in result", () => {
+    test("should return valid sc and tc parameters", () => {
         const seg1 = new LineSegment({
             start: new XYZ({ x: 0, y: 0, z: 0 }),
             end: new XYZ({ x: 10, y: 0, z: 0 }),
@@ -205,6 +205,6 @@ describe("test linesegment", () => {
         // Closest point on seg1 should lie on the segment
         const u = seg1.end.sub(seg1.start);
         const closest = seg1.start.add(u.multiply(result.sc));
-        expect(result.pointOnThis.isEqualTo(closest)).toBeTruthy();
+        expect(result.pointOnThis.isEqualTo(closest)).toBe(true);
     });
 });

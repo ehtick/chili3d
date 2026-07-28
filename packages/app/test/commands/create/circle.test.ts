@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Circle", () => {
     test("should have command metadata", () => {
         const data = (Circle as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.circle");
         expect(data.icon).toBe("icon-circle");
     });

@@ -17,7 +17,7 @@ import {
 } from "../src/shape/meshData";
 import type { ISubShape } from "../src/shape/shape";
 
-describe("test meshData", () => {
+describe("MeshData", () => {
     describe("Mesh", () => {
         test("createSurface should create mesh with correct properties", () => {
             const mesh = Mesh.createSurface(4, 6);
@@ -243,6 +243,8 @@ describe("test meshData", () => {
         test("setType should change line type", () => {
             const builder = new EdgeMeshDataBuilder();
             builder.setType("dash");
+            const result = builder.build();
+            expect(result.lineType).toBe("dash");
         });
 
         test("newGroup and endGroup should manage groups", () => {

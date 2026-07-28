@@ -4,6 +4,16 @@
 import { Loading } from "../src/loading";
 
 describe("Loading custom element", () => {
+    afterEach(() => {
+        // Every Loading instance injects a <style> with the spin keyframes into
+        // document.head — remove them so tests don't leak into each other.
+        document.head.querySelectorAll("style").forEach((styleEl) => {
+            if (styleEl.textContent?.includes("@keyframes spin")) {
+                styleEl.remove();
+            }
+        });
+    });
+
     test("should be defined as a custom element", () => {
         expect(customElements.get("chili-loading")).toBe(Loading);
     });
@@ -43,8 +53,8 @@ describe("Loading custom element", () => {
         const initialStyleCount = document.head.querySelectorAll("style").length;
         new Loading();
         const newStyleCount = document.head.querySelectorAll("style").length;
-        // Each Loading instance appends a style element with @keyframes
-        expect(newStyleCount).toBeGreaterThanOrEqual(initialStyleCount + 1);
+        // Each Loading instance appends exactly one style element with @keyframes
+        expect(newStyleCount).toBe(initialStyleCount + 1);
     });
 
     test("should have spinner with animation style", () => {

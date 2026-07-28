@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, Serializer } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { PyramidNode } from "../../src/bodys/pyramid";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, defaultPlane, setupShapeFactoryMock, setupSimpleShapeFactoryMock } from "./_utils";
 
 describe("PyramidNode", () => {
@@ -76,28 +76,28 @@ describe("PyramidNode", () => {
         test("should emit on dx change", () => {
             setupSimpleShapeFactoryMock("pyramid");
             const node = new PyramidNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.dx = 99;
-            expect(events).toContain("dx");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("dx");
         });
 
         test("should emit on dy change", () => {
             setupSimpleShapeFactoryMock("pyramid");
             const node = new PyramidNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.dy = 77;
-            expect(events).toContain("dy");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("dy");
         });
 
         test("should emit on dz change", () => {
             setupSimpleShapeFactoryMock("pyramid");
             const node = new PyramidNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.dz = 55;
-            expect(events).toContain("dz");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("dz");
         });
     });
 
@@ -116,21 +116,13 @@ describe("PyramidNode", () => {
 
     describe("generateShape", () => {
         test("should call shapeFactory.pyramid", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                pyramid: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const pyramid = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ pyramid });
             const plane = defaultPlane();
             const node = new PyramidNode({ document: doc, plane, dx: 10, dy: 15, dz: 20 });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(calledWith[0]).toBe(plane);
-            expect(calledWith[1]).toBe(10);
-            expect(calledWith[2]).toBe(15);
-            expect(calledWith[3]).toBe(20);
+            expect(pyramid).toHaveBeenCalledWith(plane, 10, 15, 20);
         });
 
         test("should return Result.err when shapeFactory.pyramid fails", () => {

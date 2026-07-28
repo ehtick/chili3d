@@ -70,7 +70,7 @@ describe("SimplifyShapeCommand", () => {
 
     test("should have command metadata", () => {
         const data = (SimplifyShapeCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.simplifyShape");
         expect(data.icon).toBe("icon-simplify");
     });

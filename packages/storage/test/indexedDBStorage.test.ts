@@ -1,20 +1,39 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import { Logger } from "@chili3d/core";
+import { rs } from "@rstest/core";
 import { IndexedDBStorage } from "../src/indexedDBStorage";
 import { installFakeIndexedDB } from "./fakeIndexedDB";
 
 describe("IndexedDBStorage", () => {
     let storage: IndexedDBStorage;
     let fake: ReturnType<typeof installFakeIndexedDB>;
+    let originalIndexedDB: PropertyDescriptor | undefined;
+
+    beforeAll(() => {
+        // Silence the storage's Logger noise (open/get/put log on every call).
+        rs.spyOn(Logger, "info").mockImplementation(() => {});
+        rs.spyOn(Logger, "error").mockImplementation(() => {});
+    });
+
+    afterAll(() => {
+        rs.restoreAllMocks();
+    });
 
     beforeEach(() => {
+        originalIndexedDB = Object.getOwnPropertyDescriptor(window, "indexedDB");
         fake = installFakeIndexedDB();
         storage = new IndexedDBStorage();
     });
 
     afterEach(() => {
         fake.reset();
+        if (originalIndexedDB) {
+            Object.defineProperty(window, "indexedDB", originalIndexedDB);
+        } else {
+            delete (window as { indexedDB?: unknown }).indexedDB;
+        }
     });
 
     const DB = "testDB";
@@ -138,34 +157,51 @@ describe("IndexedDBStorage", () => {
             await storage.createDBIfNeeded(DB, [TABLE]);
         });
 
+        // NOTE: `openOrCreateDB`/`open` reject with the raw error event, so the
+        // original error lives at `event.target.error` (see fakeIndexedDB.ts).
         test("should reject when opening the database fails", async () => {
             fake.failNextOpen = new Error("connection refused");
 
-            await expect(storage.get(DB, TABLE, "id1")).rejects.toBeDefined();
+            await expect(storage.get(DB, TABLE, "id1")).rejects.toHaveProperty(
+                "target.error",
+                new Error("connection refused"),
+            );
         });
 
         test("should reject put when the database cannot be opened", async () => {
             fake.failNextOpen = new Error("disk full");
 
-            await expect(storage.put(DB, TABLE, "id1", { a: 1 })).rejects.toBeDefined();
+            await expect(storage.put(DB, TABLE, "id1", { a: 1 })).rejects.toHaveProperty(
+                "target.error",
+                new Error("disk full"),
+            );
         });
 
         test("should reject delete when the database cannot be opened", async () => {
             fake.failNextOpen = new Error("locked");
 
-            await expect(storage.delete(DB, TABLE, "id1")).rejects.toBeDefined();
+            await expect(storage.delete(DB, TABLE, "id1")).rejects.toHaveProperty(
+                "target.error",
+                new Error("locked"),
+            );
         });
 
         test("should reject page when the database cannot be opened", async () => {
             fake.failNextOpen = new Error("locked");
 
-            await expect(storage.page(DB, TABLE, 0)).rejects.toBeDefined();
+            await expect(storage.page(DB, TABLE, 0)).rejects.toHaveProperty(
+                "target.error",
+                new Error("locked"),
+            );
         });
 
         test("should reject createDBIfNeeded when open fails", async () => {
             fake.failNextOpen = new Error("cannot init");
 
-            await expect(storage.createDBIfNeeded(DB, [TABLE])).rejects.toBeDefined();
+            await expect(storage.createDBIfNeeded(DB, [TABLE])).rejects.toHaveProperty(
+                "target.error",
+                new Error("cannot init"),
+            );
         });
     });
 });

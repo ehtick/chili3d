@@ -3,8 +3,8 @@
 
 import { History, type IDocument, type PropertyHistoryRecord, Transaction } from "../src";
 
-describe("test Transaction", () => {
-    test("test static methods", () => {
+describe("Transaction", () => {
+    test("should record history via static add and execute", () => {
         const doc: IDocument = { history: new History() } as any;
         const history: PropertyHistoryRecord = {} as any;
         Transaction.add(doc, history);
@@ -23,7 +23,7 @@ describe("test Transaction", () => {
         expect(doc.history.undoCount()).toBe(2);
     });
 
-    test("test methods", () => {
+    test("should manage transaction lifecycle with start, commit and rollback", () => {
         const doc: IDocument = { history: new History() } as any;
         const trans = new Transaction(doc, "test");
         expect(() => trans.commit()).toThrow("Transaction has not started");

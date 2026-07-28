@@ -3,9 +3,9 @@
 
 import type { IDocument, IShape } from "@chili3d/core";
 import { Plane, Result, Serializer, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { BoxNode } from "../../src/bodys/box";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, defaultPlane, setupShapeFactoryMock, setupSimpleShapeFactoryMock } from "./_utils";
 
 describe("BoxNode", () => {
@@ -81,25 +81,15 @@ describe("BoxNode", () => {
     });
 
     describe("setters", () => {
-        test("setting dx should update the value", () => {
+        test.each([
+            { prop: "dx", value: 100 },
+            { prop: "dy", value: 200 },
+            { prop: "dz", value: 300 },
+        ] as const)("setting $prop should update the value", ({ prop, value }) => {
             setupSimpleShapeFactoryMock("box");
             const node = new BoxNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            node.dx = 100;
-            expect(node.dx).toBe(100);
-        });
-
-        test("setting dy should update the value", () => {
-            setupSimpleShapeFactoryMock("box");
-            const node = new BoxNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            node.dy = 200;
-            expect(node.dy).toBe(200);
-        });
-
-        test("setting dz should update the value", () => {
-            setupSimpleShapeFactoryMock("box");
-            const node = new BoxNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            node.dz = 300;
-            expect(node.dz).toBe(300);
+            node[prop] = value;
+            expect(node[prop]).toBe(value);
         });
 
         test("setting location should update plane origin", () => {
@@ -113,40 +103,42 @@ describe("BoxNode", () => {
     });
 
     describe("onPropertyChanged", () => {
-        test("should emit when dx changes", () => {
+        test.each([
+            {
+                prop: "dx",
+                set: (node: BoxNode) => {
+                    node.dx = 99;
+                },
+                emitted: "dx",
+            },
+            {
+                prop: "dy",
+                set: (node: BoxNode) => {
+                    node.dy = 88;
+                },
+                emitted: "dy",
+            },
+            {
+                prop: "dz",
+                set: (node: BoxNode) => {
+                    node.dz = 77;
+                },
+                emitted: "dz",
+            },
+            {
+                prop: "location",
+                set: (node: BoxNode) => {
+                    node.location = new XYZ({ x: 5, y: 5, z: 5 });
+                },
+                emitted: "plane",
+            },
+        ] as const)("should emit when $prop changes", ({ set, emitted }) => {
             setupSimpleShapeFactoryMock("box");
             const node = new BoxNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
-            node.dx = 99;
-            expect(events).toContain("dx");
-        });
-
-        test("should emit when dy changes", () => {
-            setupSimpleShapeFactoryMock("box");
-            const node = new BoxNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
-            node.dy = 88;
-            expect(events).toContain("dy");
-        });
-
-        test("should emit when dz changes", () => {
-            setupSimpleShapeFactoryMock("box");
-            const node = new BoxNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
-            node.dz = 77;
-            expect(events).toContain("dz");
-        });
-
-        test("should emit when location changes", () => {
-            setupSimpleShapeFactoryMock("box");
-            const node = new BoxNode({ document: doc, plane: defaultPlane(), dx: 1, dy: 1, dz: 1 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
-            node.location = new XYZ({ x: 5, y: 5, z: 5 });
-            expect(events).toContain("plane");
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
+            set(node);
+            expect(handler.mock.calls.map((c) => c[0])).toContain(emitted);
         });
     });
 
@@ -172,23 +164,15 @@ describe("BoxNode", () => {
     describe("generateShape", () => {
         test("should call shapeFactory.box with correct parameters", () => {
             const mockShape = createMockShape();
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                box: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(mockShape as any);
-                },
-            });
+            const box = rs.fn(() => Result.ok(mockShape as any));
+            setupShapeFactoryMock({ box });
 
             const plane = defaultPlane();
             const node = new BoxNode({ document: doc, plane, dx: 10, dy: 20, dz: 30 });
             const result = node.generateShape();
 
             expect(result.isOk).toBe(true);
-            expect(calledWith[0]).toBe(plane);
-            expect(calledWith[1]).toBe(10);
-            expect(calledWith[2]).toBe(20);
-            expect(calledWith[3]).toBe(30);
+            expect(box).toHaveBeenCalledWith(plane, 10, 20, 30);
         });
 
         test("should return Result.err when shapeFactory.box fails", () => {

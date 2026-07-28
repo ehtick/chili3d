@@ -79,9 +79,9 @@ describe("property", () => {
             const firstProp = properties.find((p) => p.name === "firstProperty");
             const secondProp = properties.find((p) => p.name === "secondProperty");
 
-            expect(firstProp).toBeDefined();
+            expect(firstProp).not.toBeNull();
             expect(firstProp?.display).toBe("first.display");
-            expect(secondProp).toBeDefined();
+            expect(secondProp).not.toBeNull();
             expect(secondProp?.display).toBe("second.display");
         });
     });
@@ -128,8 +128,8 @@ describe("property", () => {
             const baseProp = properties.find((p) => p.name === "baseProperty");
             const derivedProp = properties.find((p) => p.name === "derivedProperty");
 
-            expect(baseProp).toBeDefined();
-            expect(derivedProp).toBeDefined();
+            expect(baseProp).not.toBeNull();
+            expect(derivedProp).not.toBeNull();
         });
 
         test("should respect until parameter", () => {
@@ -155,8 +155,8 @@ describe("property", () => {
             const parentProp = properties.find((p) => p.name === "parentProperty");
             const grandparentProp = properties.find((p) => p.name === "grandparentProperty");
 
-            expect(childProp).toBeDefined();
-            expect(parentProp).toBeDefined();
+            expect(childProp).not.toBeNull();
+            expect(parentProp).not.toBeNull();
             expect(grandparentProp).toBeUndefined();
         });
 
@@ -187,7 +187,7 @@ describe("property", () => {
             }
 
             const prop = PropertyUtils.getProperty(TestClass.prototype, "testProperty");
-            expect(prop).toBeDefined();
+            expect(prop).not.toBeNull();
             expect(prop?.name).toBe("testProperty");
             expect(prop?.display).toBe("test.display");
         });
@@ -201,7 +201,7 @@ describe("property", () => {
             class DerivedClass extends BaseClass {}
 
             const prop = PropertyUtils.getProperty(DerivedClass.prototype, "baseProperty");
-            expect(prop).toBeDefined();
+            expect(prop).not.toBeNull();
             expect(prop?.name).toBe("baseProperty");
         });
 

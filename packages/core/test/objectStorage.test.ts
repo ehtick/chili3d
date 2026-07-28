@@ -2,7 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import { ObjectStorage } from "../src";
-import { mockLocalStorage } from "./localStorageMock";
+import { mockLocalStorage } from "../test-utils";
 
 describe("ObjectStorage class", () => {
     let localStorageMock: any;
@@ -21,7 +21,7 @@ describe("ObjectStorage class", () => {
     describe("constructor", () => {
         test("should create storage with correct prefix", () => {
             const storage = new ObjectStorage("test-org", "test-app");
-            expect(storage).toBeDefined();
+            expect(storage).not.toBeNull();
         });
     });
 
@@ -136,7 +136,7 @@ describe("ObjectStorage class", () => {
 
     describe("default instance", () => {
         test("should have a default instance", () => {
-            expect(ObjectStorage.default).toBeDefined();
+            expect(ObjectStorage.default).not.toBeNull();
             expect(ObjectStorage.default).toBeInstanceOf(ObjectStorage);
         });
     });

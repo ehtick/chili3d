@@ -1,6 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import { rs } from "@rstest/core";
 import type { INode, INodeFilter, ISelection, IVisualObject } from "../src";
 import { AsyncController, Matrix4, NodeSelectionHandler, VisualStates } from "../src";
 import {
@@ -9,7 +10,7 @@ import {
     createMockVisual,
     createPointerEvent,
     TestDocument,
-} from "./mocks";
+} from "../test-utils";
 
 function createMockVisualObject(overrides?: Partial<IVisualObject>): IVisualObject {
     return {
@@ -424,7 +425,7 @@ describe("NodeSelectionHandler", () => {
             const event = createPointerEvent({ clientX: 150, clientY: 250 });
             handler.pointerDown(view, event);
 
-            expect((handler as any).rect).toBeDefined();
+            expect((handler as any).rect).not.toBeNull();
             expect((handler as any).rect.clientX).toBe(150);
             expect((handler as any).rect.clientY).toBe(250);
         });
@@ -462,7 +463,7 @@ describe("NodeSelectionHandler", () => {
             const moveEvent = createPointerEvent({ pointerId: 1, buttons: 1 });
             handler.pointerMove(view, moveEvent);
             // Now _highlights should be set
-            expect((handler as any)._highlights).toBeDefined();
+            expect((handler as any)._highlights).not.toBeNull();
 
             let selectedNodes: INode[] | undefined;
             selection.setSelectedNodes = (nodes) => {
@@ -484,7 +485,7 @@ describe("NodeSelectionHandler", () => {
 
             const downEvent = createPointerEvent({ clientX: 150, clientY: 250 });
             handler.pointerDown(view, downEvent);
-            expect((handler as any).rect).toBeDefined();
+            expect((handler as any).rect).not.toBeNull();
 
             const upEvent = createPointerEvent();
             handler.pointerUp(view, upEvent);
@@ -617,10 +618,12 @@ describe("NodeSelectionHandler", () => {
     describe("dispose", () => {
         test("should dispose only once", () => {
             const { handler } = setupNodeSelectionHandler();
+            const disposeInternalSpy = rs.spyOn(handler as any, "disposeInternal");
 
-            // Should not throw
             handler.dispose();
             handler.dispose(); // second call should be no-op
+
+            expect(disposeInternalSpy).toHaveBeenCalledTimes(1);
         });
 
         test("should clear pointer event map on dispose", () => {

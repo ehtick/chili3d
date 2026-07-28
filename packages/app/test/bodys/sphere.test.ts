@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, Serializer, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { SphereNode } from "../../src/bodys/sphere";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock, setupSimpleShapeFactoryMock } from "./_utils";
 
 describe("SphereNode", () => {
@@ -75,19 +75,19 @@ describe("SphereNode", () => {
         test("should emit when center changes", () => {
             setupSimpleShapeFactoryMock("sphere");
             const node = new SphereNode({ document: doc, center, radius: 5 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.center = new XYZ({ x: 99, y: 99, z: 99 });
-            expect(events).toContain("center");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("center");
         });
 
         test("should emit when radius changes", () => {
             setupSimpleShapeFactoryMock("sphere");
             const node = new SphereNode({ document: doc, center, radius: 5 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.radius = 100;
-            expect(events).toContain("radius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("radius");
         });
     });
 
@@ -103,18 +103,12 @@ describe("SphereNode", () => {
 
     describe("generateShape", () => {
         test("should call shapeFactory.sphere with correct params", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                sphere: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const sphere = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ sphere });
             const node = new SphereNode({ document: doc, center, radius: 15 });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(calledWith[0]).toBe(center);
-            expect(calledWith[1]).toBe(15);
+            expect(sphere).toHaveBeenCalledWith(center, 15);
         });
 
         test("should return Result.err when shapeFactory.sphere fails", () => {

@@ -6,7 +6,7 @@ import { Lazy } from "../src";
 describe("Lazy class", () => {
     test("should create Lazy instance with factory", () => {
         const lazy = new Lazy(() => 42);
-        expect(lazy).toBeDefined();
+        expect(lazy).not.toBeNull();
     });
 
     test("should call factory only once on first access", () => {
@@ -30,14 +30,15 @@ describe("Lazy class", () => {
         let callCount = 0;
         const factory = () => {
             callCount++;
-            return { id: Math.random() };
+            return { id: callCount };
         };
         const lazy = new Lazy(factory);
 
         const value1 = lazy.value;
         const value2 = lazy.value;
 
-        expect(value1).toEqual(value2);
+        expect(value1).toBe(value2);
+        expect(value1).toEqual({ id: 1 });
         expect(callCount).toBe(1);
     });
 

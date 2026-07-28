@@ -52,7 +52,7 @@ function trackingNode(parent?: any) {
 describe("Move", () => {
     test("should have command metadata", () => {
         const data = (Move as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.move");
         expect(data.icon).toBe("icon-move");
     });

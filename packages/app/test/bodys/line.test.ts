@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { LineNode } from "../../src/bodys/line";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock } from "./_utils";
 
 describe("LineNode", () => {
@@ -69,35 +69,29 @@ describe("LineNode", () => {
         test("should emit on start change", () => {
             setupShapeFactoryMock({ line: () => Result.ok(createMockShape()) });
             const node = new LineNode({ document: doc, start, end });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.start = new XYZ({ x: 5, y: 5, z: 5 });
-            expect(events).toContain("start");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("start");
         });
 
         test("should emit on end change", () => {
             setupShapeFactoryMock({ line: () => Result.ok(createMockShape()) });
             const node = new LineNode({ document: doc, start, end });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.end = new XYZ({ x: 7, y: 7, z: 7 });
-            expect(events).toContain("end");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("end");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.line", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                line: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const line = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ line });
             const node = new LineNode({ document: doc, start, end });
             node.generateShape();
-            expect(calledWith[0]).toBe(start);
-            expect(calledWith[1]).toBe(end);
+            expect(line).toHaveBeenCalledWith(start, end);
         });
 
         test("should return Result.err when shapeFactory.line fails", () => {

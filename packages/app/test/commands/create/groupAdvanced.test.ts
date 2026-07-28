@@ -7,7 +7,7 @@ import { GroupCommand } from "../../../src/commands/create/group";
 describe("GroupCommand additional", () => {
     test("should have command metadata", () => {
         const data = (GroupCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.group");
         expect(data.icon).toBe("icon-group");
     });

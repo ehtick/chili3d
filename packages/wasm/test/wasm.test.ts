@@ -3,14 +3,11 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { testAx3 } from "./helpers";
 import "./setup";
 
-test("test face mesh", () => {
-    const location = { x: 0, y: 0, z: 0 };
-    const direction = { x: 0, y: 0, z: 1 };
-    const xDirection = { x: 1, y: 0, z: 0 };
-    const ax3 = { location, direction, xDirection };
-    const box = wasm.ShapeFactory.box(ax3, 1, 2, 3).shape;
+test("should mesh a box face with expected buffer sizes", () => {
+    const box = wasm.ShapeFactory.box(testAx3, 1, 2, 3).shape;
     const mesher = new wasm.Mesher(box, 0.1, true);
     const mesh = mesher.mesh();
 
@@ -21,24 +18,16 @@ test("test face mesh", () => {
     expect(mesh.faceMeshData.uv.length).toBe(48);
 });
 
-test("test edge mesh", () => {
-    const location = { x: 0, y: 0, z: 0 };
-    const direction = { x: 0, y: 0, z: 1 };
-    const xDirection = { x: 1, y: 0, z: 0 };
-    const ax3 = { location, direction, xDirection };
-    const box = wasm.ShapeFactory.box(ax3, 1, 1, 1).shape;
+test("should mesh box edges", () => {
+    const box = wasm.ShapeFactory.box(testAx3, 1, 1, 1).shape;
     const mesher = new wasm.Mesher(box, 0.1, true);
     const mesh = mesher.mesh();
     expect(mesh.edgeMeshData.position.length).toBe(72);
     expect(mesh.edgeMeshData.group.length).toBe(24);
 });
 
-test("test shape", () => {
-    const location = { x: 0, y: 0, z: 0 };
-    const direction = { x: 0, y: 0, z: 1 };
-    const xDirection = { x: 1, y: 0, z: 0 };
-    const ax3 = { location, direction, xDirection };
-    const box = wasm.ShapeFactory.box(ax3, 1, 1, 1).shape;
+test("should traverse sub-shapes and ancestors of a box", () => {
+    const box = wasm.ShapeFactory.box(testAx3, 1, 1, 1).shape;
     const edges = wasm.Shape.findSubShapes(box, wasm.TopAbs_ShapeEnum.TopAbs_EDGE);
     expect(edges.length).toBe(12);
     expect(edges[0].shapeType()).toBe(wasm.TopAbs_ShapeEnum.TopAbs_EDGE);
@@ -55,7 +44,7 @@ test("test shape", () => {
     expect(faceEdges.length).toBe(4);
 });
 
-test("test simplifyShape", () => {
+test("should simplify shape and reduce face count", () => {
     const brepPath = path.resolve(import.meta.dirname, "models", "simplifySolid.brep");
     const brepContent = readFileSync(brepPath, "utf-8");
     const shape = wasm.Converter.convertFromBrep(brepContent);
@@ -71,14 +60,23 @@ test("test simplifyShape", () => {
     expect(faces2.length).toBe(5);
 });
 
-test("test solid", () => {
-    const location = { x: 0, y: 0, z: 0 };
-    const direction = { x: 0, y: 0, z: 1 };
-    const xDirection = { x: 1, y: 0, z: 0 };
-    const ax3 = { location, direction, xDirection };
-    const box = wasm.TopoDS.solid(wasm.ShapeFactory.box(ax3, 1, 1, 1).shape);
+test("should check point containment in a solid", () => {
+    const box = wasm.TopoDS.solid(wasm.ShapeFactory.box(testAx3, 1, 1, 1).shape);
     expect(wasm.Solid.containsPoint(box, { x: 0.5, y: 0.5, z: 0.5 }, true, 0.1)).toBe(true);
     expect(wasm.Solid.containsPoint(box, { x: 1, y: 1, z: 1 }, true, 0.1)).toBe(true);
     expect(wasm.Solid.containsPoint(box, { x: 1, y: 1, z: 1 }, false, 0.1)).toBe(false);
     expect(wasm.Solid.containsPoint(box, { x: 1.5, y: 1.5, z: 1.5 }, false, 0.1)).toBe(false);
+});
+
+test("initWasm can be called repeatedly and the module stays functional", async () => {
+    const { initWasm } = await import("../src/wasm");
+    const wasmBinary = readFileSync(path.resolve(import.meta.dirname, "..", "lib", "chili-wasm.wasm"));
+    const first = await initWasm({ wasmBinary });
+    const second = await initWasm({ wasmBinary });
+    expect(first).toBeDefined();
+    expect(global.wasm).toBe(second);
+
+    // The re-initialized module is fully functional
+    const box = wasm.ShapeFactory.box(testAx3, 1, 1, 1).shape;
+    expect(box.isNull()).toBe(false);
 });

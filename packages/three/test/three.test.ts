@@ -10,7 +10,7 @@ import {
     XY,
     XYZ,
 } from "@chili3d/core";
-import { TestDocument } from "../../core/test/mocks";
+import { TestDocument } from "@chili3d/core/test-utils";
 import { ThreeVisual } from "../src/threeVisual";
 import { TestNode } from "./testEdge";
 import { TestView } from "./testView";
@@ -22,14 +22,14 @@ describe("three test", () => {
     doc.modelManager.materials.push(new Material({ document: doc, name: "test", color: 0x00ff00 }));
     const view = new TestView(doc, visual.context);
 
-    test("test view", () => {
+    test("should convert coordinates between screen and world", () => {
         expect(view.screenToCameraRect(0, 0)).toEqual(new XY({ x: -1, y: 1 }));
         expect(view.screenToCameraRect(100, 100)).toEqual(new XY({ x: 1, y: -1 }));
         const world = view.screenToWorld(50, 50);
         expect(view.worldToScreen(world)).toEqual(new XY({ x: 50, y: 50 }));
     });
 
-    test("test context", () => {
+    test("should add node to context and detect its shape", () => {
         const context = doc.visual.context;
         const model = new TestNode(doc, XYZ.zero, new XYZ({ x: 100, y: 0, z: 0 }));
         context.addNode([model]);

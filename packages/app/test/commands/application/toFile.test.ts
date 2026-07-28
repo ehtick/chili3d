@@ -2,33 +2,61 @@
 // See LICENSE file in the project root for full license information.
 
 import { DOCUMENT_FILE_EXTENSION, PubSub } from "@chili3d/core";
-import { describe, expect, test } from "@rstest/core";
-
+import { createMockApplication, createMockDocument } from "@chili3d/core/test-utils";
+import { describe, expect, rs, test } from "@rstest/core";
 import { SaveDocumentToFile } from "../../../src/commands/application/toFile";
-import { createMockApplication, createMockDocument } from "../../_helpers";
 
 describe("SaveDocumentToFile", () => {
     test("should have command metadata", () => {
         const data = (SaveDocumentToFile as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("doc.saveToFile");
         expect(data.icon).toBe("icon-download");
     });
 
     test("should do nothing when no active document", async () => {
-        const app = createMockApplication();
-        app.activeView = undefined;
+        let published = false;
+        const originalPub = PubSub.default.pub;
+        PubSub.default.pub = ((channel: string) => {
+            if (channel === "showPermanent") {
+                published = true;
+            }
+        }) as any;
 
-        const cmd = new SaveDocumentToFile();
-        await cmd.execute(app);
+        try {
+            const app = createMockApplication();
+            app.activeView = undefined;
+
+            const cmd = new SaveDocumentToFile();
+            await expect(cmd.execute(app)).resolves.toBeUndefined();
+
+            // No permanent action is triggered without an active document
+            expect(published).toBe(false);
+        } finally {
+            PubSub.default.pub = originalPub;
+        }
     });
 
-    test("should execute without throwing when activeView but no document", async () => {
-        const app = createMockApplication();
-        (app as any).activeView = { document: undefined };
+    test("should not publish showPermanent when activeView has no document", async () => {
+        let published = false;
+        const originalPub = PubSub.default.pub;
+        PubSub.default.pub = ((channel: string) => {
+            if (channel === "showPermanent") {
+                published = true;
+            }
+        }) as any;
 
-        const cmd = new SaveDocumentToFile();
-        await expect(cmd.execute(app)).resolves.toBeUndefined();
+        try {
+            const app = createMockApplication();
+            (app as any).activeView = { document: undefined };
+
+            const cmd = new SaveDocumentToFile();
+            await cmd.execute(app);
+
+            expect(published).toBe(false);
+        } finally {
+            PubSub.default.pub = originalPub;
+        }
     });
 
     test("should publish showPermanent event when document exists", async () => {
@@ -38,24 +66,26 @@ describe("SaveDocumentToFile", () => {
             publishedChannel = channel;
         }) as any;
 
-        const doc = createMockDocument();
-        doc.serialize = () => ({ test: true }) as any;
-        const app = createMockApplication();
-        app.activeView = { document: doc } as any;
+        try {
+            const doc = createMockDocument();
+            doc.serialize = () => ({ test: true }) as any;
+            const app = createMockApplication();
+            app.activeView = { document: doc } as any;
 
-        const cmd = new SaveDocumentToFile();
-        await cmd.execute(app);
+            const cmd = new SaveDocumentToFile();
+            await cmd.execute(app);
 
-        expect(publishedChannel).toBe("showPermanent");
-
-        PubSub.default.pub = originalPub;
+            expect(publishedChannel).toBe("showPermanent");
+        } finally {
+            PubSub.default.pub = originalPub;
+        }
     });
 
     test("should have DOCUMENT_FILE_EXTENSION available", () => {
         const cmd = new SaveDocumentToFile();
-        expect(cmd).toBeDefined();
-        expect(DOCUMENT_FILE_EXTENSION).toBeDefined();
+        expect(cmd).toBeInstanceOf(SaveDocumentToFile);
         expect(typeof DOCUMENT_FILE_EXTENSION).toBe("string");
+        expect(DOCUMENT_FILE_EXTENSION.length).toBeGreaterThan(0);
     });
 
     test("should implement ICommand (has execute method)", () => {
@@ -72,17 +102,19 @@ describe("SaveDocumentToFile", () => {
             }
         }) as any;
 
-        const doc = createMockDocument();
-        doc.serialize = () => ({}) as any;
-        const app = createMockApplication();
-        app.activeView = { document: doc } as any;
+        try {
+            const doc = createMockDocument();
+            doc.serialize = () => ({}) as any;
+            const app = createMockApplication();
+            app.activeView = { document: doc } as any;
 
-        const cmd = new SaveDocumentToFile();
-        await cmd.execute(app);
+            const cmd = new SaveDocumentToFile();
+            await cmd.execute(app);
 
-        expect(templateArg).toBe("toast.excuting{0}");
-
-        PubSub.default.pub = originalPub;
+            expect(templateArg).toBe("toast.excuting{0}");
+        } finally {
+            PubSub.default.pub = originalPub;
+        }
     });
 
     test("should pass a function as the callback to showPermanent", async () => {
@@ -94,18 +126,20 @@ describe("SaveDocumentToFile", () => {
             }
         }) as any;
 
-        const doc = createMockDocument();
-        doc.serialize = () => ({}) as any;
-        const app = createMockApplication();
-        app.activeView = { document: doc } as any;
+        try {
+            const doc = createMockDocument();
+            doc.serialize = () => ({}) as any;
+            const app = createMockApplication();
+            app.activeView = { document: doc } as any;
 
-        const cmd = new SaveDocumentToFile();
-        await cmd.execute(app);
+            const cmd = new SaveDocumentToFile();
+            await cmd.execute(app);
 
-        expect(callbackArg).toBeDefined();
-        expect(typeof callbackArg).toBe("function");
-
-        PubSub.default.pub = originalPub;
+            expect(callbackArg).not.toBeNull();
+            expect(typeof callbackArg).toBe("function");
+        } finally {
+            PubSub.default.pub = originalPub;
+        }
     });
 
     test("should not publish showPermanent when activeView is undefined", async () => {
@@ -117,15 +151,17 @@ describe("SaveDocumentToFile", () => {
             }
         }) as any;
 
-        const app = createMockApplication();
-        app.activeView = undefined;
+        try {
+            const app = createMockApplication();
+            app.activeView = undefined;
 
-        const cmd = new SaveDocumentToFile();
-        await cmd.execute(app);
+            const cmd = new SaveDocumentToFile();
+            await cmd.execute(app);
 
-        expect(published).toBe(false);
-
-        PubSub.default.pub = originalPub;
+            expect(published).toBe(false);
+        } finally {
+            PubSub.default.pub = originalPub;
+        }
     });
 });
 
@@ -164,12 +200,9 @@ describe("SaveDocumentToFile callback", () => {
         const app = createMockApplication();
         app.activeView = { document: doc } as any;
 
-        // Stub setTimeout to run immediately
-        const originalSetTimeout = globalThis.setTimeout;
-        (globalThis as any).setTimeout = (fn: () => void, _ms?: number) => {
-            fn();
-            return 0 as any;
-        };
+        // The command callback waits on a setTimeout(100) before serializing;
+        // fake timers let tests advance that delay deterministically.
+        rs.useFakeTimers();
 
         // Stub URL.createObjectURL / revokeObjectURL used by download()
         const originalCreateObjectURL = URL.createObjectURL;
@@ -179,7 +212,7 @@ describe("SaveDocumentToFile callback", () => {
 
         const restore = () => {
             PubSub.default.pub = originalPub;
-            globalThis.setTimeout = originalSetTimeout;
+            rs.useRealTimers();
             URL.createObjectURL = originalCreateObjectURL;
             URL.revokeObjectURL = originalRevokeObjectURL;
         };
@@ -187,37 +220,45 @@ describe("SaveDocumentToFile callback", () => {
         return { state, app, restore };
     }
 
+    /** Run the showPermanent callback to completion, advancing the internal timer delay. */
+    async function runCallback(state: { callback: (() => Promise<void>) | undefined }) {
+        if (!state.callback) return;
+        const callbackPromise = state.callback();
+        await rs.advanceTimersByTimeAsync(100);
+        await callbackPromise;
+    }
+
     test("should serialize the document inside the callback", async () => {
         const { state, app, restore } = setupCallbackTest();
 
-        const cmd = new SaveDocumentToFile();
-        await cmd.execute(app);
+        try {
+            const cmd = new SaveDocumentToFile();
+            await cmd.execute(app);
 
-        expect(state.callback).toBeDefined();
-        if (state.callback) {
-            await state.callback();
+            expect(state.callback).not.toBeUndefined();
+            await runCallback(state);
+
+            expect(state.serializeCalled).toBe(true);
+        } finally {
+            restore();
         }
-
-        expect(state.serializeCalled).toBe(true);
-
-        restore();
     });
 
     test("should publish downloading toast inside the callback", async () => {
         const { state, app, restore } = setupCallbackTest();
 
-        const cmd = new SaveDocumentToFile();
-        await cmd.execute(app);
+        try {
+            const cmd = new SaveDocumentToFile();
+            await cmd.execute(app);
 
-        expect(state.toastCalled).toBe(false);
+            expect(state.toastCalled).toBe(false);
 
-        if (state.callback) {
-            await state.callback();
+            await runCallback(state);
+
+            expect(state.toastCalled).toBe(true);
+        } finally {
+            restore();
         }
-
-        expect(state.toastCalled).toBe(true);
-
-        restore();
     });
 
     test("should create a download link with document name and extension", async () => {
@@ -245,9 +286,7 @@ describe("SaveDocumentToFile callback", () => {
             const cmd = new SaveDocumentToFile();
             await cmd.execute(app);
 
-            if (state.callback) {
-                await state.callback();
-            }
+            await runCallback(state);
 
             expect(anchorDownload).toContain("test-document");
             expect(anchorDownload).toContain(DOCUMENT_FILE_EXTENSION);

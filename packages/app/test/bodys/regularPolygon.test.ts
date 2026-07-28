@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { RegularPolygonNode } from "../../src/bodys/regularPolygon";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock } from "./_utils";
 
 describe("RegularPolygonNode", () => {
@@ -141,10 +141,10 @@ describe("RegularPolygonNode", () => {
                 radius: 10,
                 sides: 6,
             });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.radius = 20;
-            expect(events).toContain("radius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("radius");
         });
 
         test("should emit on sides change", () => {
@@ -160,10 +160,10 @@ describe("RegularPolygonNode", () => {
                 radius: 10,
                 sides: 6,
             });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.sides = 7;
-            expect(events).toContain("sides");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("sides");
         });
     });
 
@@ -185,13 +185,8 @@ describe("RegularPolygonNode", () => {
 
     describe("generateShape", () => {
         test("should call shapeFactory.polygon", () => {
-            let calledPoints: any[] = [];
-            setupShapeFactoryMock({
-                polygon: (pts: any[]) => {
-                    calledPoints = pts;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const polygon = rs.fn((_points: XYZ[]) => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ polygon });
             const node = new RegularPolygonNode({
                 document: doc,
                 normal,
@@ -201,7 +196,8 @@ describe("RegularPolygonNode", () => {
                 sides: 6,
             });
             node.generateShape();
-            expect(calledPoints.length).toBe(7); // sides + 1
+            expect(polygon).toHaveBeenCalledTimes(1);
+            expect(polygon.mock.calls[0][0].length).toBe(7); // sides + 1
         });
 
         test("should return Result.err when shapeFactory.polygon fails", () => {

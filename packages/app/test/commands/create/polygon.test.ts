@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Polygon", () => {
     test("should have command metadata", () => {
         const data = (Polygon as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.polygon");
         expect(data.icon).toBe("icon-toPoly");
     });

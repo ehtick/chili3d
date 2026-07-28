@@ -22,7 +22,7 @@ afterAll(() => restoreApp());
 describe("Pyramid", () => {
     test("should have command metadata", () => {
         const data = (Pyramid as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.pyramid");
         expect(data.icon).toBe("icon-pyramid");
     });

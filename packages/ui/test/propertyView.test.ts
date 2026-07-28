@@ -1,13 +1,18 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+// test-utils must load BEFORE the core-mock helper so the real core module is
+// fully cached by the time `rs.mock("@chili3d/core")` registers.
+import { createMockDocument } from "@chili3d/core/test-utils";
 import { describe, expect, test } from "@rstest/core";
 
 // ============================================================
-// Mocks setup — must come before imports
+// Mocks setup — must come before imports of the module under test
 // ============================================================
 
-// CSS modules
+// CSS modules — shared ones via helper, file-specific one inline
+import "./_helpers/cssMocks";
+
 rs.mock("../src/property/propertyView.module.css", () => ({
     root: "pv-root",
     panel: "pv-panel",
@@ -15,102 +20,11 @@ rs.mock("../src/property/propertyView.module.css", () => ({
     properties: "pv-properties",
 }));
 
-rs.mock("../src/property/propertyBase.module.css", () => ({
-    panel: "pb-panel",
-}));
-
-rs.mock("../src/property/common.module.css", () => ({
-    panel: "cm-panel",
-    propertyName: "cm-property-name",
-}));
-
-rs.mock("../src/property/input.module.css", () => ({
-    box: "ip-box",
-}));
-
 // Element helpers
-// biome-ignore lint/suspicious/noExplicitAny: test mock
-rs.mock("@chili3d/element", () => {
-    function createEl(tag: string, props: any, ...children: any[]): HTMLElement {
-        const el = document.createElement(tag);
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props.className) el.className = props.className;
-            if (props.textContent && typeof props.textContent !== "object") {
-                el.textContent = String(props.textContent);
-            }
-        }
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-            else if (typeof c === "string") el.appendChild(document.createTextNode(c));
-        }
-        return el;
-    }
+import "./_helpers/mockElement";
 
-    return {
-        div: (props: any, ...children: any[]) => createEl("div", props, ...children),
-        span: (props: any) => createEl("span", props),
-        label: (props: any) => createEl("label", props),
-        input: (props: any) => createEl("input", props),
-        Expander: class extends HTMLElement {
-            contenxtPanel: HTMLElement;
-            constructor(_title: string) {
-                super();
-                this.contenxtPanel = document.createElement("div");
-                this.appendChild(this.contenxtPanel);
-            }
-        },
-    };
-});
-
-// Track PubSub subscriptions for verification
-const pubSubSubscriptions = new Map<string, (...args: unknown[]) => unknown>();
-
-// Mock core
-rs.mock("@chili3d/core", () => {
-    const actual = rs.hoisted(() => require("@chili3d/core"));
-
-    return {
-        ...actual,
-        Localize: class {
-            private key: unknown;
-            constructor(key: unknown) {
-                this.key = key;
-            }
-            toString() {
-                return String(this.key);
-            }
-        },
-        Binding: class {
-            constructor(_v: unknown, _p?: string, _c?: unknown) {}
-        },
-        Transaction: { execute: (_d: unknown, _s: string, fn: () => void) => fn() },
-        PubSub: {
-            default: {
-                sub: (topic: string, handler: (...args: unknown[]) => unknown) => {
-                    pubSubSubscriptions.set(topic, handler);
-                },
-                pub: () => {},
-            },
-        },
-        PropertyUtils: {
-            getProperties: (_proto: unknown) => [
-                { name: "name", display: "test.name", type: "string" },
-                { name: "color", display: "test.color", type: "color" },
-            ],
-            getOwnProperties: (_proto: unknown) => [
-                { name: "transform", display: "test.transform", type: "matrix" },
-            ],
-        },
-        Node: class {},
-        FolderNode: class {},
-        GroupNode: class {},
-        VisualNode: class {
-            display() {
-                return "VisualObject";
-            }
-        },
-    };
-});
+// Core mock with PubSub recorder + PropertyUtils / Node-marker stubs
+import { pubSubRecorder } from "./_helpers/mockCorePropertyView";
 
 // Mock property control helpers to return simple DOM elements
 rs.mock("../src/property/complexPropertyUtils", () => ({
@@ -132,11 +46,23 @@ rs.mock("../src/property/matrixProperty", () => ({
 }));
 
 // Now import the module under test
+import { type INode, Node } from "@chili3d/core";
 import { PropertyView } from "../src/property/propertyView";
+import { mustQuery } from "./_helpers/domHelpers";
+
+// TestNode extends the mocked Node marker class, so it hits the
+// `nodes[0] instanceof Node` branch of PropertyView.addModel.
+class TestNode extends (Node as unknown as new () => object) {
+    name = "test";
+    color = "#ff0000";
+    display() {
+        return "TestNode";
+    }
+}
 
 describe("PropertyView", () => {
     beforeEach(() => {
-        pubSubSubscriptions.clear();
+        pubSubRecorder.reset();
     });
 
     describe("constructor", () => {
@@ -144,8 +70,8 @@ describe("PropertyView", () => {
             const pv = new PropertyView({ className: "test-panel" });
 
             const labels = pv.querySelectorAll("label");
-            // Should have at least the header label
-            expect(pv.innerHTML).toBeTruthy();
+            expect(labels.length).toBe(1);
+            expect(labels[0].className).toBe("pv-header");
         });
 
         test("should apply provided className and root style", () => {
@@ -156,88 +82,90 @@ describe("PropertyView", () => {
         });
 
         test("should subscribe to showProperties event", () => {
-            const pv = new PropertyView({ className: "test-panel" });
+            new PropertyView({ className: "test-panel" });
 
-            expect(pubSubSubscriptions.has("showProperties")).toBe(true);
+            expect(pubSubRecorder.handlers.has("showProperties")).toBe(true);
         });
 
         test("should subscribe to activeViewChanged event", () => {
-            const pv = new PropertyView({ className: "test-panel" });
+            new PropertyView({ className: "test-panel" });
 
-            expect(pubSubSubscriptions.has("activeViewChanged")).toBe(true);
+            expect(pubSubRecorder.handlers.has("activeViewChanged")).toBe(true);
         });
 
         test("should create panel element", () => {
             const pv = new PropertyView({ className: "test-panel" });
 
-            const panel = pv.querySelector('[class*="panel"]');
-            expect(panel).not.toBeNull();
+            mustQuery(pv, '[class*="panel"]');
         });
     });
 
     describe("handleShowProperties", () => {
         test("should clear existing properties when called with empty nodes", () => {
             const pv = new PropertyView({ className: "test-panel" });
-            const doc = {
-                visual: { update: () => {} },
-                selection: { getSelectedNodes: () => [] },
-            } as any;
+            const doc = createMockDocument();
+            const handler = pubSubRecorder.handlers.get("showProperties");
+            expect(handler).toBeDefined();
 
-            // Call showProperties with empty array
-            const handler = pubSubSubscriptions.get("showProperties")!;
-            expect(() => handler(doc, [])).not.toThrow();
+            // Populate the panel first, then clear it with an empty selection
+            handler!(doc, [new TestNode() as unknown as INode]);
+            const panel = mustQuery(pv, ".pv-panel");
+            expect(panel.childElementCount).toBe(1);
+
+            handler!(doc, []);
+            expect(panel.childElementCount).toBe(0);
         });
 
-        test("should handle single Node", () => {
+        test("should render property controls for a Node", () => {
             const pv = new PropertyView({ className: "test-panel" });
-            const doc = {
-                visual: { update: () => {} },
-                selection: { getSelectedNodes: () => [] },
-            } as any;
+            const doc = createMockDocument();
+            const handler = pubSubRecorder.handlers.get("showProperties");
+            expect(handler).toBeDefined();
 
-            class TestNode {
-                name = "test";
-                color = "#ff0000";
-                display() {
-                    return "TestNode";
-                }
-            }
+            handler!(doc, [new TestNode() as unknown as INode]);
 
-            const handler = pubSubSubscriptions.get("showProperties")!;
-            // This tests the path where nodes[0] is not FolderNode so it falls through
-            // Since TestNode is not instanceof Node (it's not a real Node subclass),
-            // addModel should be called but neither branch matches
-            expect(() => handler(doc, [new TestNode()])).not.toThrow();
+            // addModel maps the mocked own properties through the propertyControl mock
+            const controls = pv.querySelectorAll(".pv-panel .mock-property-control");
+            expect(controls.length).toBe(1);
         });
 
         test("should handle empty nodes gracefully", () => {
             const pv = new PropertyView({ className: "test-panel" });
-            const doc = {} as any;
+            const doc = createMockDocument();
+            const handler = pubSubRecorder.handlers.get("showProperties");
+            expect(handler).toBeDefined();
 
-            const handler = pubSubSubscriptions.get("showProperties")!;
-            expect(() => handler(doc, [])).not.toThrow();
+            handler!(doc, []);
+
+            expect(mustQuery(pv, ".pv-panel").childElementCount).toBe(0);
         });
     });
 
     describe("handleActiveViewChanged", () => {
-        test("should handle undefined view without error", () => {
+        test("should ignore an undefined view", () => {
             const pv = new PropertyView({ className: "test-panel" });
+            const handler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(handler).toBeDefined();
 
-            const handler = pubSubSubscriptions.get("activeViewChanged")!;
-            expect(() => handler(undefined)).not.toThrow();
+            handler!(undefined);
+
+            expect(mustQuery(pv, ".pv-panel").childElementCount).toBe(0);
         });
 
-        test("should call showProperties via handleActiveViewChanged with valid view", () => {
+        test("should show properties of the selected nodes of the new view", () => {
             const pv = new PropertyView({ className: "test-panel" });
-            const mockNodes = [{ name: "node1" }];
-            const mockDoc = {
-                visual: { update: () => {} },
+            const mockNodes = [new TestNode() as unknown as INode];
+            const doc = createMockDocument({
                 selection: { getSelectedNodes: () => mockNodes },
-            } as any;
+            });
+            const handler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(handler).toBeDefined();
 
-            const handler = pubSubSubscriptions.get("activeViewChanged")!;
-            // This will trigger handleShowProperties internally
-            expect(() => handler({ document: mockDoc })).not.toThrow();
+            // Triggers handleShowProperties internally
+            handler!({ document: doc });
+
+            const controls = pv.querySelectorAll(".pv-panel .mock-property-control");
+            expect(controls.length).toBe(1);
         });
     });
 

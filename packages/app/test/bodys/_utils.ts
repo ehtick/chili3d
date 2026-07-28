@@ -1,51 +1,58 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { getCurrentApplication, Plane, Result, ShapeTypes, setCurrentApplication, XYZ } from "@chili3d/core";
+import {
+    getCurrentApplication,
+    type IShapeMeshData,
+    Plane,
+    Result,
+    ShapeTypes,
+    setCurrentApplication,
+    XYZ,
+} from "@chili3d/core";
+import { MockShape } from "@chili3d/core/test-utils";
+import { onTestFinished } from "@rstest/core";
+
+/**
+ * MockShape variant that preserves the minimal behavior the body-node tests rely on:
+ * - `isEqual` always returns false, so `ShapeNode.setShape` never skips an update
+ *   (the shared MockShape uses identity comparison, which would suppress updates when
+ *   a factory mock returns the same instance twice).
+ * - `mesh` fields stay undefined instead of the shared rich mesh data.
+ */
+class BodyMockShape extends MockShape {
+    override get mesh(): IShapeMeshData {
+        return { edges: undefined, faces: undefined, vertexs: undefined };
+    }
+
+    override isEqual(): boolean {
+        return false;
+    }
+
+    override isClosed(): boolean {
+        return false;
+    }
+}
 
 /**
  * Create a minimal mock IShape for testing body nodes.
  */
-export function createMockShape() {
-    return {
-        shapeType: 0,
-        isEqual: () => false,
-        isClosed: () => false,
-        mesh: { edges: undefined, faces: undefined, vertexs: undefined },
-        matrix: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] },
-        dispose: () => {},
-    };
+export function createMockShape(overrides: Record<string, unknown> = {}) {
+    return Object.assign(new BodyMockShape({ shapeType: ShapeTypes.shape }), overrides);
 }
 
 /**
  * Create a mock wire shape with enough API surface for ExtrudeNode / FaceNode tests.
  */
 export function createMockWire() {
-    return {
-        shapeType: ShapeTypes.wire,
-        isEqual: () => false,
-        isClosed: () => false,
-        mesh: { edges: undefined, faces: undefined, vertexs: undefined },
-        matrix: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] },
-        dispose: () => {},
-        findSubShapes: () => [],
-        orientation: () => "forward",
-    };
+    return new BodyMockShape({ shapeType: ShapeTypes.wire });
 }
 
 /**
  * Create a mock edge suitable for use in FaceNode tests.
  */
 export function createMockEdge(overrides: Record<string, any> = {}) {
-    return {
-        shapeType: ShapeTypes.edge,
-        isEqual: () => false,
-        isClosed: () => true,
-        mesh: { edges: undefined, faces: undefined, vertexs: undefined },
-        matrix: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] },
-        dispose: () => {},
-        ...overrides,
-    };
+    return createMockShape({ shapeType: ShapeTypes.edge, isClosed: () => true, ...overrides });
 }
 
 /**
@@ -70,26 +77,16 @@ export function createMockWireWithEdgeLoop() {
             }),
         },
     });
-    return {
-        shapeType: ShapeTypes.wire,
-        isEqual: () => false,
-        isClosed: () => false,
-        mesh: { edges: undefined, faces: undefined, vertexs: undefined },
-        matrix: { elements: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] },
-        dispose: () => {},
-        edgeLoop: () => [mockEdge],
-        findSubShapes: () => [],
-    };
+    return Object.assign(createMockWire(), { edgeLoop: () => [mockEdge] });
 }
 
 /**
  * Create a mock wire IShape that has toFace() for FacebaseNode tests.
  */
 export function createMockWireShape() {
-    return {
-        ...createMockShape(),
+    return createMockShape({
         toFace: () => Result.ok(createMockShape()),
-    };
+    });
 }
 
 export function defaultPlane() {
@@ -108,6 +105,7 @@ function ensureApplicationForShapeFactory() {
 
 /**
  * Mock shapeFactory methods on globalThis for the duration of a test.
+ * The previous state is restored automatically when the test finishes.
  */
 export function setupShapeFactoryMock(methods: Record<string, (...args: any[]) => any>) {
     const desc = Object.getOwnPropertyDescriptor(globalThis, "shapeFactory");
@@ -118,16 +116,37 @@ export function setupShapeFactoryMock(methods: Record<string, (...args: any[]) =
             writable: true,
             configurable: true,
         });
+        onTestFinished(() => {
+            delete (globalThis as any).shapeFactory;
+        });
     } else if (desc.writable === true) {
         // A real writable data property — direct assignment is enough.
+        const previous = (globalThis as any).shapeFactory;
         (globalThis as any).shapeFactory = methods;
+        onTestFinished(() => {
+            (globalThis as any).shapeFactory = previous;
+        });
     } else {
         // Accessor-only getter (with or without a setter). Rather than redefine
         // the global and lose the app-backed getter, merge the methods into the
         // underlying factory object so the getter keeps resolving correctly.
         const app = ensureApplicationForShapeFactory();
-        if (app.shapeProvider?.factory) {
-            Object.assign(app.shapeProvider.factory, methods);
+        const factory = app.shapeProvider?.factory;
+        if (factory) {
+            const previous: Record<string, unknown> = {};
+            for (const key of Object.keys(methods)) {
+                previous[key] = factory[key];
+            }
+            Object.assign(factory, methods);
+            onTestFinished(() => {
+                for (const key of Object.keys(methods)) {
+                    if (previous[key] === undefined) {
+                        delete factory[key];
+                    } else {
+                        factory[key] = previous[key];
+                    }
+                }
+            });
         }
     }
 }

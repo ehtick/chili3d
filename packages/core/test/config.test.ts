@@ -9,7 +9,7 @@ import {
     VisualConfig,
     VisualItemConfig,
 } from "../src/config";
-import { mockLocalStorage } from "./localStorageMock";
+import { mockLocalStorage } from "../test-utils";
 
 describe("VisualItemConfig", () => {
     let config: VisualItemConfig;
@@ -76,7 +76,7 @@ describe("Config", () => {
     describe("snapType", () => {
         test("should have default snap type", () => {
             const snapType = Config.instance.snapType;
-            expect(snapType).toBeDefined();
+            expect(snapType).not.toBeNull();
             expect(typeof snapType).toBe("number");
         });
 
@@ -113,7 +113,7 @@ describe("Config", () => {
 
     describe("language", () => {
         test("should have default value", () => {
-            expect(Config.instance.language).toBeDefined();
+            expect(Config.instance.language).not.toBeNull();
             expect(typeof Config.instance.language).toBe("string");
         });
 
@@ -194,7 +194,7 @@ describe("Config", () => {
             localStorageMock["chili3d.app.config"] = "{}";
 
             Config.instance.readFromStorage();
-            expect(Config.instance.language).toBeDefined();
+            expect(Config.instance.language).not.toBeNull();
         });
     });
 
@@ -206,7 +206,7 @@ describe("Config", () => {
             Config.instance.saveToStorage();
 
             const stored = localStorageMock["chili3d.app.testSave"];
-            expect(stored).toBeDefined();
+            expect(stored).not.toBeNull();
             const parsed = JSON.parse(stored);
             expect(parsed.language).toBe("fr-FR");
             Config.instance.init("config");

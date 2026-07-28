@@ -9,7 +9,7 @@ import {
     RefSegmentAnnotation,
     TextAnnotation,
 } from "../src/model/annotation";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 describe("AnnotationTypes", () => {
     test("should contain four annotation types", () => {
@@ -117,7 +117,7 @@ describe("TextAnnotation", () => {
             position: XYZ.zero,
         });
 
-        expect(anno.id).toBeDefined();
+        expect(anno.id).not.toBeNull();
         expect(typeof anno.id).toBe("string");
     });
 
@@ -294,7 +294,7 @@ describe("RefSegmentAnnotation", () => {
         });
 
         const box = anno.boundingBox();
-        expect(box).toBeDefined();
+        expect(box).not.toBeNull();
         expect(box!.min.x).toBe(1);
         expect(box!.min.y).toBe(2);
         expect(box!.min.z).toBe(3);
@@ -316,7 +316,7 @@ describe("RefSegmentAnnotation", () => {
         });
 
         const box = anno.boundingBox();
-        expect(box).toBeDefined();
+        expect(box).not.toBeNull();
         expect(box!.min.x).toBe(1);
         expect(box!.max.x).toBe(5);
     });

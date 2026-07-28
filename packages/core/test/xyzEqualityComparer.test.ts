@@ -10,31 +10,31 @@ describe("XYZEqualityComparer", () => {
             const comparer = new XYZEqualityComparer();
             const p1 = new XYZ({ x: 1, y: 2, z: 3 });
             const p2 = new XYZ({ x: 1, y: 2, z: 3 });
-            expect(comparer.equals(p1, p2)).toBeTruthy();
+            expect(comparer.equals(p1, p2)).toBe(true);
         });
 
         test("should return true for points within default tolerance", () => {
             const comparer = new XYZEqualityComparer();
             const p1 = new XYZ({ x: 1, y: 2, z: 3 });
             const p2 = new XYZ({ x: 1.000000000001, y: 2, z: 3 });
-            expect(comparer.equals(p1, p2)).toBeTruthy();
+            expect(comparer.equals(p1, p2)).toBe(true);
         });
 
         test("should return false for points outside default tolerance", () => {
             const comparer = new XYZEqualityComparer();
             const p1 = new XYZ({ x: 1, y: 2, z: 3 });
             const p2 = new XYZ({ x: 2, y: 3, z: 4 });
-            expect(comparer.equals(p1, p2)).toBeFalsy();
+            expect(comparer.equals(p1, p2)).toBe(false);
         });
 
         test("should return true for zero points", () => {
             const comparer = new XYZEqualityComparer();
-            expect(comparer.equals(XYZ.zero, XYZ.zero)).toBeTruthy();
+            expect(comparer.equals(XYZ.zero, XYZ.zero)).toBe(true);
         });
 
         test("should return false for zero vs unit", () => {
             const comparer = new XYZEqualityComparer();
-            expect(comparer.equals(XYZ.zero, XYZ.unitX)).toBeFalsy();
+            expect(comparer.equals(XYZ.zero, XYZ.unitX)).toBe(false);
         });
     });
 
@@ -43,14 +43,14 @@ describe("XYZEqualityComparer", () => {
             const comparer = new XYZEqualityComparer(0.1);
             const p1 = new XYZ({ x: 1, y: 2, z: 3 });
             const p2 = new XYZ({ x: 1.05, y: 2.05, z: 3.05 });
-            expect(comparer.equals(p1, p2)).toBeTruthy();
+            expect(comparer.equals(p1, p2)).toBe(true);
         });
 
         test("should reject with strict tolerance", () => {
             const comparer = new XYZEqualityComparer(1e-12);
             const p1 = new XYZ({ x: 1, y: 2, z: 3 });
             const p2 = new XYZ({ x: 1, y: 2, z: 3.0000001 });
-            expect(comparer.equals(p1, p2)).toBeFalsy();
+            expect(comparer.equals(p1, p2)).toBe(false);
         });
 
         test("zero tolerance uses strict inequality", () => {

@@ -4,7 +4,7 @@
 import type { IShape, Serialized } from "../src";
 import { InternalClassName, PropertyUtils, Result } from "../src";
 import { FacebaseNode } from "../src/model/facebaseNode";
-import { MockShape, TestDocument } from "./mocks";
+import { MockShape, TestDocument } from "../test-utils";
 
 // Concrete implementation of FacebaseNode for testing
 class TestFacebaseNode extends FacebaseNode {
@@ -80,7 +80,7 @@ describe("FacebaseNode", () => {
             const properties = PropertyUtils.getOwnProperties(FacebaseNode.prototype);
             const isFaceProp = properties.find((p) => p.name === "isFace");
 
-            expect(isFaceProp).toBeDefined();
+            expect(isFaceProp).not.toBeNull();
             expect(isFaceProp?.display).toBe("option.command.isFace");
         });
     });

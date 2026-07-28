@@ -3,9 +3,9 @@
 
 import type { IDocument, IEdge, IWire } from "@chili3d/core";
 import { Result, ShapeTypes, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { PipeNode } from "../../src/bodys/pipe";
-import { createMockDocument } from "../_helpers";
 import { createMockEdge, createMockWireWithEdgeLoop, setupShapeFactoryMock } from "./_utils";
 
 /**
@@ -117,30 +117,30 @@ describe("PipeNode", () => {
             const path: any = createMockWireWithEdgeLoop();
             setupFullPipeMock();
             const node = new PipeNode({ document: doc, radius: 5, path });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.radius = 10;
-            expect(events).toContain("radius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("radius");
         });
 
         test("should emit on bendRadius change", () => {
             const path: any = createMockWireWithEdgeLoop();
             setupFullPipeMock();
             const node = new PipeNode({ document: doc, radius: 5, path });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.bendRadius = 3;
-            expect(events).toContain("bendRadius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("bendRadius");
         });
 
         test("should emit on thickness change", () => {
             const path: any = createMockWireWithEdgeLoop();
             setupFullPipeMock();
             const node = new PipeNode({ document: doc, radius: 5, path });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.thickness = 1;
-            expect(events).toContain("thickness");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("thickness");
         });
     });
 
@@ -205,7 +205,7 @@ describe("PipeNode", () => {
     describe("generateShape success", () => {
         test("should complete full pipeline without thickness", () => {
             const solid = { shapeType: 0, dispose: () => {} };
-            let sweepCallArgs: any[] | null = null;
+            const sweep = rs.fn(() => Result.ok(solid as any));
 
             setupShapeFactoryMock({
                 circle: () => Result.ok(createMockEdge()),
@@ -214,17 +214,14 @@ describe("PipeNode", () => {
                         shapeType: ShapeTypes.wire,
                         edgeLoop: () => [],
                     }),
-                sweep: (...args: any[]) => {
-                    sweepCallArgs = args;
-                    return Result.ok(solid as any);
-                },
+                sweep,
             });
 
             const path: any = createMockWireWithEdgeLoop();
             const node = new PipeNode({ document: doc, radius: 5, path });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(sweepCallArgs).not.toBeNull();
+            expect(sweep).toHaveBeenCalled();
         });
     });
 

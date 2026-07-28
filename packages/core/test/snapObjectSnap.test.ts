@@ -7,7 +7,7 @@ import { ShapeTypes } from "../src/shape";
 import type { SnapResult } from "../src/snap/snap";
 import { ObjectSnap } from "../src/snap/snaps/objectSnap";
 import type { VisualShapeData } from "../src/visual";
-import { createMockEdgeCurve, createMockView, createMouseAndDetected } from "./mocks";
+import { createMockEdgeCurve, createMockView, createMouseAndDetected } from "../test-utils";
 
 // ============================================================================
 // Helpers
@@ -140,7 +140,7 @@ describe("ObjectSnap", () => {
     describe("constructor", () => {
         test("should store snap type via Config listener", () => {
             const snap = new ObjectSnap(ObjectSnapTypes.endPoint);
-            expect(snap).toBeDefined();
+            expect(snap).not.toBeNull();
         });
 
         test("should store reference point function", () => {
@@ -198,12 +198,10 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("end");
-                expect(result.point).toBeDefined();
-                expect(result.shapes).toEqual([edgeShape]);
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("end");
+            expect(result!.point).not.toBeNull();
+            expect(result!.shapes).toEqual([edgeShape]);
         });
 
         test("should compute distance when referencePoint is set and snap has point", () => {
@@ -219,11 +217,9 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                // distance from ref point (3,4,0) to snap point (0,0,0) = 5
-                expect(result.distance).toBeCloseTo(5, 5);
-            }
+            expect(result).not.toBeNull();
+            // distance from ref point (3,4,0) to snap point (0,0,0) = 5
+            expect(result!.distance).toBeCloseTo(5, 5);
         });
 
         test("should not set distance when referencePoint is undefined", () => {
@@ -238,10 +234,8 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.distance).toBeUndefined();
-            }
+            expect(result).not.toBeNull();
+            expect(result!.distance).toBeUndefined();
         });
     });
 
@@ -261,10 +255,8 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("end");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("end");
         });
 
         test("should detect midPoint snap", () => {
@@ -280,10 +272,8 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { mx: 405, my: 300, shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("middle");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("middle");
         });
 
         test("should detect vertex snap point when routed via edge shapes", () => {
@@ -302,10 +292,8 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { shapes: [vertexShape, edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("vertex");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("vertex");
         });
 
         test("should NOT collect vertex point when snapType excludes vertex", () => {
@@ -336,10 +324,8 @@ describe("ObjectSnap", () => {
 
             const result = snap.snap(data);
             // midPoint is at (5,0,0) → screen (405,300), mouse at (400,300) → distance 5 < 10
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("middle");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("middle");
         });
     });
 
@@ -389,10 +375,8 @@ describe("ObjectSnap", () => {
 
             // endPoint at (0,0,0) is within SnapDistance (10) → returns "end"
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("end");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("end");
         });
 
         test("should NOT collect tangent points without referencePoint", () => {
@@ -467,9 +451,7 @@ describe("ObjectSnap", () => {
             const result = snap.snap(data);
             // project returns [XYZ(3,0,0)] → screen (403,300), not close enough to (400,300)
             // result may be undefined or a perpendicular result
-            if (result) {
-                expect(result.type).toBe("perpendicular");
-            }
+            expect(result!.type).toBe("perpendicular");
         });
 
         test("should NOT find perpendicular without referencePoint", () => {
@@ -501,10 +483,8 @@ describe("ObjectSnap", () => {
 
             const result = snap.snap(data);
             // Should find endPoint (type "end"), not perpendicular
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("end");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("end");
         });
     });
 
@@ -547,10 +527,8 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { mx: 402, my: 300, shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("nearCurve");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("nearCurve");
         });
 
         test("should NOT find nearest curve point when onCurve is disabled", () => {
@@ -642,7 +620,7 @@ describe("ObjectSnap", () => {
             expect(result).toBeUndefined();
             // _lastDetected should be set when nearest feature point is outside SnapDistance
             const internal = internalsOf(snap);
-            expect(internal._lastDetected).toBeDefined();
+            expect(internal._lastDetected).not.toBeNull();
             expect(internal._lastDetected?.[0]).toBe(view);
         });
     });
@@ -696,11 +674,9 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { mx: 405, my: 305, shapes: [edge1, edge2] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("intersection");
-                expect(result.shapes).toEqual([edge1, edge2]);
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("intersection");
+            expect(result!.shapes).toEqual([edge1, edge2]);
         });
 
         test("should NOT find intersection when snapType excludes it", () => {
@@ -714,9 +690,7 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            if (result) {
-                expect(result.type).not.toBe("intersection");
-            }
+            expect(result!.type).not.toBe("intersection");
         });
 
         test("should cache intersection results", () => {
@@ -867,13 +841,11 @@ describe("ObjectSnap", () => {
             // After snapping with an edge, invisible infos should be populated
             const internal = internalsOf(snap);
             const info = internal._invisibleInfos.get(edgeShape);
-            expect(info).toBeDefined();
-            if (info) {
-                expect(info.snaps.length).toBe(1);
-                expect(info.snaps[0].type).toBe("center");
-                expect(info.snaps[0].point?.x).toBe(5);
-                expect(info.snaps[0].point?.y).toBe(0);
-            }
+            expect(info).not.toBeNull();
+            expect(info!.snaps.length).toBe(1);
+            expect(info!.snaps[0].type).toBe("center");
+            expect(info!.snaps[0].point?.x).toBe(5);
+            expect(info!.snaps[0].point?.y).toBe(0);
         });
 
         test("should not add duplicate invisible snaps for same shape", () => {
@@ -969,10 +941,8 @@ describe("ObjectSnap", () => {
             // Mouse at (405,300) → distance 0 < 10
             const dataNoEdge = createMouseAndDetected(view, { mx: 405, my: 300, shapes: [] });
             const result = snap.snap(dataNoEdge);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("center");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("center");
         });
 
         test("should return undefined when invisible snaps are too far", () => {
@@ -1047,7 +1017,7 @@ describe("ObjectSnap", () => {
 
             snap.snap(data); // sets _lastDetected
             const internal = internalsOf(snap);
-            expect(internal._lastDetected).toBeDefined();
+            expect(internal._lastDetected).not.toBeNull();
 
             // Now handleSnaped with empty shapes should trigger hint display
             const snaped: SnapResult = { view, shapes: [], type: "vertex" };
@@ -1072,7 +1042,7 @@ describe("ObjectSnap", () => {
             };
             snap.handleSnaped(view.document, snaped);
             // _lastDetected should NOT be cleared when shapes is non-empty
-            expect(internal._lastDetected).toBeDefined();
+            expect(internal._lastDetected).not.toBeNull();
         });
 
         test("should NOT crash when snaped is undefined", () => {
@@ -1306,10 +1276,8 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { mx: 400, my: 300, shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("end");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("end");
         });
 
         test("should fall back properly: feature points → nearest curve → _lastDetected", () => {
@@ -1347,10 +1315,8 @@ describe("ObjectSnap", () => {
             const data = createMouseAndDetected(view, { mx: 403, my: 300, shapes: [edgeShape] });
 
             const result = snap.snap(data);
-            expect(result).toBeDefined();
-            if (result) {
-                expect(result.type).toBe("nearCurve");
-            }
+            expect(result).not.toBeNull();
+            expect(result!.type).toBe("nearCurve");
         });
     });
 });

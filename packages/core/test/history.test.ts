@@ -1,10 +1,10 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { IHistoryRecord, NodeRecord } from "@chili3d/core";
-import { ArrayRecord, History, NodeLinkedListHistoryRecord, PropertyHistoryRecord } from "@chili3d/core";
+import type { IHistoryRecord, NodeRecord } from "../src";
+import { ArrayRecord, History, NodeLinkedListHistoryRecord, PropertyHistoryRecord } from "../src";
 
-describe("test history", () => {
+describe("History", () => {
     class TestClass {
         property: string;
         arrItems: number[];
@@ -17,7 +17,7 @@ describe("test history", () => {
         }
     }
 
-    test("test modify history", () => {
+    test("should undo and redo property changes", () => {
         const obj = new TestClass();
         const history = new History();
         const h: PropertyHistoryRecord = new PropertyHistoryRecord(obj, "property", "p1", "p2");

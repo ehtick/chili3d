@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Line", () => {
     test("should have command metadata", () => {
         const data = (Line as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.line");
         expect(data.icon).toBe("icon-line");
     });

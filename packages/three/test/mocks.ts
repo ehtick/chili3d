@@ -15,7 +15,7 @@ import { Group, type Mesh, MeshBasicMaterial, Scene } from "three";
 import { ThreeVisualContext } from "../src/threeVisualContext";
 
 // ============================================================================
-// createMockVisualContext — lightweight duck-typed context
+// createThreeMockVisualContext — lightweight duck-typed context
 // ============================================================================
 
 /**
@@ -23,7 +23,7 @@ import { ThreeVisualContext } from "../src/threeVisualContext";
  * When visualMap is provided, getVisual looks up meshes by VisualNode and
  * the meshes are added to the visualShapes group.
  */
-export function createMockVisualContext(visualMap?: Map<VisualNode, Mesh>): ThreeVisualContext {
+export function createThreeMockVisualContext(visualMap?: Map<VisualNode, Mesh>): ThreeVisualContext {
     const scene = new Scene();
     const visualShapes = new Group();
     scene.add(visualShapes);

@@ -8,21 +8,20 @@ import {
     type ICancelableCommand,
     type ICommand,
     type IDisposable,
-    type IDocument,
-    type IView,
     isCancelableCommand,
 } from "../src";
 import { CommandStore } from "../src/command/commandStore";
+import {
+    createMockApplication,
+    createMockCancelableCommand,
+    createMockCommand,
+    createMockDocument,
+    createMockView,
+} from "../test-utils";
 
-const mockDocument = {} as IDocument;
-
-const mockView = {
-    document: mockDocument,
-} as IView;
-
-const mockApplication = {
-    activeView: mockView,
-} as IApplication;
+const mockDocument = createMockDocument();
+const mockApplication = createMockApplication();
+(mockApplication as any).activeView = createMockView({ document: mockDocument });
 
 class TestCommand extends CancelableCommand {
     public executeCount = 0;
@@ -64,15 +63,15 @@ class TestCommand extends CancelableCommand {
 
 describe("Command System", () => {
     describe("ICommand interface", () => {
-        test("should define ICommand interface correctly", () => {
+        test("should define ICommand interface correctly", async () => {
             let executed = false;
-            const mockCommand: ICommand = {
+            const mockCommand = createMockCommand({
                 execute: async () => {
                     executed = true;
                 },
-            };
+            });
 
-            mockCommand.execute(mockApplication);
+            await mockCommand.execute(mockApplication);
             expect(executed).toBe(true);
         });
     });
@@ -81,15 +80,14 @@ describe("Command System", () => {
         test("should define ICancelableCommand interface correctly", () => {
             let cancelCalled = false;
             let disposeCalled = false;
-            const mockCancelableCommand: ICancelableCommand = {
-                execute: async () => {},
+            const mockCancelableCommand = createMockCancelableCommand({
                 cancel: async () => {
                     cancelCalled = true;
                 },
                 dispose: () => {
                     disposeCalled = true;
                 },
-            };
+            }) as ICancelableCommand;
 
             mockCancelableCommand.cancel();
             mockCancelableCommand.dispose();
@@ -100,15 +98,8 @@ describe("Command System", () => {
 
     describe("isCancelableCommand type guard", () => {
         test("should identify cancelable command correctly", () => {
-            const mockCommand: ICommand = {
-                execute: async () => {},
-            };
-
-            const mockCancelableCommand: ICancelableCommand = {
-                execute: async () => {},
-                cancel: async () => {},
-                dispose: () => {},
-            };
+            const mockCommand = createMockCommand();
+            const mockCancelableCommand = createMockCancelableCommand();
 
             expect(isCancelableCommand(mockCommand)).toBe(false);
             expect(isCancelableCommand(mockCancelableCommand)).toBe(true);
@@ -138,10 +129,9 @@ describe("Command System", () => {
 
             const executePromise = command.execute(mockApplication);
 
-            setTimeout(() => {
-                command.cancel();
-                resolvePromise!();
-            }, 50);
+            // Cancel synchronously while the mocked execute is still pending
+            command.cancel();
+            resolvePromise!();
 
             await executePromise;
 
@@ -217,7 +207,10 @@ describe("Command System", () => {
                 },
             } as unknown as AsyncController;
 
-            (command as any)["#controller"] = mockController;
+            // controller is a protected accessor backed by a true private field (#controller);
+            // assigning a literal "#controller" property would never reach it.
+            command["controller"] = mockController;
+            expect(command["controller"]).toBe(mockController);
 
             expect((command as any).checkCanceled()).toBe(false);
         });
@@ -305,22 +298,26 @@ describe("Command System", () => {
             expect(command["controller"]).toBeUndefined();
         });
 
-        test("should set isCanceled when cancel is called", () => {
+        test("should set isCanceled when cancel is called", async () => {
             const command = new TestCommand();
+            let resolvePromise: (() => void) | undefined;
+            command.setExecuteMock(async () => {
+                await new Promise<void>((resolve) => {
+                    resolvePromise = resolve;
+                });
+            });
+
+            const executePromise = command.execute(mockApplication);
 
             expect(command.isCanceled).toBe(false);
 
-            (command as any)._isCanceled = true;
+            // cancel() waits for the running execution to complete, so resolve the
+            // mocked execute afterwards and let both promises settle.
+            const cancelPromise = command.cancel();
             expect(command.isCanceled).toBe(true);
-        });
 
-        test("should handle cancel sets isCanceled flag", () => {
-            const command = new TestCommand();
-
-            expect(command.isCanceled).toBe(false);
-
-            (command as any)._isCanceled = true;
-            expect(command.isCanceled).toBe(true);
+            resolvePromise!();
+            await Promise.all([executePromise, cancelPromise]);
         });
 
         test("should preserve isCompleted state", () => {
@@ -403,7 +400,7 @@ describe("Command System", () => {
                 });
 
                 const data = CommandStore.getComandData("test.command");
-                expect(data).toBeDefined();
+                expect(data).not.toBeNull();
                 expect(data?.key).toBe("test.command");
                 expect(data?.icon).toBe("test-icon");
                 expect(data?.helpText).toBe("Test help text");
@@ -505,7 +502,7 @@ describe("Command System", () => {
                     icon: "icon",
                 });
 
-                expect(CommandStore.getCommand("test.unregister")).toBeDefined();
+                expect(CommandStore.getCommand("test.unregister")).not.toBeNull();
 
                 CommandStore.unregisterCommand("test.unregister");
 
@@ -522,7 +519,7 @@ describe("Command System", () => {
                     icon: "icon",
                 });
 
-                expect((TestCommandClass.prototype as any).data).toBeDefined();
+                expect((TestCommandClass.prototype as any).data).not.toBeNull();
 
                 CommandStore.unregisterCommand("test.prototype");
 

@@ -4,50 +4,62 @@
 import { type CollectionChangedArgs, ObservableCollection } from "../src";
 
 describe("ObservableCollection test", () => {
-    test("test add", () => {
+    test("should notify when items are added", () => {
         const collection = new ObservableCollection<number>();
+        let received: CollectionChangedArgs | undefined;
         collection.onCollectionChanged((arg: CollectionChangedArgs) => {
-            if (arg.action === "add") {
-                expect(arg.items.length).toBe(1);
-            }
+            received = arg;
         });
         collection.push(1);
+        expect(received).not.toBeNull();
+        expect(received!.action).toBe("add");
+        const args = received as Extract<CollectionChangedArgs, { action: "add" }>;
+        expect(args.items.length).toBe(1);
     });
 
-    test("test remove", () => {
+    test("should notify when items are removed", () => {
         const collection = new ObservableCollection<number>(1, 2, 3);
+        let received: CollectionChangedArgs | undefined;
         collection.onCollectionChanged((arg: CollectionChangedArgs) => {
-            if (arg.action === "remove") {
-                expect(arg.items).toStrictEqual([1, 3]);
-                expect(arg.items.length).toBe(2);
-            }
+            received = arg;
         });
         collection.remove(1, 3);
+        expect(received).not.toBeNull();
+        expect(received!.action).toBe("remove");
+        const args = received as Extract<CollectionChangedArgs, { action: "remove" }>;
+        expect(args.items).toStrictEqual([1, 3]);
+        expect(args.items.length).toBe(2);
     });
 
-    test("test move", () => {
+    test("should notify when an item is moved", () => {
         const collection = new ObservableCollection<number>(1, 2, 3);
+        let received: CollectionChangedArgs | undefined;
         collection.onCollectionChanged((arg: CollectionChangedArgs) => {
-            if (arg.action === "move") {
-                expect(collection.items()).toStrictEqual([2, 1, 3]);
-                expect(collection.items().length).toBe(3);
-                expect(arg.from).toBe(0);
-                expect(arg.to).toBe(2);
-            }
+            received = arg;
         });
         collection.move(0, 2);
+        expect(received).not.toBeNull();
+        expect(received!.action).toBe("move");
+        const args = received as Extract<CollectionChangedArgs, { action: "move" }>;
+        expect(collection.items()).toStrictEqual([2, 1, 3]);
+        expect(collection.items().length).toBe(3);
+        expect(args.from).toBe(0);
+        expect(args.to).toBe(2);
     });
 
-    test("test replace", () => {
+    test("should notify when an item is replaced", () => {
         const collection = new ObservableCollection<number>(1, 2, 3);
+        let received: CollectionChangedArgs | undefined;
         collection.onCollectionChanged((arg: CollectionChangedArgs) => {
-            if (arg.action === "replace") {
-                expect(collection.items()).toStrictEqual([1, 3, 2, 3]);
-                expect(arg.items).toStrictEqual([3, 2]);
-                expect(arg.items.length).toBe(2);
-                expect(arg.item).toBe(2);
-            }
+            received = arg;
         });
         collection.replace(1, 3, 2);
+        expect(received).not.toBeNull();
+        expect(received!.action).toBe("replace");
+        const args = received as Extract<CollectionChangedArgs, { action: "replace" }>;
+        expect(collection.items()).toStrictEqual([1, 3, 2, 3]);
+        expect(args.items).toStrictEqual([3, 2]);
+        expect(args.items.length).toBe(2);
+        expect(args.item).toBe(2);
     });
 });

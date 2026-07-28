@@ -1,9 +1,10 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { ICommand, IDocument, IView, IVisual, IVisualFactory, Serialized } from "@chili3d/core";
-import { ObservableCollection, PubSub } from "@chili3d/core";
-import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
+import type { ICommand, IDocument, IView, IVisualFactory, Serialized } from "@chili3d/core";
+import { Logger, ObservableCollection, PubSub } from "@chili3d/core";
+import { createMockView, createMockVisualWithDocument } from "@chili3d/core/test-utils";
+import { afterEach, beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { Application } from "../src/application";
 
 // IMPORTANT: Application constructor calls setCurrentApplication(this), which
@@ -14,109 +15,18 @@ import { Application } from "../src/application";
 // Helpers
 // ============================================================================
 
-function createMockView(overrides: Partial<IView> = {}): IView {
-    return {
-        document: undefined as unknown as IDocument,
-        cameraController: {
-            cameraPosition: { x: 0, y: 0, z: 0 },
-            cameraTarget: { x: 0, y: 0, z: 0 },
-            cameraUp: { x: 0, y: 0, z: 1 },
-            cameraType: "perspective" as const,
-            fitContent: () => {},
-            lookAt: () => {},
-            pan: () => {},
-            startRotate: () => {},
-            rotate: () => {},
-            zoom: () => {},
-            updateCameraPosionTarget: () => {},
-            onPropertyChanged: () => {},
-            removePropertyChanged: () => {},
-            clearPropertyChanged: () => {},
-            dispose: () => {},
-        },
-        isClosed: false,
-        width: 800,
-        height: 600,
-        dom: undefined,
-        mode: "solid" as const,
-        name: "3d",
-        workplane: {
-            origin: { x: 0, y: 0, z: 0 },
-            xDirection: { x: 1, y: 0, z: 0 },
-            yDirection: { x: 0, y: 1, z: 0 },
-            normal: { x: 0, y: 0, z: 1 },
-        } as any,
-        update: () => {},
-        up: () => ({ x: 0, y: 0, z: 1 }),
-        toImage: () => "",
-        direction: () => ({ x: 0, y: 0, z: 1 }),
-        rayAt: () => ({ origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }),
-        screenToWorld: () => ({ x: 0, y: 0, z: 0 }),
-        worldToScreen: () => ({ x: 0, y: 0 }),
-        isolate: () => {},
-        unisolate: () => {},
-        resize: () => {},
-        setDom: () => {},
-        htmlText: () => ({ dispose: () => {} }),
-        close: () => {},
-        detectVisual: () => [],
-        detectVisualRect: () => [],
-        detectShapes: () => [],
-        detectShapesRect: () => [],
-        onPropertyChanged: () => {},
-        removePropertyChanged: () => {},
-        clearPropertyChanged: () => {},
-        dispose: () => {},
-        ...overrides,
-    } as unknown as IView;
-}
-
 function makeVisualFactory(): IVisualFactory {
     return {
         kernelName: "mock",
         create: (doc: IDocument) => {
-            return {
-                document: doc,
-                context: {
-                    dispose: () => {},
-                    removeNode: () => {},
-                    redrawNode: () => {},
-                    getVisual: () => undefined,
-                    setVisible: () => {},
-                },
-                viewHandler: {} as any,
-                defaultEventHandler: {} as any,
-                highlighter: {
-                    addState: () => {},
-                    removeState: () => {},
-                    getState: () => undefined,
-                    clear: () => {},
-                    resetState: () => {},
-                    highlightMesh: () => 0,
-                    removeHighlightMesh: () => {},
-                },
-                meshExporter: {
-                    exportToStl: async () => ({ ok: false }) as any,
-                    exportToPly: async () => ({ ok: false }) as any,
-                    exportToObj: async () => ({ ok: false }) as any,
-                },
-                update: () => {},
-                eventHandler: {
-                    isEnabled: true,
-                    pointerMove: () => {},
-                    pointerDown: () => {},
-                    pointerUp: () => {},
-                    keyDown: () => {},
-                    dispose: () => {},
-                },
-                // create a fresh view with document reference each time
-                createView: (_name: string, _plane: any) => {
-                    return createMockView({ document: doc } as Partial<IView>);
-                },
-                dispose: () => {},
-                resetEventHandler: () => {},
-                isExcutingHandler: () => false,
-            } as unknown as IVisual;
+            const visual = createMockVisualWithDocument(doc);
+            // create a fresh view with document reference each time
+            visual.createView = (_name: string, _plane: any) =>
+                createMockView({
+                    document: doc,
+                    cameraController: { fitContent: () => {} },
+                } as unknown as Partial<IView>);
+            return visual;
         },
     } as unknown as IVisualFactory;
 }
@@ -168,6 +78,9 @@ function resetAppState() {
     sharedApp.activeView = undefined;
     sharedApp.executingCommand = undefined;
     sharedApp.lastCommand = undefined;
+    // Restore collaborators that individual tests may have overridden
+    sharedApp.storage.get = async () => undefined;
+    sharedApp.dataExchange.import = async () => {};
     // Clear property change handlers
     sharedApp.clearPropertyChanged();
     // Clean up pubsub
@@ -217,7 +130,7 @@ describe("Application", () => {
         });
 
         test("should set window.onbeforeunload in initEvents", () => {
-            expect(window.onbeforeunload).toBeDefined();
+            expect(window.onbeforeunload).not.toBeNull();
             expect(typeof window.onbeforeunload).toBe("function");
         });
     });
@@ -326,9 +239,9 @@ describe("Application", () => {
         test("should create a new document and return it", async () => {
             const doc = await sharedApp.newDocument("TestDoc");
 
-            expect(doc).toBeDefined();
+            expect(doc).not.toBeNull();
             expect(doc.name).toBe("TestDoc");
-            expect(doc.id).toBeDefined();
+            expect(doc.id).not.toBeNull();
             expect(doc.id.length).toBeGreaterThan(0);
         });
 
@@ -348,7 +261,7 @@ describe("Application", () => {
 
         test("should set activeView to the created view", async () => {
             const doc = await sharedApp.newDocument("TestDoc4");
-            expect(sharedApp.activeView).toBeDefined();
+            expect(sharedApp.activeView).not.toBeNull();
             expect(sharedApp.activeView?.document).toBe(doc);
         });
     });
@@ -369,7 +282,7 @@ describe("Application", () => {
             sharedApp.storage.get = async () => validData;
 
             const doc = await sharedApp.openDocument("doc-456");
-            expect(doc).toBeDefined();
+            expect(doc).not.toBeNull();
             expect(doc!.name).toBe("SavedDoc");
             expect(doc!.id).toBe("doc-456");
         });
@@ -378,7 +291,7 @@ describe("Application", () => {
             sharedApp.storage.get = async () => validData;
 
             await sharedApp.openDocument("doc-456");
-            expect(sharedApp.activeView).toBeDefined();
+            expect(sharedApp.activeView).not.toBeNull();
             expect(sharedApp.activeView?.document?.name).toBe("SavedDoc");
         });
     });
@@ -391,7 +304,7 @@ describe("Application", () => {
 
         test("should load document from serialized data", async () => {
             const doc = await sharedApp.loadDocument(validSerializedData);
-            expect(doc).toBeDefined();
+            expect(doc).not.toBeNull();
             expect(doc!.name).toBe("LoadedDoc");
             expect(doc!.id).toBe("load-123");
         });
@@ -403,22 +316,24 @@ describe("Application", () => {
 
         test("should set activeView after loading document", async () => {
             await sharedApp.loadDocument(validSerializedData);
-            expect(sharedApp.activeView).toBeDefined();
+            expect(sharedApp.activeView).not.toBeNull();
         });
 
         test("should return undefined when version mismatches", async () => {
             const originalAlert = globalThis.alert;
             globalThis.alert = (() => {}) as any;
 
-            const badVersionData = {
-                ...validSerializedData,
-                version: "0.0.1",
-            } as unknown as Serialized;
+            try {
+                const badVersionData = {
+                    ...validSerializedData,
+                    version: "0.0.1",
+                } as unknown as Serialized;
 
-            const doc = await sharedApp.loadDocument(badVersionData);
-            expect(doc).toBeUndefined();
-
-            globalThis.alert = originalAlert;
+                const doc = await sharedApp.loadDocument(badVersionData);
+                expect(doc).toBeUndefined();
+            } finally {
+                globalThis.alert = originalAlert;
+            }
         });
     });
 
@@ -427,6 +342,7 @@ describe("Application", () => {
     // ==========================================================================
     describe("loadFileFromUrl", () => {
         let originalFetch: typeof fetch;
+        let errorSpy: ReturnType<typeof rs.spyOn>;
 
         beforeEach(() => {
             originalFetch = globalThis.fetch;
@@ -434,13 +350,15 @@ describe("Application", () => {
                 (Promise as any).try = (fn: (...args: any[]) => any, ...args: any[]) =>
                     Promise.resolve().then(() => fn(...args));
             }
+            errorSpy = rs.spyOn(Logger, "error").mockImplementation(() => {});
         });
 
         afterEach(() => {
             globalThis.fetch = originalFetch;
+            errorSpy.mockRestore();
         });
 
-        test("should fetch the URL and process the blob", async () => {
+        test("should fetch the URL, create a document and import the file", async () => {
             const mockBlob = new Blob(["test content"], { type: "application/octet-stream" });
             globalThis.fetch = (async () => ({
                 ok: true,
@@ -448,17 +366,49 @@ describe("Application", () => {
                 blob: async () => mockBlob,
             })) as unknown as typeof fetch;
 
-            await expect(sharedApp.loadFileFromUrl("https://example.com/model.step")).resolves.not.toThrow();
+            const importCalls: { document: IDocument; files: File[] | FileList }[] = [];
+            sharedApp.dataExchange.import = async (document: IDocument, files: File[] | FileList) => {
+                importCalls.push({ document, files });
+            };
+
+            let importCallback: (() => Promise<void>) | undefined;
+            PubSub.default.sub("showPermanent", (callback: () => Promise<void>) => {
+                importCallback = callback;
+            });
+
+            await sharedApp.loadFileFromUrl("https://example.com/model.step");
+
+            // A new document is created for the imported file
+            expect(sharedApp.documents.size).toBe(1);
+            const doc = [...sharedApp.documents][0];
+            expect(doc.name).toBe("Untitled");
+            expect(sharedApp.activeView?.document).toBe(doc);
+            expect(errorSpy).not.toHaveBeenCalled();
+
+            // The actual import runs inside the showPermanent callback
+            expect(importCallback).not.toBeUndefined();
+            await importCallback!();
+            expect(importCalls).toHaveLength(1);
+            expect(importCalls[0].document).toBe(doc);
+            expect(importCalls[0].files[0].name).toBe("model.step");
         });
 
-        test("should handle fetch failure gracefully", async () => {
+        test("should log the error and not import anything when fetch fails", async () => {
             globalThis.fetch = (async () => ({
                 ok: false,
                 statusText: "Not Found",
                 blob: async () => new Blob(),
             })) as unknown as typeof fetch;
 
-            await expect(sharedApp.loadFileFromUrl("https://example.com/model.step")).resolves.not.toThrow();
+            const importSpy = rs.fn(async (_document: IDocument, _files: File[] | FileList) => {});
+            sharedApp.dataExchange.import = importSpy;
+
+            await sharedApp.loadFileFromUrl("https://example.com/model.step");
+
+            expect(errorSpy).toHaveBeenCalled();
+            expect(importSpy).not.toHaveBeenCalled();
+            expect(sharedApp.documents.size).toBe(0);
+            expect(sharedApp.activeView).toBeUndefined();
         });
     });
 
@@ -575,21 +525,55 @@ describe("Application", () => {
     // ==========================================================================
     describe("importFiles", () => {
         test("should return early when files is undefined", async () => {
-            await expect(sharedApp.importFiles(undefined)).resolves.not.toThrow();
+            const pubSpy = rs.spyOn(PubSub.default, "pub");
+
+            await sharedApp.importFiles(undefined);
+
+            expect(pubSpy).not.toHaveBeenCalled();
+            expect(sharedApp.documents.size).toBe(0);
+            pubSpy.mockRestore();
         });
 
         test("should return early when files is null", async () => {
-            await expect(sharedApp.importFiles(null as any)).resolves.not.toThrow();
+            const pubSpy = rs.spyOn(PubSub.default, "pub");
+
+            await sharedApp.importFiles(null as any);
+
+            expect(pubSpy).not.toHaveBeenCalled();
+            expect(sharedApp.documents.size).toBe(0);
+            pubSpy.mockRestore();
         });
 
         test("should return early when files array is empty", async () => {
-            await expect(sharedApp.importFiles([])).resolves.not.toThrow();
+            const pubSpy = rs.spyOn(PubSub.default, "pub");
+
+            await sharedApp.importFiles([]);
+
+            expect(pubSpy).not.toHaveBeenCalled();
+            expect(sharedApp.documents.size).toBe(0);
+            pubSpy.mockRestore();
         });
 
         test("should handle FileList input", async () => {
+            const data = makeSerializedDocData("DroppedDoc", "dropped-1");
             const dt = new DataTransfer();
-            dt.items.add(new File([], "model.cd"));
-            await expect(sharedApp.importFiles(dt.files)).resolves.not.toThrow();
+            dt.items.add(new File([JSON.stringify(data)], "model.cd"));
+
+            let openCallback: (() => Promise<void>) | undefined;
+            PubSub.default.sub("showPermanent", (callback: () => Promise<void>) => {
+                openCallback = callback;
+            });
+
+            await sharedApp.importFiles(dt.files);
+
+            // The .cd file is routed to the open-document path via showPermanent
+            expect(openCallback).not.toBeUndefined();
+            await openCallback!();
+
+            const doc = [...sharedApp.documents].find((d) => d.id === "dropped-1");
+            expect(doc).not.toBeUndefined();
+            expect(doc!.name).toBe("DroppedDoc");
+            expect(sharedApp.activeView?.document).toBe(doc);
         });
     });
 
@@ -745,10 +729,10 @@ describe("Application", () => {
 
         test("should handle empty views collection gracefully", () => {
             sharedApp.views.clear();
+
+            (sharedApp as any).onVisualConfigChanged("defaultEdgeColor");
+
             expect(sharedApp.views.length).toBe(0);
-            expect(() => {
-                (sharedApp as any).onVisualConfigChanged("defaultEdgeColor");
-            }).not.toThrow();
         });
     });
 
@@ -764,8 +748,8 @@ describe("Application", () => {
 
         test("should create view and set as activeView", async () => {
             const doc = await sharedApp.newDocument("IntegrationTest");
-            expect(doc).toBeDefined();
-            expect(sharedApp.activeView).toBeDefined();
+            expect(doc).not.toBeNull();
+            expect(sharedApp.activeView).not.toBeNull();
             expect(sharedApp.activeView!.document).toBe(doc);
         });
     });

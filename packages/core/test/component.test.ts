@@ -12,7 +12,7 @@ import { BoundingBox, Matrix4 } from "../src/math";
 import { XYZ } from "../src/math/xyz";
 import type { VisualNode } from "../src/model";
 import { MeshNode } from "../src/model/meshNode";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 describe("ComponentSize", () => {
     test("createComponentSize should return zeroed size", () => {
@@ -57,9 +57,9 @@ describe("ComponentMesh", () => {
         expect(mesh.face.range).toEqual([]);
         expect(mesh.face.groups).toEqual([]);
 
-        expect(mesh.linesegments).toBeDefined();
+        expect(mesh.linesegments).not.toBeNull();
         expect(mesh.surfaceMaterials).toEqual([]);
-        expect(mesh.surface).toBeDefined();
+        expect(mesh.surface).not.toBeNull();
     });
 
     test("createComponentMesh should handle zero meshIndex", () => {
@@ -74,7 +74,7 @@ describe("ComponentMesh", () => {
 
         const mesh = createComponentMesh(size);
 
-        expect(mesh.surface).toBeDefined();
+        expect(mesh.surface).not.toBeNull();
     });
 });
 
@@ -102,14 +102,14 @@ describe("Component", () => {
     test("constructor should generate id when not provided", () => {
         const component = new Component({ name: "Test", nodes: mockNodes });
 
-        expect(component.id).toBeDefined();
+        expect(component.id).not.toBeNull();
         expect(typeof component.id).toBe("string");
     });
 
     test("constructor should use default origin when not provided", () => {
         const component = new Component({ name: "Test", nodes: mockNodes });
 
-        expect(component.origin).toBeDefined();
+        expect(component.origin).not.toBeNull();
     });
 
     test("toString should return component name", () => {
@@ -138,7 +138,7 @@ describe("Component", () => {
         const component = new Component({ name: "Test", nodes: [mockNode1, mockNode2] as any });
 
         const boundingBox = component.boundingBox;
-        expect(boundingBox).toBeDefined();
+        expect(boundingBox).not.toBeNull();
         expect(boundingBox!.min.x).toBe(0);
         expect(boundingBox!.min.y).toBe(0);
         expect(boundingBox!.min.z).toBe(0);
@@ -184,13 +184,13 @@ describe("Component", () => {
         const component = new Component({ name: "Test", nodes: [] });
         const mesh = component.mesh;
 
-        expect(mesh).toBeDefined();
+        expect(mesh).not.toBeNull();
         expect(mesh.faceMaterials).toEqual([]);
         expect(mesh.edge.lineType).toBe("solid");
         expect(mesh.face.index).toBeInstanceOf(Uint32Array);
         expect(mesh.face.position).toBeInstanceOf(Float32Array);
-        expect(mesh.linesegments).toBeDefined();
-        expect(mesh.surface).toBeDefined();
+        expect(mesh.linesegments).not.toBeNull();
+        expect(mesh.surface).not.toBeNull();
     });
 
     test("constructor with empty nodes should set default origin to XYZ.zero", () => {
@@ -234,7 +234,7 @@ describe("ComponentNode", () => {
             insert: new XYZ({ x: 0, y: 0, z: 0 }),
         });
 
-        expect(node.id).toBeDefined();
+        expect(node.id).not.toBeNull();
         expect(typeof node.id).toBe("string");
     });
 
@@ -288,7 +288,7 @@ describe("ComponentNode", () => {
         node.transform = Matrix4.fromTranslation(1, 0, 0);
 
         const boundingBox = node.boundingBox();
-        expect(boundingBox).toBeDefined();
+        expect(boundingBox).not.toBeNull();
         expect(boundingBox!.min.x).toBe(1);
     });
 

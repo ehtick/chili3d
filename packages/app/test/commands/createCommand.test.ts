@@ -3,9 +3,9 @@
 
 import type { GeometryNode, IStep } from "@chili3d/core";
 import { Transaction } from "@chili3d/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
 import { describe, expect, test } from "@rstest/core";
 import { CreateFaceableCommand, CreateNodeCommand } from "../../src/commands/createCommand";
-import { createMockDocument } from "../_helpers";
 
 describe("CreateCommand", () => {
     test("Transaction.execute pattern should add node and update visual", () => {

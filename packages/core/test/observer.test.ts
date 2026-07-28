@@ -44,13 +44,20 @@ class TestClassC extends Observable {
     }
 }
 
-test("test observer", () => {
+test("should notify when a property changes", () => {
     const t = new TestClassA();
+    let callCount = 0;
+    let changedProperty: string | undefined;
+    let changedSource: IPropertyChanged | undefined;
     t.onPropertyChanged((p, s, o) => {
-        expect(p).toBe("propA");
-        expect(s[p]).toBe(2);
+        callCount++;
+        changedProperty = p;
+        changedSource = s;
     });
     t.propA = 2;
+    expect(callCount).toBe(1);
+    expect(changedProperty).toBe("propA");
+    expect((changedSource as any)[changedProperty!]).toBe(2);
 });
 
 test("deep observer", () => {

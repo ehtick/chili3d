@@ -3,15 +3,15 @@
 
 import { Line, XYZ } from "../src";
 
-describe("test line", () => {
-    test("test constructor", () => {
+describe("Line", () => {
+    test("should create a line and reject zero direction", () => {
         expect(() => new Line({ point: XYZ.zero, direction: XYZ.zero })).toThrow();
         const line = new Line({ point: XYZ.zero, direction: XYZ.unitX });
         expect(line.point).toStrictEqual(XYZ.zero);
         expect(line.direction).toStrictEqual(XYZ.unitX);
     });
 
-    test("test nearest", () => {
+    test("should compute nearest points between lines", () => {
         const r1 = new Line({ point: XYZ.zero, direction: XYZ.unitX });
         expect(r1.nearestToPoint(XYZ.zero)).toStrictEqual(XYZ.zero);
         expect(r1.nearestToPoint(new XYZ({ x: -1, y: 0, z: 0 }))).toStrictEqual(
@@ -35,7 +35,7 @@ describe("test line", () => {
         ).toStrictEqual(new XYZ({ x: 0.5, y: 0, z: 0 }));
     });
 
-    test("test intersect", () => {
+    test("should compute intersection point of lines", () => {
         const r1 = new Line({ point: XYZ.zero, direction: XYZ.unitX });
         const r11 = new Line({ point: XYZ.zero, direction: XYZ.unitY });
         const r2 = new Line({ point: XYZ.unitX.add(XYZ.unitY), direction: XYZ.unitY });
@@ -57,7 +57,7 @@ describe("test line", () => {
         expect(r5.intersect(r6)).toStrictEqual(new XYZ({ x: 2, y: 0, z: 0 }));
     });
 
-    test("test distanceTo", () => {
+    test("should compute distance between lines", () => {
         const r1 = new Line({ point: XYZ.zero, direction: XYZ.unitX });
         const r2 = new Line({ point: XYZ.unitX, direction: XYZ.unitY });
         expect(r1.distanceTo(r2)).toBeCloseTo(0);
@@ -77,7 +77,7 @@ describe("test line", () => {
         expect(r5.distanceTo(r6)).toBeCloseTo(0);
     });
 
-    test("test nearestToPoint", () => {
+    test("should compute nearest point on line to a point", () => {
         const line = new Line({ point: XYZ.zero, direction: XYZ.unitX });
 
         expect(line.nearestToPoint(XYZ.zero)).toStrictEqual(XYZ.zero);
@@ -89,7 +89,7 @@ describe("test line", () => {
         );
     });
 
-    test("test direction normalization", () => {
+    test("should normalize direction", () => {
         const line = new Line({ point: XYZ.zero, direction: new XYZ({ x: 2, y: 0, z: 0 }) });
         expect(line.direction).toStrictEqual(XYZ.unitX);
 

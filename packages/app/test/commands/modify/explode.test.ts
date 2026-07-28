@@ -52,7 +52,7 @@ describe("Explode", () => {
 
     test("should have command metadata", () => {
         const data = (Explode as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.explode");
         expect(data.icon).toBe("icon-explode");
     });
@@ -182,8 +182,8 @@ describe("Explode", () => {
             expect(parent.insertedAfter).toHaveLength(2);
             expect(parent.removed).toHaveLength(1);
             expect((parent.insertedAfter[0] as any).node.name).toBe("multi0");
-            // Each shape was disposed after exploding.
-            expect(s1.calls.get("transformed")).toBeDefined();
+            // Each shape was transformed into a new node exactly once.
+            expect(s1.calls.get("transformed")).toHaveLength(1);
         });
     });
 });

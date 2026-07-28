@@ -21,6 +21,39 @@ function createFileList(files: File[]): FileList {
     return list as unknown as FileList;
 }
 
+const originalCreateElement = document.createElement;
+
+/**
+ * Overrides document.createElement so that the created input element fires
+ * `onClick(input)` synchronously when clicked. Restored after each test.
+ */
+function patchInputClick(onClick: (input: HTMLInputElement) => void) {
+    const origCreate = originalCreateElement.bind(document) as (
+        tag: string,
+        options?: ElementCreationOptions,
+    ) => HTMLElement;
+    document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
+        const el = origCreate(tag);
+        if (tag === "input") {
+            (el as HTMLInputElement).click = () => onClick(el as HTMLInputElement);
+        }
+        return el;
+    }) as typeof document.createElement;
+}
+
+function selectFiles(input: HTMLInputElement, files: FileList) {
+    Object.defineProperty(input, "files", {
+        value: files,
+        writable: false,
+        configurable: true,
+    });
+    input.onchange?.(new Event("change"));
+}
+
+afterEach(() => {
+    document.createElement = originalCreateElement;
+});
+
 describe("readFilesAsync", () => {
     test("should return a Promise", () => {
         const result = readFilesAsync(".txt", false);
@@ -31,33 +64,9 @@ describe("readFilesAsync", () => {
         const testFile = new File(["content"], "test.txt", { type: "text/plain" });
         const fileList = createFileList([testFile]);
 
-        // Override createElement to produce a pre-configured input
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                // Replace click so it fires onchange synchronously
-                (el as HTMLInputElement).click = () => {
-                    Object.defineProperty(el, "files", {
-                        value: fileList,
-                        writable: false,
-                        configurable: true,
-                    });
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => selectFiles(input, fileList));
 
         const result = await readFilesAsync(".txt", false);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(result.isOk).toBe(true);
     });
@@ -67,36 +76,12 @@ describe("readFilesAsync", () => {
         const file2 = new File(["b"], "b.txt", { type: "text/plain" });
         const fileList = createFileList([file1, file2]);
 
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    Object.defineProperty(el, "files", {
-                        value: fileList,
-                        writable: false,
-                        configurable: true,
-                    });
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => selectFiles(input, fileList));
 
         const result = await readFilesAsync("*", true);
 
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
-
         expect(result.isOk).toBe(true);
-        if (result.isOk) {
-            expect(result.value.length).toBe(2);
-        }
+        expect(result.value?.length).toBe(2);
     });
 
     test("should return result.ok with truthy check on empty FileList", async () => {
@@ -105,31 +90,9 @@ describe("readFilesAsync", () => {
         // an empty FileList (truthy) passes the check.
         const emptyList = createFileList([]);
 
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    Object.defineProperty(el, "files", {
-                        value: emptyList,
-                        writable: false,
-                        configurable: true,
-                    });
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => selectFiles(input, emptyList));
 
         const result = await readFilesAsync("*", false);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         // Empty FileList is truthy, so result.isOk should be true
         expect(result.isOk).toBe(true);
@@ -153,26 +116,11 @@ describe("readFileAsync", () => {
     });
 
     test("should propagate error from cancel", async () => {
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    (el as HTMLInputElement).oncancel?.(new Event("cancel"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => {
+            input.oncancel?.(new Event("cancel"));
+        });
 
         const result = await readFileAsync("*", false);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(result.isOk).toBe(false);
         expect(result.error).toBe("cancel");
@@ -211,162 +159,72 @@ describe("FileData interface validation", () => {
 describe("readFilesAsync edge cases", () => {
     test("should set input type to file", async () => {
         let capturedType: string | null = null;
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    capturedType = (el as HTMLInputElement).type;
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => {
+            capturedType = input.type;
+            input.onchange?.(new Event("change"));
+        });
 
         await readFilesAsync("*", false);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(capturedType).toBe("file");
     });
 
     test("should set visibility to hidden", async () => {
         let capturedVisibility: string | null = null;
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    capturedVisibility = (el as HTMLInputElement).style.visibility;
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => {
+            capturedVisibility = input.style.visibility;
+            input.onchange?.(new Event("change"));
+        });
 
         await readFilesAsync("*", false);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(capturedVisibility).toBe("hidden");
     });
 
     test("should set multiple=true", async () => {
         let capturedMultiple: boolean | null = null;
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    capturedMultiple = (el as HTMLInputElement).multiple;
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => {
+            capturedMultiple = input.multiple;
+            input.onchange?.(new Event("change"));
+        });
 
         await readFilesAsync(".csv", true);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(capturedMultiple).toBe(true);
     });
 
     test("should set multiple=false", async () => {
         let capturedMultiple: boolean | null = null;
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    capturedMultiple = (el as HTMLInputElement).multiple;
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => {
+            capturedMultiple = input.multiple;
+            input.onchange?.(new Event("change"));
+        });
 
         await readFilesAsync(".txt", false);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(capturedMultiple).toBe(false);
     });
 
     test("should set accept attribute", async () => {
         let capturedAccept: string | null = null;
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    capturedAccept = (el as HTMLInputElement).accept;
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => {
+            capturedAccept = input.accept;
+            input.onchange?.(new Event("change"));
+        });
 
         await readFilesAsync(".step,.stp", false);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(capturedAccept).toBe(".step,.stp");
     });
 
     test("should handle empty accept string", async () => {
         let capturedAccept: string | null = null;
-        const origCreate = document.createElement.bind(document) as (
-            tag: string,
-            options?: ElementCreationOptions,
-        ) => HTMLElement;
-        const origClick = HTMLInputElement.prototype.click;
-
-        document.createElement = ((tag: string, _options?: ElementCreationOptions) => {
-            const el = origCreate(tag);
-            if (tag === "input") {
-                (el as HTMLInputElement).click = () => {
-                    capturedAccept = (el as HTMLInputElement).accept;
-                    (el as HTMLInputElement).onchange?.(new Event("change"));
-                };
-            }
-            return el;
-        }) as typeof document.createElement;
+        patchInputClick((input) => {
+            capturedAccept = input.accept;
+            input.onchange?.(new Event("change"));
+        });
 
         await readFilesAsync("", true);
-
-        document.createElement = origCreate;
-        HTMLInputElement.prototype.click = origClick;
 
         expect(capturedAccept).toBe("");
     });

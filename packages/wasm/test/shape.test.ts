@@ -1,7 +1,9 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { Line, Matrix4, Plane, ShapeTypes, XYZ } from "@chili3d/core";
+import { type IEdge, type IFace, Line, Matrix4, Plane, ShapeTypes, XYZ } from "@chili3d/core";
+import { MockShape } from "@chili3d/core/test-utils";
+import { OccTrimmedCurve } from "../src/curve";
 import type { ShapeFactory } from "../src/factory";
 import {
     type OccEdge,
@@ -11,7 +13,7 @@ import {
     type OccVertex,
     type OccWire,
 } from "../src/shape";
-import { createBox, createSphere, createTestFactory } from "./helpers";
+import { createBox, createSphere, createTestFactory, unwrapOk } from "./helpers";
 import "./setup";
 
 let factory: ShapeFactory;
@@ -274,7 +276,7 @@ describe("OccShape — identity checks", () => {
 
     test("isEqual/isSame/isPartner return false for non-OccShape", () => {
         const box = createBox(factory);
-        const fake = { shapeType: "solid" } as any;
+        const fake = new MockShape({ shapeType: ShapeTypes.solid });
         expect(box.isEqual(fake)).toBe(false);
         expect(box.isSame(fake)).toBe(false);
         expect(box.isPartner(fake)).toBe(false);
@@ -323,7 +325,8 @@ describe("OccShape — extremaDistance", () => {
 
     test("throws for non-OccShape", () => {
         const box = createBox(factory);
-        expect(() => box.extremaDistance({ shapeType: "solid" } as any)).toThrow("Invalid shape type");
+        const fake = new MockShape({ shapeType: ShapeTypes.solid });
+        expect(() => box.extremaDistance(fake)).toThrow("Invalid shape type");
     });
 });
 
@@ -362,15 +365,17 @@ describe("OccShape — topology queries", () => {
     test("findAncestor returns empty for non-OccShape fromShape", () => {
         const box = createBox(factory);
         const edges = box.findSubShapes(ShapeTypes.edge);
-        const result = edges[0].findAncestor(ShapeTypes.face, { shapeType: "solid" } as any);
+        const fake = new MockShape({ shapeType: ShapeTypes.solid });
+        const result = edges[0].findAncestor(ShapeTypes.face, fake);
         expect(result).toEqual([]);
     });
 
-    test("directSubShapes returns immediate children", () => {
+    test("directSubShapes returns the box shell", () => {
         const box = createBox(factory);
         const subs = box.directSubShapes();
-        // Box should have shells as direct sub-shapes
-        expect(subs.length).toBeGreaterThan(0);
+        // A box solid has exactly one shell as its direct sub-shape
+        expect(subs.length).toBe(1);
+        expect(subs[0].shapeType).toBe(ShapeTypes.shell);
     });
 });
 
@@ -392,10 +397,11 @@ describe("OccShape — section", () => {
 
     test("section with another shape", () => {
         const box1 = createBox(factory, 10, 10, 10);
-        const box2 = createBox(factory, 10, 10, 10);
+        // Partially overlapping box — the faces intersect in section curves
+        const box2 = box1.transformed(Matrix4.fromTranslation(5, 5, 5));
         const section = box1.section(box2);
-        // May produce a valid section or empty shape
-        expect(section.isNull() === true || section.isNull() === false).toBe(true);
+        expect(section.isNull()).toBe(false);
+        expect(section.findSubShapes(ShapeTypes.edge).length).toBeGreaterThan(0);
     });
 });
 
@@ -454,9 +460,17 @@ describe("OccShape — split", () => {
 // ============================================================================
 
 describe("OccShape — setTolerance", () => {
-    test("setTolerance does not throw", () => {
+    test("setTolerance forwards the tolerance to the kernel", () => {
         const box = createBox(factory);
-        expect(() => box.setTolerance(1e-6)).not.toThrow();
+        const spy = rs.spyOn(wasm.Shape, "setTolerance");
+        try {
+            box.setTolerance(1e-6);
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(spy.mock.calls[0][0]).toBe((box as unknown as OccShape).shape);
+            expect(spy.mock.calls[0][1]).toBe(1e-6);
+        } finally {
+            spy.mockRestore();
+        }
     });
 });
 
@@ -479,12 +493,19 @@ describe("OccShape — edgesMeshPosition", () => {
 // ============================================================================
 
 describe("OccVertex", () => {
-    test("point returns coordinates", () => {
-        const verts = createBox(factory).findSubShapes(ShapeTypes.vertex) as OccVertex[];
-        const point = verts[0].point();
-        expect(typeof point.x).toBe("number");
-        expect(typeof point.y).toBe("number");
-        expect(typeof point.z).toBe("number");
+    test("points of all 8 vertices span the box corners", () => {
+        const verts = createBox(factory, 10, 20, 30).findSubShapes(ShapeTypes.vertex) as OccVertex[];
+        expect(verts.length).toBe(8);
+        const points = verts.map((v) => v.point());
+        const xs = points.map((p) => p.x);
+        const ys = points.map((p) => p.y);
+        const zs = points.map((p) => p.z);
+        expect(Math.min(...xs)).toBeCloseTo(0);
+        expect(Math.max(...xs)).toBeCloseTo(10);
+        expect(Math.min(...ys)).toBeCloseTo(0);
+        expect(Math.max(...ys)).toBeCloseTo(20);
+        expect(Math.min(...zs)).toBeCloseTo(0);
+        expect(Math.max(...zs)).toBeCloseTo(30);
     });
 });
 
@@ -506,11 +527,10 @@ describe("OccEdge", () => {
         expect(has30).toBe(true);
     });
 
-    test("curve returns non-null ITrimmedCurve", () => {
+    test("curve returns the edge's trimmed curve", () => {
         const box = createBox(factory);
         const edge = box.findSubShapes(ShapeTypes.edge)[0] as OccEdge;
-        const curve = edge.curve;
-        expect(curve).toBeDefined();
+        expect(edge.curve).toBeInstanceOf(OccTrimmedCurve);
     });
 
     test("trim returns a shorter edge", () => {
@@ -522,13 +542,50 @@ describe("OccEdge", () => {
         expect(trimmed.shapeType).toBe(ShapeTypes.edge);
     });
 
-    test("intersect with Line returns intersection points", () => {
-        const box = createBox(factory);
+    test("intersect with a crossing edge returns the intersection point", () => {
+        const e1 = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 }))) as OccEdge;
+        const e2 = unwrapOk(
+            factory.line(new XYZ({ x: 5, y: -5, z: 0 }), new XYZ({ x: 5, y: 5, z: 0 })),
+        ) as OccEdge;
+        const intersections = e1.intersect(e2);
+        expect(intersections.length).toBe(1);
+        expect(intersections[0].point.x).toBeCloseTo(5);
+        expect(intersections[0].point.y).toBeCloseTo(0);
+        expect(intersections[0].parameter).toBeCloseTo(5);
+    });
+
+    test("update replaces the underlying curve geometry", () => {
+        const edge = unwrapOk(factory.line(XYZ.zero, XYZ.unitX)) as OccEdge;
+        const zLine = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 0, y: 0, z: 10 }))) as OccEdge;
+        edge.update(zLine.curve);
+        // The wrapped shape now spans the z-line (0..10 in Z, plus tessellation padding)
+        const bb = edge.boundingBox();
+        expect(bb.max.z - bb.min.z).toBeCloseTo(10, 0);
+    });
+
+    test("update throws for a non-OccCurve", () => {
+        const edge = unwrapOk(factory.line(XYZ.zero, XYZ.unitX)) as OccEdge;
+        expect(() => edge.update({ curveType: "line" } as any)).toThrow("Invalid curve");
+    });
+
+    test("hasContinuity / continuity between the two faces of a box edge", () => {
+        const box = createBox(factory, 10, 10, 10);
         const edge = box.findSubShapes(ShapeTypes.edge)[0] as OccEdge;
-        const otherEdge = box.findSubShapes(ShapeTypes.edge)[1] as OccEdge;
-        const intersections = edge.intersect(otherEdge);
-        // Parallel box edges may or may not intersect
-        expect(Array.isArray(intersections)).toBe(true);
+        const faces = edge.findAncestor(ShapeTypes.face, box) as OccFace[];
+        expect(faces.length).toBe(2);
+        // Box faces meet at 90° — only C0 continuous
+        expect(edge.hasContinuity(faces[0], faces[1])).toBe(false);
+        expect(edge.continuity(faces[0], faces[1])).toBe("c0");
+    });
+
+    test("hasContinuity / continuity throw for non-OccFace", () => {
+        const box = createBox(factory, 10, 10, 10);
+        const edge = box.findSubShapes(ShapeTypes.edge)[0] as OccEdge;
+        const faces = edge.findAncestor(ShapeTypes.face, box);
+        expect(faces.length).toBe(2);
+        const fake = new MockShape({ shapeType: ShapeTypes.face }) as unknown as IFace;
+        expect(() => edge.hasContinuity(faces[0] as IFace, fake)).toThrow("Invalid face types");
+        expect(() => edge.continuity(faces[0] as IFace, fake)).toThrow("Invalid face types");
     });
 });
 
@@ -558,6 +615,28 @@ describe("OccWire", () => {
         const wire = factory.wire([circle]).value as OccWire;
         const result = wire.offset(2, "arc");
         expect(result.isOk).toBe(true);
+    });
+
+    test("offset with intersection join type creates a radius-12 circle", () => {
+        const circle = factory.circle(XYZ.unitZ, XYZ.zero, 10).value;
+        const wire = factory.wire([circle]).value as OccWire;
+        const result = wire.offset(2, "intersection");
+        expect(result.isOk).toBe(true);
+        expect(result.value.shapeType).toBe(ShapeTypes.wire);
+        const face = (result.value as OccWire).toFace();
+        expect(face.isOk).toBe(true);
+        expect((face.value as OccFace).area()).toBeCloseTo(Math.PI * 144, 3);
+    });
+
+    test("offset with tangent join type creates a radius-12 circle", () => {
+        const circle = factory.circle(XYZ.unitZ, XYZ.zero, 10).value;
+        const wire = factory.wire([circle]).value as OccWire;
+        const result = wire.offset(2, "tangent");
+        expect(result.isOk).toBe(true);
+        expect(result.value.shapeType).toBe(ShapeTypes.wire);
+        const face = (result.value as OccWire).toFace();
+        expect(face.isOk).toBe(true);
+        expect((face.value as OccFace).area()).toBeCloseTo(Math.PI * 144, 3);
     });
 
     test("offset returns error for zero distance", () => {
@@ -602,24 +681,43 @@ describe("OccFace", () => {
         expect(surface).toBeDefined();
     });
 
-    test("normal returns point and normal vector", () => {
-        const [point, normal] = boxFaces[0].normal(0.5, 0.5);
-        expect(typeof point.x).toBe("number");
-        expect(typeof normal.x).toBe("number");
+    test("normal returns a unit axis-aligned normal for a box face", () => {
+        const [, normal] = boxFaces[0].normal(0.5, 0.5);
+        expect(Math.abs(normal.x) + Math.abs(normal.y) + Math.abs(normal.z)).toBeCloseTo(1, 9);
     });
 
     test("intersectLine returns intersection point", () => {
-        // Cast a ray from origin to positive Z — should hit bottom face of box at z=0
-        const result = boxFaces[0].intersectLine({ x: 1, y: 1, z: -5 }, { x: 0, y: 0, z: 1 });
-        // May or may not intersect depending on which face is first
-        expect(result === undefined || typeof result.x === "number").toBe(true);
+        // The bottom face (z = 0, normal -Z) is hit by an upward ray from below
+        const bottomFace = boxFaces.find((f) => f.normal(0.5, 0.5)[1].z === -1);
+        expect(bottomFace).toBeDefined();
+        const result = bottomFace!.intersectLine({ x: 1, y: 1, z: -5 }, { x: 0, y: 0, z: 1 });
+        expect(result).toBeDefined();
+        expect(result!.x).toBeCloseTo(1);
+        expect(result!.y).toBeCloseTo(1);
+        expect(result!.z).toBeCloseTo(0);
     });
 
-    test("containsPoint returns boolean", () => {
-        // Face (plane-like) should not contain any point with strict edge exclusion
-        // but the result should always be boolean, never throw
-        const result = boxFaces[0].containsPoint({ x: 0.5, y: 0.5, z: 0 }, false, 1);
-        expect(typeof result).toBe("boolean");
+    test("containsPoint distinguishes interior and exterior points", () => {
+        // The bottom face (z = 0, normal -Z) spans 0..10 × 0..20
+        const bottomFace = boxFaces.find((f) => f.normal(0.5, 0.5)[1].z === -1);
+        expect(bottomFace).toBeDefined();
+        expect(bottomFace!.containsPoint({ x: 5, y: 10, z: 0 }, false, 0.01)).toBe(true);
+        expect(bottomFace!.containsPoint({ x: 50, y: 10, z: 0 }, false, 0.01)).toBe(false);
+    });
+
+    test("segmentsOfEdgeOnFace returns the pcurve domain for an edge on the face", () => {
+        const box = createBox(factory, 10, 10, 10);
+        const face = box.findSubShapes(ShapeTypes.face)[0] as OccFace;
+        const edge = face.findSubShapes(ShapeTypes.edge)[0] as OccEdge;
+        const seg = face.segmentsOfEdgeOnFace(edge);
+        expect(seg).toBeDefined();
+        expect(seg!.start).toBeCloseTo(0, 6);
+        expect(seg!.end).toBeCloseTo(10, 6);
+    });
+
+    test("segmentsOfEdgeOnFace returns undefined for a non-OccEdge", () => {
+        const fake = new MockShape({ shapeType: ShapeTypes.edge }) as unknown as IEdge;
+        expect(boxFaces[0].segmentsOfEdgeOnFace(fake)).toBeUndefined();
     });
 });
 
@@ -671,12 +769,16 @@ describe("OccShape — shellSewing & hlr", () => {
 // ============================================================================
 
 describe("OccShape — dispose", () => {
-    test("single dispose does not throw", () => {
+    test("dispose nulls out the cached mesher data", () => {
         const box = createBox(factory);
-        expect(() => box.dispose()).not.toThrow();
+        const mesher = box.mesh;
+        expect(mesher.faces).toBeDefined();
+        box.dispose();
+        expect(mesher.faces).toBeNull();
+        expect(mesher.edges).toBeNull();
     });
 
-    test("double dispose does not throw", () => {
+    test("double dispose is idempotent", () => {
         const box = createBox(factory);
         box.dispose();
         expect(() => box.dispose()).not.toThrow();

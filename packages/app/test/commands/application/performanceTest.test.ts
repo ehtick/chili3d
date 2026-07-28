@@ -3,13 +3,12 @@
 
 import type { CommandData, IDocument, Material } from "@chili3d/core";
 import { EditableShapeNode, ObservableCollection, XYZ } from "@chili3d/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
 import { describe, expect, test } from "@rstest/core";
-
 import {
     OccPerformanceTestCommand,
     PerformanceTestCommand,
 } from "../../../src/commands/application/performanceTest";
-import { createMockDocument } from "../../_helpers";
 import { stubGlobalApp } from "../commandTestUtils";
 
 /** Access @command decorator metadata added to the prototype at runtime. */
@@ -20,7 +19,7 @@ function commandData(cls: abstract new (...args: never[]) => unknown): Record<st
 describe("OccPerformanceTestCommand", () => {
     test("should have command metadata", () => {
         const data = commandData(OccPerformanceTestCommand) as unknown as CommandData;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("test.performance");
         expect(data.icon).toBe("icon-performance");
     });

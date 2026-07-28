@@ -1,67 +1,10 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type {
-    I18nKeys,
-    IDocument,
-    IEventHandler,
-    IHighlighter,
-    INode,
-    IVisual,
-    IVisualContext,
-    IVisualObject,
-    VisualShapeData,
-} from "@chili3d/core";
-import { BoundingBox, VisualNode } from "@chili3d/core";
+import type { IDocument, INode, VisualNode, VisualShapeData } from "@chili3d/core";
+import { createMockDocument, TestNode } from "@chili3d/core/test-utils";
 import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
 import { SelectionManager } from "../src/selectionManager";
-
-// A concrete VisualNode subclass so instanceof checks pass.
-class TestNode extends VisualNode {
-    constructor() {
-        // biome-ignore lint/suspicious/noExplicitAny: constructor args not needed for test
-        super(null as any, "test", "test-id");
-    }
-    display(): I18nKeys {
-        return "common.ok" as I18nKeys;
-    }
-    boundingBox() {
-        return new BoundingBox({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
-    }
-}
-
-function createMockDocument(): IDocument {
-    const mockVisualNode = {} as unknown as IVisualObject;
-
-    const highlighter: IHighlighter = {
-        addState() {},
-        removeState() {},
-        clear() {},
-        getState() {
-            return undefined;
-        },
-        resetState() {},
-        highlightMesh() {
-            return 0;
-        },
-        removeHighlightMesh() {},
-    };
-
-    const context: IVisualContext = {
-        getVisual() {
-            return mockVisualNode;
-        },
-    } as unknown as IVisualContext;
-
-    const visual: IVisual = {
-        highlighter,
-        context,
-        update() {},
-        eventHandler: null as unknown as IEventHandler,
-    } as unknown as IVisual;
-
-    return { visual } as unknown as IDocument;
-}
 
 function createVisualNode(): VisualNode {
     return new TestNode();

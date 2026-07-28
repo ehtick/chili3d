@@ -2,7 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import { ObservableCollection } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
 import { Collection } from "../src/collection";
 
 describe("Collection", () => {
@@ -15,6 +15,10 @@ describe("Collection", () => {
         document.body.appendChild(container);
         templateCallCount = 0;
         templateItems = [];
+    });
+
+    afterEach(() => {
+        container.remove();
     });
 
     const createTemplate = (): ((item: string, index: number) => HTMLElement) => {
@@ -179,6 +183,56 @@ describe("Collection", () => {
             expect(collection.children[1].textContent).toBe("x");
             expect(collection.children[2].textContent).toBe("y");
             expect(collection.children[3].textContent).toBe("c");
+        });
+
+        test("should update the item map after a replace action", () => {
+            const sources = new ObservableCollection("a", "b", "c");
+            const template = createTemplate();
+            const collection = new Collection({ sources, template });
+
+            container.appendChild(collection);
+
+            sources.replace(1, "x", "y");
+
+            expect(collection.getItem("b")).toBeUndefined();
+            expect(collection.getItem("x")).toBeDefined();
+            expect(collection.getItem("x")?.textContent).toBe("x");
+            expect(collection.getItem("y")).toBeDefined();
+            expect(collection.getItem("y")?.textContent).toBe("y");
+        });
+
+        test("should pass the replaced index to the template callback", () => {
+            const sources = new ObservableCollection("a", "b", "c");
+            const template = createTemplate();
+            const collection = new Collection({ sources, template });
+
+            container.appendChild(collection);
+            templateItems = [];
+
+            sources.replace(1, "x", "y");
+
+            expect(templateItems).toEqual([
+                { item: "x", index: 1 },
+                { item: "y", index: 2 },
+            ]);
+        });
+
+        test("should keep the item map without re-rendering after a move action", () => {
+            const sources = new ObservableCollection("a", "b", "c");
+            const template = createTemplate();
+            const collection = new Collection({ sources, template });
+
+            container.appendChild(collection);
+
+            const callCountBefore = templateCallCount;
+            const elementA = collection.getItem("a");
+            expect(elementA).toBeDefined();
+
+            sources.move(0, 2);
+
+            expect(templateCallCount).toBe(callCountBefore);
+            expect(collection.getItem("a")).toBe(elementA);
+            expect(collection.children[1]).toBe(elementA);
         });
 
         test("should handle clear action", () => {

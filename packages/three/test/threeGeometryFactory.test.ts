@@ -2,9 +2,10 @@
 // See LICENSE file in the project root for full license information.
 
 import type { FaceMeshData } from "@chili3d/core";
-import { BufferGeometry, MeshLambertMaterial, PointsMaterial } from "three";
+import { BufferGeometry, Mesh, MeshLambertMaterial, Points, PointsMaterial } from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { ThreeGeometryFactory } from "../src/threeGeometryFactory";
 
 describe("ThreeGeometryFactory", () => {
@@ -62,7 +63,7 @@ describe("ThreeGeometryFactory", () => {
 
             const buff = ThreeGeometryFactory.createEdgeBufferGeometry(data);
 
-            expect(buff.constructor.name).toBe("LineSegmentsGeometry");
+            expect(buff).toBeInstanceOf(LineSegmentsGeometry);
             expect(buff.boundingBox).not.toBeNull();
         });
     });
@@ -255,23 +256,9 @@ describe("ThreeGeometryFactory", () => {
                 color: 0xff0000,
             };
             const mesh = ThreeGeometryFactory.createFaceGeometry(data);
-            expect(mesh).toBeDefined();
-            expect(mesh.geometry).toBeDefined();
+            expect(mesh).toBeInstanceOf(Mesh);
+            expect(mesh.geometry).toBeInstanceOf(BufferGeometry);
             expect(mesh.material).toBeInstanceOf(MeshLambertMaterial);
-        });
-
-        test("onTop sets renderOrder", () => {
-            const data: FaceMeshData = {
-                position: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0]),
-                normal: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-                uv: new Float32Array([0, 0, 1, 0, 1, 1]),
-                index: new Uint32Array([]),
-                groups: [],
-                range: [],
-                color: 0,
-            };
-            const mesh = ThreeGeometryFactory.createFaceGeometry(data, { onTop: true });
-            expect(mesh.renderOrder).toBe(999);
         });
     });
 
@@ -285,7 +272,7 @@ describe("ThreeGeometryFactory", () => {
             };
             const segment = ThreeGeometryFactory.createEdgeGeometry(data);
             expect(segment).toBeInstanceOf(LineSegments2);
-            expect(segment.geometry).toBeDefined();
+            expect(segment.geometry).toBeInstanceOf(LineSegmentsGeometry);
             expect(segment.material).toBeInstanceOf(LineMaterial);
         });
 
@@ -301,17 +288,6 @@ describe("ThreeGeometryFactory", () => {
             expect(segment.material).toBeInstanceOf(LineMaterial);
             expect((segment.material as LineMaterial).dashed).toBe(true);
         });
-
-        test("onTop sets renderOrder", () => {
-            const data = {
-                position: new Float32Array([0, 0, 0, 1, 0, 0]),
-                color: 0,
-                lineType: "solid" as const,
-                range: [],
-            };
-            const segment = ThreeGeometryFactory.createEdgeGeometry(data, { onTop: true });
-            expect(segment.renderOrder).toBe(999);
-        });
     });
 
     describe("createVertexGeometry", () => {
@@ -323,20 +299,58 @@ describe("ThreeGeometryFactory", () => {
                 range: [],
             };
             const points = ThreeGeometryFactory.createVertexGeometry(data);
-            expect(points).toBeDefined();
-            expect(points.geometry).toBeDefined();
+            expect(points).toBeInstanceOf(Points);
+            expect(points.geometry).toBeInstanceOf(BufferGeometry);
             expect(points.material).toBeInstanceOf(PointsMaterial);
         });
+    });
 
-        test("onTop sets renderOrder", () => {
-            const data = {
-                position: new Float32Array([0, 0, 0]),
-                size: 3,
-                color: 0,
-                range: [],
-            };
-            const points = ThreeGeometryFactory.createVertexGeometry(data, { onTop: true });
-            expect(points.renderOrder).toBe(999);
+    describe("onTop renderOrder", () => {
+        test.each([
+            {
+                name: "createFaceGeometry",
+                create: () =>
+                    ThreeGeometryFactory.createFaceGeometry(
+                        {
+                            position: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0]),
+                            normal: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+                            uv: new Float32Array([0, 0, 1, 0, 1, 1]),
+                            index: new Uint32Array([]),
+                            groups: [],
+                            range: [],
+                            color: 0,
+                        },
+                        { onTop: true },
+                    ),
+            },
+            {
+                name: "createEdgeGeometry",
+                create: () =>
+                    ThreeGeometryFactory.createEdgeGeometry(
+                        {
+                            position: new Float32Array([0, 0, 0, 1, 0, 0]),
+                            color: 0,
+                            lineType: "solid" as const,
+                            range: [],
+                        },
+                        { onTop: true },
+                    ),
+            },
+            {
+                name: "createVertexGeometry",
+                create: () =>
+                    ThreeGeometryFactory.createVertexGeometry(
+                        {
+                            position: new Float32Array([0, 0, 0]),
+                            size: 3,
+                            color: 0,
+                            range: [],
+                        },
+                        { onTop: true },
+                    ),
+            },
+        ])("$name sets renderOrder 999 when onTop", ({ create }) => {
+            expect(create().renderOrder).toBe(999);
         });
     });
 });

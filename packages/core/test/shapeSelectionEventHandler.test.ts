@@ -1,6 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import { rs } from "@rstest/core";
 import type { INodeFilter, INodeVisual, ISelection, IShapeFilter, ShapeType, VisualShapeData } from "../src";
 import { AsyncController, Matrix4, ShapeTypes, SubshapeSelectionHandler, VisualStates } from "../src";
 import {
@@ -10,7 +11,7 @@ import {
     createPointerEvent,
     MockShape,
     TestDocument,
-} from "./mocks";
+} from "../test-utils";
 
 function createMockNodeVisual(overrides?: Partial<INodeVisual>): INodeVisual {
     return {
@@ -406,7 +407,7 @@ describe("SubshapeSelectionHandler", () => {
             const event = createPointerEvent({ clientX: 200, clientY: 300 });
             handler.pointerDown(view, event);
 
-            expect((handler as any).rect).toBeDefined();
+            expect((handler as any).rect).not.toBeNull();
             expect((handler as any).rect.clientX).toBe(200);
             expect((handler as any).rect.clientY).toBe(300);
         });
@@ -438,7 +439,7 @@ describe("SubshapeSelectionHandler", () => {
             const { handler, view } = setupSubshapeSelectionHandler({ multiMode: true });
 
             handler.pointerDown(view, createPointerEvent({ clientX: 100, clientY: 100 }));
-            expect((handler as any).rect).toBeDefined();
+            expect((handler as any).rect).not.toBeNull();
 
             handler.pointerUp(view, createPointerEvent({ pointerId: 1 }));
             expect((handler as any).rect).toBeUndefined();
@@ -542,8 +543,12 @@ describe("SubshapeSelectionHandler", () => {
     describe("dispose", () => {
         test("should only dispose once", () => {
             const { handler } = setupSubshapeSelectionHandler();
+            const disposeInternalSpy = rs.spyOn(handler as any, "disposeInternal");
+
             handler.dispose();
-            handler.dispose(); // second call should not throw
+            handler.dispose(); // second call should be a no-op
+
+            expect(disposeInternalSpy).toHaveBeenCalledTimes(1);
         });
     });
 

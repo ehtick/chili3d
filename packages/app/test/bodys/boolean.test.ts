@@ -2,9 +2,9 @@
 // See LICENSE file in the project root for full license information.
 
 import type { IDocument } from "@chili3d/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
 import { beforeEach, describe, expect, test } from "@rstest/core";
 import { BooleanNode } from "../../src/bodys/boolean";
-import { createMockDocument } from "../_helpers";
 import { createMockShape } from "./_utils";
 
 describe("BooleanNode", () => {

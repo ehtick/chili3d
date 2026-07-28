@@ -2,7 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import { FolderNode, Id, type INode, InternalClassName, type ModelManager, type OnNodeChanged } from "../src";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 function newNode(name: string, id?: string): INode {
     return {
@@ -46,7 +46,7 @@ describe("ModelManager", () => {
         });
 
         test("should initialize with empty materials collection", () => {
-            expect(modelManager.materials).toBeDefined();
+            expect(modelManager.materials).not.toBeNull();
             expect(modelManager.materials).toHaveLength(0);
         });
 
@@ -282,14 +282,14 @@ describe("ModelManager", () => {
 
             const serialized = modelManager.serialize();
 
-            expect(serialized.components).toBeDefined();
-            expect(serialized.nodes).toBeDefined();
-            expect(serialized.materials).toBeDefined();
+            expect(serialized.components).not.toBeNull();
+            expect(serialized.nodes).not.toBeNull();
+            expect(serialized.materials).not.toBeNull();
         });
 
         test("should serialize rootNode", () => {
             const serialized = modelManager.serialize();
-            expect(serialized.nodes).toBeDefined();
+            expect(serialized.nodes).not.toBeNull();
         });
     });
 
@@ -307,7 +307,7 @@ describe("ModelManager", () => {
 
             expect(modelManager.components).toHaveLength(0);
             expect(modelManager.materials).toHaveLength(0);
-            expect(modelManager.rootNode).toBeDefined();
+            expect(modelManager.rootNode).not.toBeNull();
         });
     });
 

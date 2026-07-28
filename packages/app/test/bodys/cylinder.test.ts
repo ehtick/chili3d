@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, Serializer, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { CylinderNode } from "../../src/bodys/cylinder";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock, setupSimpleShapeFactoryMock } from "./_utils";
 
 describe("CylinderNode", () => {
@@ -77,19 +77,19 @@ describe("CylinderNode", () => {
         test("should emit on radius change", () => {
             setupSimpleShapeFactoryMock("cylinder");
             const node = new CylinderNode({ document: doc, normal, center, radius: 5, dz: 10 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.radius = 99;
-            expect(events).toContain("radius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("radius");
         });
 
         test("should emit on dz change", () => {
             setupSimpleShapeFactoryMock("cylinder");
             const node = new CylinderNode({ document: doc, normal, center, radius: 5, dz: 10 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.dz = 88;
-            expect(events).toContain("dz");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("dz");
         });
     });
 
@@ -107,20 +107,12 @@ describe("CylinderNode", () => {
 
     describe("generateShape", () => {
         test("should call shapeFactory.cylinder", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                cylinder: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const cylinder = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ cylinder });
             const node = new CylinderNode({ document: doc, normal, center, radius: 5, dz: 10 });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(calledWith[0]).toBe(normal);
-            expect(calledWith[1]).toBe(center);
-            expect(calledWith[2]).toBe(5);
-            expect(calledWith[3]).toBe(10);
+            expect(cylinder).toHaveBeenCalledWith(normal, center, 5, 10);
         });
 
         test("should return Result.err when shapeFactory.cylinder fails", () => {

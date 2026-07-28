@@ -74,7 +74,7 @@ describe("Sew", () => {
 
     test("should have command metadata", () => {
         const data = (Sew as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.sew");
         expect(data.icon).toBe("icon-sew");
     });

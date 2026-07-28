@@ -49,7 +49,7 @@ function makeView(doc: IDocument): IView {
 describe("Trim", () => {
     test("should have command metadata", () => {
         const data = (Trim as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.trim");
         expect(data.icon).toBe("icon-trim");
     });
@@ -241,7 +241,7 @@ describe("PickTrimEdgeEventHandler", () => {
         expect(highlighter.highlightMesh).toHaveBeenCalledTimes(1);
         const meshArg = highlighter.highlightMesh.mock.calls[0][0];
         expect(meshArg.color).toBeDefined();
-        expect((handler as any).highlight).toBeDefined();
+        expect((handler as any).highlight).not.toBeNull();
         expect((handler as any).highlight!.curve).toBe(curve);
 
         intersectsSpy.mockRestore();
@@ -362,70 +362,71 @@ describe("findSegments (via highlightDetecteds)", () => {
         return { highlight: (handler as any).highlight as TrimEdgeSubset };
     }
 
-    test("allSegment: when intersections only have curve endpoints (2 intersections)", () => {
-        // No intermediate intersections → only curve endpoints → allSegment
-        const { highlight } = driveHighlightWithIntersections([], 5);
-        expect(highlight).toBeDefined();
-        expect(highlight.segments.deleteSegment.start).toBe(0);
-        expect(highlight.segments.deleteSegment.end).toBe(10);
-        expect(highlight.segments.retainSegments).toHaveLength(0);
-    });
-
-    test("startSegment: click parameter falls in the first segment", () => {
-        // Intersections at [2, 5, 8], click at parameter=1 (before first intersection)
-        const { highlight } = driveHighlightWithIntersections([2, 5, 8], 1);
-        expect(highlight).toBeDefined();
-        expect(highlight.segments.deleteSegment.start).toBe(0);
-        expect(highlight.segments.deleteSegment.end).toBe(2);
-        expect(highlight.segments.retainSegments).toHaveLength(1);
-        expect(highlight.segments.retainSegments[0].start).toBe(2);
-        expect(highlight.segments.retainSegments[0].end).toBe(10);
-    });
-
-    test("lastSegment: click parameter falls in the last segment", () => {
-        // Intersections at [2, 5, 8], click at parameter=9 (after last intersection)
-        const { highlight } = driveHighlightWithIntersections([2, 5, 8], 9);
-        expect(highlight).toBeDefined();
-        expect(highlight.segments.deleteSegment.start).toBe(8);
-        expect(highlight.segments.deleteSegment.end).toBe(10);
-        expect(highlight.segments.retainSegments).toHaveLength(1);
-        expect(highlight.segments.retainSegments[0].start).toBe(0);
-        expect(highlight.segments.retainSegments[0].end).toBe(8);
-    });
-
-    test("centerSegment: click parameter falls in the middle of three intersection segments", () => {
-        // Intersections at [2, 5, 8], click at parameter=6 → between 5 and 8 (i=2)
-        const { highlight } = driveHighlightWithIntersections([2, 5, 8], 6);
-        expect(highlight).toBeDefined();
-        expect(highlight.segments.deleteSegment.start).toBe(5);
-        expect(highlight.segments.deleteSegment.end).toBe(8);
-        expect(highlight.segments.retainSegments).toHaveLength(2);
-        expect(highlight.segments.retainSegments[0].start).toBe(0);
-        expect(highlight.segments.retainSegments[0].end).toBe(5);
-        expect(highlight.segments.retainSegments[1].start).toBe(8);
-        expect(highlight.segments.retainSegments[1].end).toBe(10);
-    });
-
-    test("centerSegment: click parameter in second segment of four intersections", () => {
-        // Intersections at [1, 3, 6, 8], click at parameter=4 → between 3 and 6 (i=2, not first/last)
-        const { highlight } = driveHighlightWithIntersections([1, 3, 6, 8], 4);
-        expect(highlight).toBeDefined();
-        expect(highlight.segments.deleteSegment.start).toBe(3);
-        expect(highlight.segments.deleteSegment.end).toBe(6);
-        expect(highlight.segments.retainSegments).toHaveLength(2);
-        expect(highlight.segments.retainSegments[0].start).toBe(0);
-        expect(highlight.segments.retainSegments[0].end).toBe(3);
-        expect(highlight.segments.retainSegments[1].start).toBe(6);
-        expect(highlight.segments.retainSegments[1].end).toBe(10);
-    });
-
-    test("should use startSegment when click is before first unique intersection", () => {
-        // Duplicate intersection values → deduplicated to [5], + curve endpoints = [0, 5, 10]
-        // click at parameter 2 is < 5 (first intersection), so startSegment
-        const { highlight } = driveHighlightWithIntersections([5, 5, 5], 2);
-        expect(highlight).toBeDefined();
-        expect(highlight.segments.deleteSegment.start).toBe(0);
-        expect(highlight.segments.deleteSegment.end).toBe(5);
-        expect(highlight.segments.retainSegments).toHaveLength(1);
+    test.each([
+        {
+            // No intermediate intersections → only curve endpoints → allSegment
+            name: "allSegment: when intersections only have curve endpoints (2 intersections)",
+            intersections: [] as number[],
+            clickParam: 5,
+            deleteSegment: { start: 0, end: 10 },
+            retainSegments: [] as { start: number; end: number }[],
+        },
+        {
+            // Intersections at [2, 5, 8], click at parameter=1 (before first intersection)
+            name: "startSegment: click parameter falls in the first segment",
+            intersections: [2, 5, 8],
+            clickParam: 1,
+            deleteSegment: { start: 0, end: 2 },
+            retainSegments: [{ start: 2, end: 10 }],
+        },
+        {
+            // Intersections at [2, 5, 8], click at parameter=9 (after last intersection)
+            name: "lastSegment: click parameter falls in the last segment",
+            intersections: [2, 5, 8],
+            clickParam: 9,
+            deleteSegment: { start: 8, end: 10 },
+            retainSegments: [{ start: 0, end: 8 }],
+        },
+        {
+            // Intersections at [2, 5, 8], click at parameter=6 → between 5 and 8 (i=2)
+            name: "centerSegment: click parameter falls in the middle of three intersection segments",
+            intersections: [2, 5, 8],
+            clickParam: 6,
+            deleteSegment: { start: 5, end: 8 },
+            retainSegments: [
+                { start: 0, end: 5 },
+                { start: 8, end: 10 },
+            ],
+        },
+        {
+            // Intersections at [1, 3, 6, 8], click at parameter=4 → between 3 and 6 (i=2, not first/last)
+            name: "centerSegment: click parameter in second segment of four intersections",
+            intersections: [1, 3, 6, 8],
+            clickParam: 4,
+            deleteSegment: { start: 3, end: 6 },
+            retainSegments: [
+                { start: 0, end: 3 },
+                { start: 6, end: 10 },
+            ],
+        },
+        {
+            // Duplicate intersection values → deduplicated to [5], + curve endpoints = [0, 5, 10]
+            // click at parameter 2 is < 5 (first intersection), so startSegment
+            name: "should use startSegment when click is before first unique intersection",
+            intersections: [5, 5, 5],
+            clickParam: 2,
+            deleteSegment: { start: 0, end: 5 },
+            retainSegments: [{ start: 5, end: 10 }],
+        },
+    ])("$name", ({ intersections, clickParam, deleteSegment, retainSegments }) => {
+        const { highlight } = driveHighlightWithIntersections(intersections, clickParam);
+        expect(highlight).not.toBeNull();
+        expect(highlight.segments.deleteSegment.start).toBe(deleteSegment.start);
+        expect(highlight.segments.deleteSegment.end).toBe(deleteSegment.end);
+        expect(highlight.segments.retainSegments).toHaveLength(retainSegments.length);
+        retainSegments.forEach((segment, index) => {
+            expect(highlight.segments.retainSegments[index].start).toBe(segment.start);
+            expect(highlight.segments.retainSegments[index].end).toBe(segment.end);
+        });
     });
 });

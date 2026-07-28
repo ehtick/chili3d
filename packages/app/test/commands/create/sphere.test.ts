@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Sphere", () => {
     test("should have command metadata", () => {
         const data = (Sphere as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.sphere");
         expect(data.icon).toBe("icon-sphere");
     });

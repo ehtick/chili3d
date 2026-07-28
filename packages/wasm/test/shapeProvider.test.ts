@@ -1,6 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import { Plane, ShapeTypes } from "@chili3d/core";
 import { OccShapeConverter } from "../src/converter";
 import { ShapeFactory } from "../src/factory";
 import { OccShapeProvider } from "../src/shapeProvider";
@@ -13,8 +14,8 @@ describe("OccShapeProvider", () => {
         provider = new OccShapeProvider();
     });
 
-    test("should create an instance", () => {
-        expect(provider).toBeDefined();
+    test("should create an OccShapeProvider instance", () => {
+        expect(provider).toBeInstanceOf(OccShapeProvider);
     });
 
     test("should have kernelName from factory", () => {
@@ -30,24 +31,16 @@ describe("OccShapeProvider", () => {
     });
 
     test("factory should be able to create shapes", () => {
-        const result = provider.factory.box(
-            { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, xvec: { x: 1, y: 0, z: 0 } } as any,
-            10,
-            10,
-            10,
-        );
+        const result = provider.factory.box(Plane.XY, 10, 10, 10);
         expect(result.isOk).toBe(true);
+        expect(result.value.shapeType).toBe(ShapeTypes.solid);
     });
 
     test("converter should be able to convert shapes", () => {
-        const box = provider.factory.box(
-            { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, xvec: { x: 1, y: 0, z: 0 } } as any,
-            10,
-            10,
-            10,
-        ).value;
+        const box = provider.factory.box(Plane.XY, 10, 10, 10).value;
         const brepResult = provider.converter.convertToBrep(box);
         expect(brepResult.isOk).toBe(true);
+        expect(brepResult.value.length).toBeGreaterThan(0);
     });
 
     test("factory and converter should be independent instances per provider", () => {

@@ -9,7 +9,7 @@ import { pointStepResult, seedStepDatas, wireCommand } from "../commandTestUtils
 describe("LengthMeasure", () => {
     test("should have command metadata", () => {
         const data = (LengthMeasure as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("measure.length");
         expect(data.icon).toBe("icon-measureLength");
     });

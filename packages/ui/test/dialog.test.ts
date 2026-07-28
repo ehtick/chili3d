@@ -2,7 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import type { DialogButton, I18nKeys } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "@rstest/core";
 
 // Mock the CSS module
 rs.mock("../src/dialog.module.css", () => ({
@@ -12,49 +12,10 @@ rs.mock("../src/dialog.module.css", () => ({
     buttons: "dialog-buttons",
 }));
 
-// Mock I18n
-rs.mock("@chili3d/core", () => {
-    const actual = rs.hoisted(() => {
-        const core = require("@chili3d/core");
-        return core;
-    });
-    return {
-        ...actual,
-        I18n: {
-            translate: (key: string) => key,
-        },
-    };
-});
-
-// Mock element helpers
-rs.mock("@chili3d/element", () => ({
-    div: (props: any, ...children: any[]) => {
-        const el = document.createElement("div");
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props.className) el.className = props.className;
-            if (props.textContent) el.textContent = props.textContent;
-            if (props.onclick) el.onclick = props.onclick;
-            if (props.style) Object.assign(el.style, props.style);
-        }
-        children.filter((c: any) => c instanceof Node).forEach((c: any) => el.appendChild(c));
-        return el;
-    },
-    button: (props: any) => {
-        const el = document.createElement("button");
-        if (props && typeof props === "object") {
-            if (props.textContent) el.textContent = props.textContent;
-            if (props.onclick) el.onclick = props.onclick;
-        }
-        return el;
-    },
-    span: (props: any) => {
-        const el = document.createElement("span");
-        if (props && typeof props === "object") {
-            if (props.textContent) el.textContent = props.textContent;
-        }
-        return el;
-    },
-}));
+// Mock I18n and element helpers — dialog tests trigger handlers via el.click(),
+// so the realEvents variant is needed
+import "./_helpers/mockCoreI18n";
+import "./_helpers/mockElementRealEvents";
 
 // Set up global app mock before importing dialog
 Object.defineProperty(globalThis, "app", {
@@ -64,6 +25,7 @@ Object.defineProperty(globalThis, "app", {
 });
 
 import { showDialog } from "../src/dialog";
+import { mustQuery } from "./_helpers/domHelpers";
 
 describe("showDialog", () => {
     // Cleanup dialogs after each test
@@ -76,15 +38,15 @@ describe("showDialog", () => {
         content.textContent = "test content";
         showDialog("dialog.title" as I18nKeys, content);
 
-        const dialog = document.body.querySelector("dialog");
-        expect(dialog).not.toBeNull();
+        const dialog = mustQuery(document.body, "dialog");
+        expect(dialog.tagName).toBe("DIALOG");
     });
 
     test("should render title as translated text", () => {
         const content = document.createElement("div");
         showDialog("dialog.confirm" as I18nKeys, content);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const titleEl = dialog.querySelector('[class*="title"]');
         expect(titleEl).not.toBeNull();
     });
@@ -94,7 +56,7 @@ describe("showDialog", () => {
         content.id = "custom-content";
         showDialog("dialog.title" as I18nKeys, content);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         expect(dialog.innerHTML).toContain("custom-content");
     });
 
@@ -102,7 +64,7 @@ describe("showDialog", () => {
         const content = document.createElement("div");
         showDialog("dialog.title" as I18nKeys, content);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const buttons = dialog.querySelectorAll("button");
         expect(buttons.length).toBe(2);
     });
@@ -116,7 +78,7 @@ describe("showDialog", () => {
         ];
         showDialog("dialog.title" as I18nKeys, content, customButtons);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const buttons = dialog.querySelectorAll("button");
         expect(buttons.length).toBe(3);
     });
@@ -126,7 +88,7 @@ describe("showDialog", () => {
         const callback = () => {};
         showDialog("dialog.title" as I18nKeys, content, callback);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const buttons = dialog.querySelectorAll("button");
         expect(buttons.length).toBe(2); // confirm + cancel
     });
@@ -135,7 +97,7 @@ describe("showDialog", () => {
         const content = document.createElement("div");
         showDialog("dialog.title" as I18nKeys, content);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const buttons = dialog.querySelectorAll("button");
         const cancelBtn = buttons[1]; // second button is cancel
 
@@ -149,7 +111,7 @@ describe("showDialog", () => {
         const content = document.createElement("div");
         showDialog("dialog.title" as I18nKeys, content);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const buttons = dialog.querySelectorAll("button");
         const confirmBtn = buttons[0]; // first button is confirm
 
@@ -162,7 +124,7 @@ describe("showDialog", () => {
         const content = document.createElement("div");
         showDialog("dialog.title" as I18nKeys, content);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         dialog.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 
         expect(document.body.querySelector("dialog")).toBeNull();
@@ -182,7 +144,7 @@ describe("showDialog", () => {
         ];
         showDialog("dialog.title" as I18nKeys, content, buttons);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         dialog.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 
         expect(clicked).toBe(true);
@@ -201,7 +163,7 @@ describe("showDialog", () => {
         ];
         showDialog("dialog.title" as I18nKeys, content, buttons);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const confirmBtn = dialog.querySelectorAll("button")[0];
         confirmBtn.click();
 
@@ -222,7 +184,7 @@ describe("showDialog", () => {
         ];
         showDialog("dialog.title" as I18nKeys, content, buttons);
 
-        const dialog = document.body.querySelector("dialog")!;
+        const dialog = mustQuery(document.body, "dialog");
         const confirmBtn = dialog.querySelectorAll("button")[0];
         await confirmBtn.click();
 

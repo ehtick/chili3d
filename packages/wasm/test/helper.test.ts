@@ -24,21 +24,8 @@ import {
     toVec,
     toXYZ,
 } from "../src/helper";
+import { rawBox } from "./helpers";
 import "./setup";
-
-/** Create a 1×1×1 box raw shape for type-inspection tests. */
-function rawBox(dx = 1, dy = 1, dz = 1) {
-    return wasm.ShapeFactory.box(
-        {
-            location: { x: 0, y: 0, z: 0 },
-            direction: { x: 0, y: 0, z: 1 },
-            xDirection: { x: 1, y: 0, z: 0 },
-        },
-        dx,
-        dy,
-        dz,
-    ).shape;
-}
 
 // ============================================================================
 // Coordinate conversions
@@ -193,31 +180,29 @@ describe("helper — shape type conversions", () => {
         expect(getShapeType(verts[0])).toBe(ShapeTypes.vertex);
     });
 
-    test("getShapeEnum returns valid enum for all concrete types", () => {
-        const types = [
-            ShapeTypes.solid,
-            ShapeTypes.shell,
-            ShapeTypes.face,
-            ShapeTypes.wire,
-            ShapeTypes.edge,
-            ShapeTypes.vertex,
-        ];
-        for (const t of types) {
-            const v = getShapeEnum(t);
-            // Emscripten enums may be numbers or objects — both are valid
-            expect(v).toBeDefined();
-            expect(typeof v === "number" || typeof v === "object").toBe(true);
-        }
+    test.each([
+        [ShapeTypes.compound, "TopAbs_COMPOUND"],
+        [ShapeTypes.compoundSolid, "TopAbs_COMPSOLID"],
+        [ShapeTypes.solid, "TopAbs_SOLID"],
+        [ShapeTypes.shell, "TopAbs_SHELL"],
+        [ShapeTypes.face, "TopAbs_FACE"],
+        [ShapeTypes.wire, "TopAbs_WIRE"],
+        [ShapeTypes.edge, "TopAbs_EDGE"],
+        [ShapeTypes.vertex, "TopAbs_VERTEX"],
+        [ShapeTypes.shape, "TopAbs_SHAPE"],
+    ] as const)("getShapeEnum(%s) maps to %s", (shapeType, enumName) => {
+        expect(getShapeEnum(shapeType)).toBe(wasm.TopAbs_ShapeEnum[enumName]);
     });
 
     test("getShapeEnum throws for unknown type", () => {
         expect(() => getShapeEnum(9999 as any)).toThrow("Unknown shape type");
     });
 
-    test("getActualShape downcasts shape to concrete type", () => {
+    test("getActualShape downcasts a box to a solid", () => {
         const box = rawBox();
-        // getActualShape wraps into TopoDS concrete — check no throw
-        expect(() => getActualShape(box)).not.toThrow();
+        const actual = getActualShape(box);
+        expect(actual.isNull()).toBe(false);
+        expect(actual.shapeType()).toBe(wasm.TopAbs_ShapeEnum.TopAbs_SOLID);
     });
 });
 
@@ -243,16 +228,12 @@ describe("helper — orientation", () => {
 // ============================================================================
 
 describe("helper — join type conversion", () => {
-    test("maps arc", () => {
-        expect(getJoinType("arc")).toBe(wasm.GeomAbs_JoinType.GeomAbs_Arc);
-    });
-
-    test("maps intersection", () => {
-        expect(getJoinType("intersection")).toBe(wasm.GeomAbs_JoinType.GeomAbs_Intersection);
-    });
-
-    test("maps tangent", () => {
-        expect(getJoinType("tangent")).toBe(wasm.GeomAbs_JoinType.GeomAbs_Tangent);
+    test.each([
+        ["arc", "GeomAbs_Arc"],
+        ["intersection", "GeomAbs_Intersection"],
+        ["tangent", "GeomAbs_Tangent"],
+    ] as const)("maps join type %s to %s", (joinType, enumName) => {
+        expect(getJoinType(joinType)).toBe(wasm.GeomAbs_JoinType[enumName]);
     });
 
     test("throws for unknown type", () => {
@@ -265,15 +246,19 @@ describe("helper — join type conversion", () => {
 // ============================================================================
 
 describe("helper — continuity conversions", () => {
-    const continuities = ["c0", "g1", "c1", "g2", "c2", "c3", "cn"] as const;
-
-    for (const c of continuities) {
-        test(`roundtrip: ${c}`, () => {
-            const wasmVal = convertFromContinuity(c);
-            const back = convertToContinuity(wasmVal);
-            expect(back).toBe(c);
-        });
-    }
+    test.each([
+        "c0",
+        "g1",
+        "c1",
+        "g2",
+        "c2",
+        "c3",
+        "cn",
+    ] as const)("continuity roundtrip: %s", (continuity) => {
+        const wasmVal = convertFromContinuity(continuity);
+        const back = convertToContinuity(wasmVal);
+        expect(back).toBe(continuity);
+    });
 
     test("convertFromContinuity throws for unknown", () => {
         expect(() => convertFromContinuity("unknown" as any)).toThrow();

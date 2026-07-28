@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Arc2Point", () => {
     test("should have command metadata", () => {
         const data = (Arc2Point as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.arc2point");
         expect(data.icon).toBe("icon-arc2point");
     });
@@ -205,7 +205,7 @@ describe("Arc2Point", () => {
                 new XYZ({ x: 10, y: 0, z: 0 }),
                 new XYZ({ x: 5, y: 3, z: 0 }),
             );
-            expect(result).toBeDefined();
+            expect(result).not.toBeNull();
             expect(result.heightPoint).toBeDefined();
             expect(result.midpoint).toBeDefined();
             expect(result.heightDirection).toBeDefined();

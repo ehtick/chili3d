@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Line, Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { RevolvedNode } from "../../src/bodys/revolve";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock, setupSimpleShapeFactoryMock } from "./_utils";
 
 describe("RevolvedNode", () => {
@@ -90,46 +90,39 @@ describe("RevolvedNode", () => {
         test("should emit on angle change", () => {
             setupSimpleShapeFactoryMock("revolve");
             const node = new RevolvedNode({ document: doc, profile, axis, angle: 180 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.angle = 45;
-            expect(events).toContain("angle");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("angle");
         });
 
         test("should emit on profile change", () => {
             setupSimpleShapeFactoryMock("revolve");
             const node = new RevolvedNode({ document: doc, profile, axis, angle: 180 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.profile = { ...profile } as any;
-            expect(events).toContain("profile");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("profile");
         });
 
         test("should emit on axis change", () => {
             setupSimpleShapeFactoryMock("revolve");
             const node = new RevolvedNode({ document: doc, profile, axis, angle: 180 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.axis = new Line({ point: XYZ.zero, direction: XYZ.unitY });
-            expect(events).toContain("axis");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("axis");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.revolve", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                revolve: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const revolve = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ revolve });
             const node = new RevolvedNode({ document: doc, profile, axis, angle: 360 });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(calledWith[0]).toBe(profile);
-            expect(calledWith[1]).toBe(axis);
-            expect(calledWith[2]).toBe(360);
+            expect(revolve).toHaveBeenCalledWith(profile, axis, 360);
         });
 
         test("should return Result.err when shapeFactory.revolve fails", () => {

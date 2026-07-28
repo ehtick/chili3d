@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, Serializer, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { ConeNode } from "../../src/bodys/cone";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock, setupSimpleShapeFactoryMock } from "./_utils";
 
 describe("ConeNode", () => {
@@ -77,19 +77,19 @@ describe("ConeNode", () => {
         test("should emit on radius change", () => {
             setupSimpleShapeFactoryMock("cone");
             const node = new ConeNode({ document: doc, normal, center, radius: 5, dz: 10 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.radius = 20;
-            expect(events).toContain("radius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("radius");
         });
 
         test("should emit on dz change", () => {
             setupSimpleShapeFactoryMock("cone");
             const node = new ConeNode({ document: doc, normal, center, radius: 5, dz: 10 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.dz = 33;
-            expect(events).toContain("dz");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("dz");
         });
     });
 
@@ -107,20 +107,12 @@ describe("ConeNode", () => {
 
     describe("generateShape", () => {
         test("should call shapeFactory.cone with correct params (radius2=0)", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                cone: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const cone = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ cone });
             const node = new ConeNode({ document: doc, normal, center, radius: 5, dz: 12 });
             node.generateShape();
-            expect(calledWith[0]).toBe(normal);
-            expect(calledWith[1]).toBe(center);
-            expect(calledWith[2]).toBe(5); // radius
-            expect(calledWith[3]).toBe(0); // ConeNode hardcodes 0 as radius2
-            expect(calledWith[4]).toBe(12); // dz
+            // ConeNode hardcodes 0 as radius2
+            expect(cone).toHaveBeenCalledWith(normal, center, 5, 0, 12);
         });
 
         test("should return Result.err when shapeFactory.cone fails", () => {

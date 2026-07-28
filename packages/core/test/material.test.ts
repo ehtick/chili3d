@@ -1,9 +1,8 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { XY } from "@chili3d/core";
-import { Material, PhongMaterial, PhysicalMaterial, Texture } from "../src";
-import { TestDocument } from "./mocks";
+import { Material, PhongMaterial, PhysicalMaterial, Texture, XY } from "../src";
+import { TestDocument } from "../test-utils";
 
 describe("Material classes", () => {
     let document: TestDocument;
@@ -90,7 +89,7 @@ describe("Material classes", () => {
 
             test("should generate default id when not provided", () => {
                 const mat = new Material({ document, name: "TestMaterial", color: 0xff0000 });
-                expect(mat.id).toBeDefined();
+                expect(mat.id).not.toBeNull();
                 expect(mat.id.length).toBeGreaterThan(0);
             });
 

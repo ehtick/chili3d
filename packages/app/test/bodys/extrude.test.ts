@@ -1,11 +1,11 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { IDocument } from "@chili3d/core";
+import type { IDocument, IShape } from "@chili3d/core";
 import { Result, ShapeTypes, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { ExtrudeNode } from "../../src/bodys/extrude";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, createMockWire, setupShapeFactoryMock } from "./_utils";
 
 describe("ExtrudeNode", () => {
@@ -66,35 +66,31 @@ describe("ExtrudeNode", () => {
         test("should emit on length change", () => {
             setupShapeFactoryMock({ prism: () => Result.ok(createMockShape() as any) });
             const node = new ExtrudeNode({ document: doc, section, length: 10 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.length = 77;
-            expect(events).toContain("length");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("length");
         });
 
         test("should emit on section change", () => {
             setupShapeFactoryMock({ prism: () => Result.ok(createMockShape() as any) });
             const node = new ExtrudeNode({ document: doc, section, length: 10 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.section = createMockWire() as any;
-            expect(events).toContain("section");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("section");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.prism for non-face wire section", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                prism: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape() as any);
-                },
-            });
+            const prism = rs.fn((_shape: IShape, _vec: XYZ) => Result.ok(createMockShape() as any));
+            setupShapeFactoryMock({ prism });
             const node = new ExtrudeNode({ document: doc, section, length: 10 });
             node.generateShape();
-            expect(calledWith.length).toBe(2);
-            expect(calledWith[0]).toBe(section);
+            expect(prism).toHaveBeenCalledTimes(1);
+            expect(prism.mock.calls[0].length).toBe(2);
+            expect(prism.mock.calls[0][0]).toBe(section);
         });
 
         test("should return Result.err when shapeFactory.prism fails", () => {
@@ -107,48 +103,36 @@ describe("ExtrudeNode", () => {
         });
 
         test("should call shapeFactory.prism for face with planar surface", () => {
-            let calledWith: any[] = [];
             const faceSectionWithPlanarSurface = {
                 shapeType: ShapeTypes.face,
                 surface: () => ({ isPlanar: () => true }),
                 normal: (_u: number, _v: number) => [null, { normalize: () => XYZ.unitZ }],
             };
-            setupShapeFactoryMock({
-                prism: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape() as any);
-                },
-            });
+            const prism = rs.fn((_shape: IShape, _vec: XYZ) => Result.ok(createMockShape() as any));
+            setupShapeFactoryMock({ prism });
             const node = new ExtrudeNode({
                 document: doc,
                 section: faceSectionWithPlanarSurface as any,
                 length: 20,
             });
             node.generateShape();
-            expect(calledWith[0]).toBe(faceSectionWithPlanarSurface);
+            expect(prism.mock.calls[0][0]).toBe(faceSectionWithPlanarSurface);
         });
 
         test("should call shapeFactory.makeThickSolidBySimple for non-planar face", () => {
-            let calledMethod: string | null = null;
-            let calledArgs: any[] = [];
             const faceSectionNonPlanar = {
                 shapeType: ShapeTypes.face,
                 surface: () => ({ isPlanar: () => false }),
                 normal: (_u: number, _v: number) => [null, { normalize: () => XYZ.unitZ }],
             };
+            const makeThickSolidBySimple = rs.fn(() => Result.ok(createMockShape() as any));
             setupShapeFactoryMock({
-                makeThickSolidBySimple: (...args: any[]) => {
-                    calledMethod = "makeThickSolidBySimple";
-                    calledArgs = args;
-                    return Result.ok(createMockShape() as any);
-                },
+                makeThickSolidBySimple,
                 prism: () => Result.err("should not call prism"),
             });
             const node = new ExtrudeNode({ document: doc, section: faceSectionNonPlanar as any, length: 20 });
             const result = node.generateShape();
-            expect(calledMethod).toBe("makeThickSolidBySimple");
-            expect(calledArgs[0]).toBe(faceSectionNonPlanar);
-            expect(calledArgs[1]).toBe(20);
+            expect(makeThickSolidBySimple).toHaveBeenCalledWith(faceSectionNonPlanar, 20);
             expect(result.isOk).toBe(true);
         });
 

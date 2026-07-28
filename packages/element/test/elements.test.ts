@@ -136,9 +136,10 @@ describe("setSVGIcon", () => {
         expect(href).toBe("#icon-new");
     });
 
-    test("should not throw when SVG has no children", () => {
+    test("should leave a childless SVG unchanged", () => {
         const emptySvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        expect(() => setSVGIcon(emptySvg, "icon")).not.toThrow();
+        expect(() => setSVGIcon(emptySvg as SVGSVGElement, "icon")).not.toThrow();
+        expect(emptySvg.childNodes.length).toBe(0);
     });
 });
 

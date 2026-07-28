@@ -250,6 +250,16 @@ export function makeParent(opts: Partial<TrackingParent> = {}): TrackingParent {
  * Mock of an IShape that records its `transformedMul` / `transformed` calls
  * (so transform-preview and the geometry-input reads work) and returns itself
  * (or a configurable result) for the few methods modify commands touch.
+ *
+ * Deliberately NOT replaced by the shared `MockShape` from
+ * `@chili3d/core/test-utils` — the behaviors the command tests rely on differ:
+ * - default `shapeType` here is `ShapeTypes.shape` (0); `MockShape` defaults to `compound`;
+ * - `transformed`/`transformedMul` return `this` and record into `calls` (asserted in
+ *   split/repair/transform tests); `MockShape` returns new instances without tracking;
+ * - any `Partial<IShape>` method can be overridden per call (`directSubShapes`, `dispose`,
+ *   `split`, ...); `MockShape` only accepts `{ shapeType, id, matrix }` constructor tweaks;
+ * - `mesh` is the minimal edges-only `fakeMesh`, so branches reading `mesh.faces`
+ *   stay untouched; `MockShape` ships full face/edge/vertex buffers.
  */
 export interface MockShape extends IShape {
     calls: Map<string, unknown[][]>;

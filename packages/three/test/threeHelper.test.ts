@@ -2,19 +2,22 @@
 // See LICENSE file in the project root for full license information.
 
 import { Material, Matrix4, PhongMaterial, PhysicalMaterial, XYZ } from "@chili3d/core";
+import { TestDocument } from "@chili3d/core/test-utils";
 import {
     Box3,
     BufferAttribute,
     BufferGeometry,
     Mesh,
     MeshBasicMaterial,
+    MeshLambertMaterial,
+    MeshPhongMaterial,
+    MeshPhysicalMaterial,
     Object3D,
     OrthographicCamera,
     PerspectiveCamera,
     Matrix4 as ThreeMatrix4,
     Vector3,
 } from "three";
-import { TestDocument } from "../../core/test/mocks";
 import { ThreeHelper } from "../src/threeHelper";
 
 describe("ThreeHelper", () => {
@@ -113,28 +116,18 @@ describe("ThreeHelper", () => {
             { start: 5, count: 4 },
         ];
 
-        test("finds index within first group", () => {
-            expect(ThreeHelper.findGroupIndex(groups, 0)).toBe(0);
-            expect(ThreeHelper.findGroupIndex(groups, 2)).toBe(0);
-        });
-
-        test("finds index within second group", () => {
-            expect(ThreeHelper.findGroupIndex(groups, 3)).toBe(1);
-            expect(ThreeHelper.findGroupIndex(groups, 4)).toBe(1);
-        });
-
-        test("finds index within third group", () => {
-            expect(ThreeHelper.findGroupIndex(groups, 5)).toBe(2);
-            expect(ThreeHelper.findGroupIndex(groups, 8)).toBe(2);
-        });
-
-        test("returns undefined for out-of-range index", () => {
-            expect(ThreeHelper.findGroupIndex(groups, 9)).toBeUndefined();
-            expect(ThreeHelper.findGroupIndex(groups, -1)).toBeUndefined();
-        });
-
-        test("returns undefined for empty groups", () => {
-            expect(ThreeHelper.findGroupIndex([], 0)).toBeUndefined();
+        test.each([
+            ["first group start", groups, 0, 0],
+            ["first group end", groups, 2, 0],
+            ["second group start", groups, 3, 1],
+            ["second group end", groups, 4, 1],
+            ["third group start", groups, 5, 2],
+            ["third group end", groups, 8, 2],
+            ["out-of-range index", groups, 9, undefined],
+            ["negative index", groups, -1, undefined],
+            ["empty groups", [] as { start: number; count: number }[], 0, undefined],
+        ])("returns %s", (_name, g, index, expected) => {
+            expect(ThreeHelper.findGroupIndex(g, index)).toBe(expected);
         });
     });
 
@@ -239,7 +232,7 @@ describe("ThreeHelper", () => {
             createdObjects.push(mesh);
 
             const result = ThreeHelper.getBoundingBox(mesh);
-            expect(result).toBeDefined();
+            expect(result).not.toBeUndefined();
             expect(result!.min.x).toBeCloseTo(-1);
             expect(result!.max.x).toBeCloseTo(1);
         });
@@ -257,7 +250,7 @@ describe("ThreeHelper", () => {
             coreMaterial.metalness = 0.8;
             coreMaterial.opacity = 0.9;
             const threeMat = ThreeHelper.parseToThreeMaterial(coreMaterial);
-            expect(threeMat).toBeDefined();
+            expect(threeMat).toBeInstanceOf(MeshPhysicalMaterial);
             expect(threeMat.name).toBe("test-physical");
         });
 
@@ -271,7 +264,7 @@ describe("ThreeHelper", () => {
             coreMaterial.shininess = 32;
             coreMaterial.opacity = 0.8;
             const threeMat = ThreeHelper.parseToThreeMaterial(coreMaterial);
-            expect(threeMat).toBeDefined();
+            expect(threeMat).toBeInstanceOf(MeshPhongMaterial);
             expect(threeMat.name).toBe("test-phong");
         });
 
@@ -284,7 +277,7 @@ describe("ThreeHelper", () => {
             });
             coreMaterial.opacity = 0.7;
             const threeMat = ThreeHelper.parseToThreeMaterial(coreMaterial);
-            expect(threeMat).toBeDefined();
+            expect(threeMat).toBeInstanceOf(MeshLambertMaterial);
             expect(threeMat.name).toBe("test-basic");
         });
     });

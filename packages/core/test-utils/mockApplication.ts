@@ -1,19 +1,19 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type {
-    IApplication,
-    ICommand,
-    IDataExchange,
-    IDocument,
-    IPluginManager,
-    IShapeProvider,
-    IStorage,
-    IView,
-    IVisualFactory,
-} from "@chili3d/core";
-import { ObservableCollection } from "@chili3d/core";
-import { createMockVisual } from "./mockVisual";
+import {
+    type IApplication,
+    type ICommand,
+    type IDataExchange,
+    type IDocument,
+    type IPluginManager,
+    type IShapeProvider,
+    type IStorage,
+    type IView,
+    type IVisualFactory,
+    ObservableCollection,
+} from "../src";
+import { createMockVisualWithDocument } from "./mockVisual";
 
 export interface MockApplicationOverrides {
     storage?: Partial<IStorage>;
@@ -44,7 +44,7 @@ export function createMockApplication(overrides: MockApplicationOverrides = {}):
         visualFactory: {
             kernelName: "mock",
             create: (doc: IDocument) => ({
-                ...createMockVisual(doc),
+                ...createMockVisualWithDocument(doc),
                 resetEventHandler: () => {},
                 isExcutingHandler: () => false,
             }),
@@ -64,13 +64,15 @@ export function createMockApplication(overrides: MockApplicationOverrides = {}):
         } as IDataExchange,
         services: overrides.services ?? [],
         pluginManager: {
-            plugins: new Map(),
-            manifests: new Map(),
-            shouldRevokes: new Map(),
             loadFromFile: async () => {},
             loadFromUrl: async () => {},
+            unload: async () => {},
+            unloadAll: () => {},
+            getPlugins: () => [],
+            get: () => undefined,
+            isLoaded: () => false,
             ...overrides.pluginManager,
-        } as unknown as IPluginManager,
+        },
         views: mockViews,
         documents: mockDocuments,
         activeView: undefined,
@@ -103,10 +105,15 @@ export function createMockCommand(overrides: Partial<ICommand> = {}): ICommand {
  * Create a mock cancelable command for testing.
  */
 export function createMockCancelableCommand(
-    overrides: Partial<{ execute: () => Promise<void>; cancel: () => Promise<void> }> = {},
+    overrides: Partial<{
+        execute: () => Promise<void>;
+        cancel: () => Promise<void>;
+        dispose: () => void;
+    }> = {},
 ): ICommand {
     return {
         execute: overrides.execute ?? (async () => {}),
         cancel: overrides.cancel ?? (async () => {}),
+        dispose: overrides.dispose ?? (() => {}),
     } as any;
 }

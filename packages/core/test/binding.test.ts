@@ -38,7 +38,7 @@ class TestObjectB extends Observable {
 }
 
 describe("PathBinding test", () => {
-    test("test PathBinding1", () => {
+    test("should sync target through a nested property path", () => {
         const obj2 = new TestObjectB();
         const binding = new PathBinding(obj2, "propB.propA.value");
         const target = { value: "v1" };
@@ -77,7 +77,7 @@ describe("PathBinding test", () => {
         expect(target.value).toBe("value4");
     });
 
-    test("test PathBinding2", () => {
+    test("should bind multiple paths on the same source", () => {
         const obj = new TestObjectB();
         obj.propB = new TestObjectA();
         obj.propB.propA = new TestObjectValue();

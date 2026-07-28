@@ -1,13 +1,14 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import { rs } from "@rstest/core";
 import { Config } from "../src";
 import { Plane, XYZ } from "../src/math";
 import { Axis } from "../src/snap/tracking/axis";
 import { AxisTracking } from "../src/snap/tracking/axisTracking";
 import { ObjectTracking } from "../src/snap/tracking/objectTracking";
 import { TrackingSnap } from "../src/snap/tracking/trackingSnap";
-import { createMockView } from "./mocks";
+import { createMockView } from "../test-utils";
 
 // ============================================================================
 // Axis
@@ -63,12 +64,10 @@ describe("Axis", () => {
             const axis1 = new Axis(XYZ.zero, XYZ.unitX, "x");
             const axis2 = new Axis(XYZ.zero, XYZ.unitY, "y");
             const intersection = axis1.intersect(axis2);
-            expect(intersection).toBeDefined();
-            if (intersection) {
-                expect(intersection.x).toBeCloseTo(0, 5);
-                expect(intersection.y).toBeCloseTo(0, 5);
-                expect(intersection.z).toBeCloseTo(0, 5);
-            }
+            expect(intersection).not.toBeNull();
+            expect(intersection!.x).toBeCloseTo(0, 5);
+            expect(intersection!.y).toBeCloseTo(0, 5);
+            expect(intersection!.z).toBeCloseTo(0, 5);
         });
 
         test("should return undefined for parallel axes", () => {
@@ -188,7 +187,9 @@ describe("ObjectTracking", () => {
             shapes: [],
             type: "nearCurve" as const,
         };
-        expect(() => tracking.showTrackingAtTimeout(document, snap)).not.toThrow();
+        tracking.showTrackingAtTimeout(document, snap);
+        // Skipped snap types must not schedule the tracking timer
+        expect(tracking["timer"]).toBeUndefined();
         tracking.clear();
     });
 
@@ -202,7 +203,8 @@ describe("ObjectTracking", () => {
             shapes: [],
             type: "onSurface" as const,
         };
-        expect(() => tracking.showTrackingAtTimeout(document, snap)).not.toThrow();
+        tracking.showTrackingAtTimeout(document, snap);
+        expect(tracking["timer"]).toBeUndefined();
         tracking.clear();
     });
 
@@ -210,7 +212,8 @@ describe("ObjectTracking", () => {
         const tracking = new ObjectTracking(false);
         const view = createMockView();
         const document = view.document;
-        expect(() => tracking.showTrackingAtTimeout(document, undefined)).not.toThrow();
+        tracking.showTrackingAtTimeout(document, undefined);
+        expect(tracking["timer"]).toBeUndefined();
         tracking.clear();
     });
 
@@ -284,72 +287,95 @@ describe("TrackingSnap", () => {
         expect(snap.snap(data)).toBeUndefined();
     });
 
-    test("snap should attempt tracking with reference point", () => {
+    test("snap should return undefined when mouse is exactly on the reference point", () => {
         Config.instance.enableSnapTracking = true;
         const snap = new TrackingSnap(() => XYZ.zero, false);
         const view = createMockView();
+        // Mouse (400, 300) projects exactly onto the reference point XYZ.zero,
+        // so the tracking distance is 0 and no snap is produced.
         const data = { view, mx: 400, my: 300, shapes: [] };
-        // With a reference point, axis tracking is engaged
-        // The result depends on screen distance vs Config.SnapDistance
-        expect(() => snap.snap(data)).not.toThrow();
+        expect(snap.snap(data)).toBeUndefined();
+        snap.clear();
     });
 
-    test("handleSnaped should be callable without error", () => {
-        // Disable tracking to avoid timer creation during test
+    test("handleSnaped should skip tracking when tracking is disabled", () => {
         Config.instance.enableSnapTracking = false;
         const snap = new TrackingSnap(() => XYZ.zero, false);
         const view = createMockView();
         const document = view.document;
-        expect(() =>
-            snap.handleSnaped?.(document, {
-                view,
-                point: XYZ.zero,
-                shapes: [],
-                type: "vertex",
-            }),
-        ).not.toThrow();
+        const showTracking = rs.spyOn(snap["_objectTracking"], "showTrackingAtTimeout");
+
+        snap.handleSnaped?.(document, {
+            view,
+            point: XYZ.zero,
+            shapes: [],
+            type: "vertex",
+        });
+
+        expect(showTracking).not.toHaveBeenCalled();
+        snap.clear();
     });
 
-    test("handleSnaped should be callable with shape data", () => {
+    test("handleSnaped should skip tracking with shape data when disabled", () => {
         Config.instance.enableSnapTracking = false;
         const snap = new TrackingSnap(() => XYZ.zero, false);
         const view = createMockView();
         const document = view.document;
-        expect(() =>
-            snap.handleSnaped?.(document, {
-                view,
-                point: new XYZ({ x: 1, y: 2, z: 3 }),
-                shapes: [
-                    {
-                        shape: { id: "s1", shapeType: 2 },
-                        owner: { node: {} },
-                        transform: {
-                            ofPoint: (p: XYZ) => p,
-                            invert: () => null,
-                        },
-                        indexes: [],
-                        point: XYZ.zero,
-                    } as never,
-                ],
-                type: "end",
-            }),
-        ).not.toThrow();
+        const showTracking = rs.spyOn(snap["_objectTracking"], "showTrackingAtTimeout");
+
+        snap.handleSnaped?.(document, {
+            view,
+            point: new XYZ({ x: 1, y: 2, z: 3 }),
+            shapes: [
+                {
+                    shape: { id: "s1", shapeType: 2 },
+                    owner: { node: {} },
+                    transform: {
+                        ofPoint: (p: XYZ) => p,
+                        invert: () => null,
+                    },
+                    indexes: [],
+                    point: XYZ.zero,
+                } as never,
+            ],
+            type: "end",
+        });
+
+        expect(showTracking).not.toHaveBeenCalled();
+        snap.clear();
     });
 
     test("clear should clean up all resources", () => {
         const snap = new TrackingSnap(() => XYZ.zero, true);
-        expect(() => snap.clear()).not.toThrow();
+        snap.clear();
+        expect(snap["_tempLines"].size).toBe(0);
+        expect(snap["_axisTracking"]["isCleared"]).toBe(true);
+        expect(snap["_objectTracking"]["isCleared"]).toBe(true);
     });
 
     test("clear should be idempotent", () => {
         const snap = new TrackingSnap(() => XYZ.zero, true);
         snap.clear();
-        expect(() => snap.clear()).not.toThrow();
+        snap.clear();
+        expect(snap["_tempLines"].size).toBe(0);
+        expect(snap["_axisTracking"]["isCleared"]).toBe(true);
     });
 
     test("removeDynamicObject should clean temp lines", () => {
         const snap = new TrackingSnap(() => XYZ.zero, true);
-        expect(() => snap.removeDynamicObject()).not.toThrow();
+        const view = createMockView();
+        const context = view.document.visual.context;
+        const removeMesh = rs.fn((_id: number) => {});
+        context.removeMesh = removeMesh as never;
+        snap["_tempLines"].set(view, [7, 8]);
+
+        snap.removeDynamicObject();
+
+        expect(removeMesh).toHaveBeenCalledTimes(2);
+        expect(removeMesh).toHaveBeenCalledWith(7);
+        expect(removeMesh).toHaveBeenCalledWith(8);
+        expect(snap["_tempLines"].size).toBe(0);
+        snap.clear();
     });
 
     test("snap should not throw with shapes in detected data", () => {

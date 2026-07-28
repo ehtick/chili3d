@@ -6,40 +6,40 @@ import { VisualStates, VisualStateUtils } from "../src";
 import { type IVisualGeometry, type IVisualObject, isVisualGeometry } from "../src/visual/visualObject";
 
 describe("visual test", () => {
-    test("test VisualState", () => {
+    test("should add, remove and check visual states", () => {
         let state: VisualState = VisualStates.normal;
         expect(state).toBe(0);
 
         state = VisualStateUtils.addState(state, VisualStates.edgeHighlight);
         expect(state).toBe(1);
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBeTruthy();
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBeFalsy();
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBe(true);
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBe(false);
 
         state = VisualStateUtils.addState(state, VisualStates.edgeSelected);
         expect(state).toBe(3);
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBeTruthy();
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBeTruthy();
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBe(true);
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBe(true);
 
         state = VisualStateUtils.removeState(state, VisualStates.edgeHighlight);
         expect(state).toBe(2);
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBeFalsy();
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBeTruthy();
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBe(false);
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBe(true);
 
         state = VisualStateUtils.removeState(state, VisualStates.edgeSelected);
         expect(state).toBe(0);
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBeFalsy();
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBeFalsy();
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBe(false);
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBe(false);
 
         state = VisualStates.edgeHighlight;
         state = VisualStateUtils.addState(state, VisualStates.edgeSelected);
         expect(state).toBe(3);
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBeTruthy();
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBeTruthy();
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBe(true);
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBe(true);
 
         state = VisualStateUtils.removeState(state, VisualStates.edgeHighlight);
         expect(state).toBe(2);
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBeFalsy();
-        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBeTruthy();
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeHighlight)).toBe(false);
+        expect(VisualStateUtils.hasState(state, VisualStates.edgeSelected)).toBe(true);
     });
 });
 

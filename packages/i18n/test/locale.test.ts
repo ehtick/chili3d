@@ -27,16 +27,12 @@ describe("i18n locales", () => {
     });
 
     describe("locale languages", () => {
-        test("en language should be en", () => {
-            expect(en.language).toBe("en");
-        });
-
-        test("zhCn language should be zh-CN", () => {
-            expect(zhCn.language).toBe("zh-CN");
-        });
-
-        test("ptBr language should be pt-BR", () => {
-            expect(ptBr.language).toBe("pt-BR");
+        test.each([
+            { name: "en", locale: en, language: "en" },
+            { name: "zhCn", locale: zhCn, language: "zh-CN" },
+            { name: "ptBr", locale: ptBr, language: "pt-BR" },
+        ] as const)("$name language should be $language", ({ locale, language }) => {
+            expect(locale.language).toBe(language);
         });
     });
 
@@ -102,6 +98,40 @@ describe("i18n locales", () => {
                     throw new Error(`Empty translation for key: ${key}`);
                 }
             }
+        });
+
+        test.each([
+            { name: "zhCn", locale: zhCn },
+            { name: "ptBr", locale: ptBr },
+        ] as const)("$name translation values should be non-empty strings", ({ locale }) => {
+            for (const [key, value] of Object.entries(locale.translation)) {
+                expect(typeof value).toBe("string");
+                if (value.length === 0) {
+                    throw new Error(`Empty translation for key: ${key}`);
+                }
+            }
+        });
+
+        const placeholders = (value: string): string[] => value.match(/\{\d+\}/g)?.sort() ?? [];
+
+        test.each([
+            { name: "zhCn", locale: zhCn },
+            { name: "ptBr", locale: ptBr },
+        ] as const)("$name should keep the same placeholders as en for every key", ({ locale }) => {
+            const mismatches: string[] = [];
+            for (const [key, enValue] of Object.entries(en.translation)) {
+                const translated = (locale.translation as Record<string, string>)[key];
+                if (translated === undefined) {
+                    mismatches.push(`${key}: missing in translation`);
+                    continue;
+                }
+                const expected = placeholders(enValue);
+                const actual = placeholders(translated);
+                if (expected.join(",") !== actual.join(",")) {
+                    mismatches.push(`${key}: expected ${expected} but got ${actual}`);
+                }
+            }
+            expect(mismatches).toEqual([]);
         });
     });
 });

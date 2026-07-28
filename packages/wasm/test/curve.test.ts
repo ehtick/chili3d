@@ -1,19 +1,23 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { Line, XYZ } from "@chili3d/core";
+import { Line, Plane, ShapeTypes, XYZ } from "@chili3d/core";
 import {
     OccBezierCurve,
     OccBSplineCurve,
     OccCircle,
     OccCurve,
     OccEllipse,
+    OccHyperbola,
     OccLine,
-    type OccTrimmedCurve,
+    OccOffsetCurve,
+    OccParabola,
+    OccTrimmedCurve,
 } from "../src/curve";
 import type { ShapeFactory } from "../src/factory";
-import type { OccEdge } from "../src/shape";
-import { createTestFactory } from "./helpers";
+import type { OccEdge, OccFace } from "../src/shape";
+import { OccBSplineSurface } from "../src/surface";
+import { basisCurveOfEdge, createTestFactory, unwrapOk } from "./helpers";
 import "./setup";
 
 let factory: ShapeFactory;
@@ -21,11 +25,6 @@ let factory: ShapeFactory;
 beforeEach(() => {
     factory = createTestFactory();
 });
-
-/** Extract the basis (untrimmed) curve from an edge. */
-function basisCurveOfEdge(edge: OccEdge) {
-    return (edge.curve as OccTrimmedCurve).basisCurve;
-}
 
 // ============================================================================
 // OccCurve — static wrap type dispatch
@@ -81,9 +80,9 @@ describe("OccCurve — core methods", () => {
         expect(circle.curveType).toBe("circle");
     });
 
-    test("length of untrimmed line is very large (infinite line)", () => {
-        // Geom_Line is an infinite line; its untrimmed length is huge
-        expect(line.length()).toBeGreaterThan(1);
+    test("length of untrimmed line is astronomical (infinite line)", () => {
+        // Geom_Line is an infinite line; its untrimmed length is ~4e100
+        expect(line.length()).toBeGreaterThan(1e99);
     });
 
     test("trimmed curve length is consistent with trim range", () => {
@@ -105,10 +104,9 @@ describe("OccCurve — core methods", () => {
         expect(circle.period()).toBeCloseTo(2 * Math.PI);
     });
 
-    test("firstParameter and lastParameter", () => {
-        expect(typeof line.firstParameter()).toBe("number");
-        expect(typeof line.lastParameter()).toBe("number");
-        expect(line.firstParameter()).toBeLessThan(line.lastParameter());
+    test("firstParameter and lastParameter of an infinite line are astronomical", () => {
+        expect(line.firstParameter()).toBeLessThan(-1e99);
+        expect(line.lastParameter()).toBeGreaterThan(1e99);
     });
 
     test("value returns point on curve", () => {
@@ -118,45 +116,49 @@ describe("OccCurve — core methods", () => {
         expect(p.z).toBeCloseTo(0);
     });
 
-    test("d0 returns point on curve", () => {
+    test("d0 returns the point at the parameter", () => {
         const p = line.d0(0.5);
-        expect(typeof p.x).toBe("number");
-        expect(typeof p.y).toBe("number");
-        expect(typeof p.z).toBe("number");
+        expect(p.x).toBeCloseTo(0.5);
+        expect(p.y).toBeCloseTo(0);
+        expect(p.z).toBeCloseTo(0);
     });
 
     test("d1 returns point and tangent vector", () => {
         const { point, vec } = line.d1(0.5);
-        expect(typeof point.x).toBe("number");
-        expect(typeof vec.x).toBe("number");
+        expect(point.x).toBeCloseTo(0.5);
         // For a line from (0,0,0) to (1,0,0), tangent at any point is (1,0,0)
         expect(vec.x).toBeCloseTo(1);
         expect(vec.y).toBeCloseTo(0);
         expect(vec.z).toBeCloseTo(0);
     });
 
-    test("d2 returns point and first/second derivatives", () => {
+    test("d2 of a circle at u=0 returns the expected derivatives", () => {
         const { point, vec1, vec2 } = circle.d2(0);
-        expect(typeof point.x).toBe("number");
-        expect(typeof vec1.x).toBe("number");
-        expect(typeof vec2.x).toBe("number");
+        expect(point.x).toBeCloseTo(5);
+        expect(point.y).toBeCloseTo(0);
+        expect(vec1.x).toBeCloseTo(0);
+        expect(vec1.y).toBeCloseTo(5);
+        expect(vec2.x).toBeCloseTo(-5);
+        expect(vec2.y).toBeCloseTo(0);
     });
 
-    test("d3 returns point and three derivatives", () => {
+    test("d3 of a circle at u=0 returns the expected derivatives", () => {
         const { point, vec1, vec2, vec3 } = circle.d3(0);
-        expect(typeof point.x).toBe("number");
-        expect(typeof vec1.x).toBe("number");
-        expect(typeof vec2.x).toBe("number");
-        expect(typeof vec3.x).toBe("number");
+        expect(point.x).toBeCloseTo(5);
+        expect(vec1.y).toBeCloseTo(5);
+        expect(vec2.x).toBeCloseTo(-5);
+        expect(vec3.y).toBeCloseTo(-5);
     });
 
-    test("dn(u, n) returns n-th derivative", () => {
+    test("dn(u, 1) of a line returns the direction", () => {
         const v = line.dn(0, 1);
-        expect(typeof v.x).toBe("number");
+        expect(v.x).toBeCloseTo(1);
+        expect(v.y).toBeCloseTo(0);
+        expect(v.z).toBeCloseTo(0);
     });
 
-    test("isCN returns boolean", () => {
-        expect(typeof line.isCN(1)).toBe("boolean");
+    test("isCN returns true for a line", () => {
+        expect(line.isCN(1)).toBe(true);
     });
 
     test("reverse flips parameter direction", () => {
@@ -185,13 +187,20 @@ describe("OccCurve — core methods", () => {
 
     test("nearestFromPoint returns projection data", () => {
         const res = line.nearestFromPoint(new XYZ({ x: 0.5, y: 1, z: 0 }));
-        expect(res).toBeDefined();
-        expect(typeof res.point.x).toBe("number");
+        expect(res.point.x).toBeCloseTo(0.5);
+        expect(res.point.y).toBeCloseTo(0);
+        expect(res.point.z).toBeCloseTo(0);
+        expect(res.distance).toBeCloseTo(1);
+        expect(res.parameter).toBeCloseTo(0.5);
     });
 
     test("project returns points sorted by distance", () => {
-        const points = line.project(new XYZ({ x: 0.5, y: 1, z: 0 }));
-        expect(points.length).toBeGreaterThanOrEqual(1);
+        const query = new XYZ({ x: 1, y: 0, z: 0 });
+        // A point inside the circle projects to the nearest and farthest extrema
+        const points = circle.project(query);
+        expect(points.length).toBe(2);
+        expect(points[0].distanceTo(query)).toBeCloseTo(4, 6);
+        expect(points[1].distanceTo(query)).toBeCloseTo(6, 6);
     });
 
     test("parameter returns parameter for a point on curve", () => {
@@ -213,10 +222,10 @@ describe("OccCurve — core methods", () => {
         expect(pts.length).toBe(count + 1);
     });
 
-    test("trim creates trimmed curve", () => {
+    test("trim creates trimmed curve with the expected length", () => {
         const t = line.trim(0.3, 0.7);
         expect(t).toBeDefined();
-        expect(t.length()).toBeLessThan(line.length());
+        expect(t.length()).toBeCloseTo(0.4);
     });
 });
 
@@ -288,11 +297,11 @@ describe("OccCircle", () => {
         expect(circle.length()).toBeCloseTo(2 * Math.PI * 10, 0);
     });
 
-    test("axis/xAxis/yAxis are defined", () => {
+    test("axis/xAxis/yAxis match the creation normal", () => {
         const circle = basisCurveOfEdge(factory.circle(XYZ.unitZ, XYZ.zero, 5).value as OccEdge) as OccCircle;
-        expect(circle.axis).toBeDefined();
-        expect(circle.xAxis).toBeDefined();
-        expect(circle.yAxis).toBeDefined();
+        expect(circle.axis.z).toBeCloseTo(1);
+        expect(circle.xAxis.x).toBeCloseTo(1);
+        expect(circle.yAxis.y).toBeCloseTo(1);
     });
 
     test("eccentricity is 0 for circle", () => {
@@ -325,11 +334,13 @@ describe("OccEllipse", () => {
         expect(ellipse.center.z).toBeCloseTo(0);
     });
 
-    test("focus1 and focus2 are at opposite sides of center", () => {
+    test("focus1 and focus2 are at ±c from center where c² = a² - b²", () => {
         const f1 = ellipse.focus1;
         const f2 = ellipse.focus2;
-        // Foci lie on major axis at ±c from center where c² = a² - b²
-        expect(f1.distanceTo(f2)).toBeGreaterThan(0);
+        const c = Math.sqrt(10 * 10 - 5 * 5);
+        expect(f1.x).toBeCloseTo(c, 6);
+        expect(f2.x).toBeCloseTo(-c, 6);
+        expect(f1.distanceTo(f2)).toBeCloseTo(2 * c, 6);
     });
 
     test("setters change geometry", () => {
@@ -353,7 +364,7 @@ describe("OccBezierCurve", () => {
     });
 
     test("degree matches number of poles minus 1", () => {
-        expect(bezier.degree()).toBeGreaterThanOrEqual(1);
+        expect(bezier.degree()).toBe(2);
     });
 
     test("nbPoles equals number of control points", () => {
@@ -363,13 +374,18 @@ describe("OccBezierCurve", () => {
 
     test("pole returns individual control point", () => {
         const p = bezier.pole(1);
-        // 1-indexed in OCCT
-        expect(typeof p.x).toBe("number");
+        // 1-indexed in OCCT — the first pole is the first control point
+        expect(p.x).toBeCloseTo(0);
+        expect(p.y).toBeCloseTo(0);
+        expect(p.z).toBeCloseTo(0);
     });
 
     test("poles returns all control points", () => {
         const pts = bezier.poles();
         expect(pts.length).toBe(3);
+        expect(pts[1].x).toBeCloseTo(10);
+        expect(pts[1].y).toBeCloseTo(0);
+        expect(pts[2].y).toBeCloseTo(10);
     });
 
     test("weight returns default weight of 1", () => {
@@ -409,18 +425,24 @@ describe("OccBezierCurve", () => {
 // ============================================================================
 
 describe("OccBSplineCurve", () => {
-    test("can create BSpline from circle approximation", () => {
-        // Get a BSpline from edge curve of a circle (may be a BSpline internally)
-        const circle = factory.circle(XYZ.unitZ, XYZ.zero, 5).value as OccEdge;
-        const basis = basisCurveOfEdge(circle);
-        if (basis instanceof OccBSplineCurve) {
-            expect(basis.nbPoles()).toBeGreaterThan(0);
-            expect(basis.nbKnots()).toBeGreaterThan(0);
-            expect(basis.degree()).toBeGreaterThanOrEqual(1);
-        } else {
-            // Circle may not be BSpline — that's fine
-            expect(basis instanceof OccCircle).toBe(true);
-        }
+    test("can create BSpline from lofted surface iso curve", () => {
+        // Loft between offset circles produces a BSpline side surface;
+        // its iso curves are Geom_BSplineCurves
+        const c1 = factory.circle(XYZ.unitZ, XYZ.zero, 5).value;
+        const c2 = factory.circle(XYZ.unitZ, new XYZ({ x: 5, y: 5, z: 15 }), 3).value;
+        const loft = factory.loft([c1, c2], true, false, "c0");
+        expect(loft.isOk).toBe(true);
+        const bsplineSurface = loft.value
+            .findSubShapes(ShapeTypes.face)
+            .map((f) => (f as OccFace).surface())
+            .find((s) => s instanceof OccBSplineSurface);
+        expect(bsplineSurface).toBeDefined();
+        const iso = (bsplineSurface as OccBSplineSurface).uIso(0.5);
+        expect(iso instanceof OccBSplineCurve).toBe(true);
+        const bspline = iso as OccBSplineCurve;
+        expect(bspline.nbPoles()).toBeGreaterThan(0);
+        expect(bspline.nbKnots()).toBeGreaterThan(0);
+        expect(bspline.degree()).toBeGreaterThanOrEqual(1);
     });
 });
 
@@ -445,14 +467,15 @@ describe("OccTrimmedCurve", () => {
         trimmed.setTrim(0, Math.PI);
         const newLen = trimmed.length();
         // After trimming to half-circle, length should be ~half
-        expect(newLen).toBeLessThan(origLen);
+        expect(newLen).toBeCloseTo(origLen / 2, 6);
     });
 
-    test("startPoint and endPoint are at trim boundaries", () => {
+    test("startPoint and endPoint of a full-circle edge coincide at (5,0,0)", () => {
         const start = trimmed.startPoint();
         const end = trimmed.endPoint();
-        expect(typeof start.x).toBe("number");
-        expect(typeof end.x).toBe("number");
+        expect(start.x).toBeCloseTo(5, 6);
+        expect(start.y).toBeCloseTo(0, 6);
+        expect(end.distanceTo(start)).toBeCloseTo(0, 6);
     });
 });
 
@@ -461,12 +484,16 @@ describe("OccTrimmedCurve", () => {
 // ============================================================================
 
 describe("OccCurve — nearestExtrema", () => {
-    test("nearestExtrema between circle and line", () => {
+    test("nearestExtrema between two touching circles", () => {
+        // Two radius-5 circles centered at (0,0,0) and (10,0,0) touch at (5,0,0)
         const circle = basisCurveOfEdge(factory.circle(XYZ.unitZ, XYZ.zero, 5).value as OccEdge);
         const edge2 = factory.circle(XYZ.unitZ, new XYZ({ x: 10, y: 0, z: 0 }), 5).value as OccEdge;
         const circle2 = basisCurveOfEdge(edge2);
         const result = circle.nearestExtrema(circle2);
         expect(result).toBeDefined();
+        expect(result!.distance).toBeCloseTo(0, 6);
+        expect(result!.p1.x).toBeCloseTo(5, 6);
+        expect(result!.p2.x).toBeCloseTo(5, 6);
     });
 });
 
@@ -514,13 +541,99 @@ describe("OccBezierCurve — setWeight", () => {
 
 describe("OccCurve — nearestExtrema with core.Line", () => {
     test("nearestExtrema between OccCurve and core Line", () => {
+        // Circle r=5 at origin; vertical line through (10,0,0) — nearest points are
+        // (5,0,0) on the circle and (10,0,0) on the line
         const circle = basisCurveOfEdge(factory.circle(XYZ.unitZ, XYZ.zero, 5).value as OccEdge);
         const coreLine = new Line({ point: new XYZ({ x: 10, y: 0, z: 0 }), direction: XYZ.unitY });
         const result = circle.nearestExtrema(coreLine);
         expect(result).toBeDefined();
-        if (result) {
-            expect(typeof result.p1.x).toBe("number");
-            expect(typeof result.p2.x).toBe("number");
-        }
+        expect(result!.p1.x).toBeCloseTo(5, 6);
+        expect(result!.p1.y).toBeCloseTo(0, 6);
+        expect(result!.p2.x).toBeCloseTo(10, 6);
+        expect(result!.p2.y).toBeCloseTo(0, 6);
+    });
+});
+
+// ============================================================================
+// OccOffsetCurve — from OccEdge.offset
+// ============================================================================
+
+describe("OccOffsetCurve", () => {
+    test("edge.offset produces a Geom_OffsetCurve-backed edge", () => {
+        const edge = unwrapOk(factory.circle(XYZ.unitZ, XYZ.zero, 5)) as OccEdge;
+        const offsetEdge = unwrapOk(edge.offset(2, XYZ.unitZ)) as OccEdge;
+        const curve = basisCurveOfEdge(offsetEdge);
+        expect(curve instanceof OccOffsetCurve).toBe(true);
+        const offsetCurve = curve as OccOffsetCurve;
+        expect(offsetCurve.offset()).toBeCloseTo(2, 6);
+        const dir = offsetCurve.direction();
+        expect(dir.x).toBeCloseTo(0, 6);
+        expect(dir.y).toBeCloseTo(0, 6);
+        expect(dir.z).toBeCloseTo(1, 6);
+        expect(offsetCurve.basisCurve instanceof OccTrimmedCurve).toBe(true);
+        // Offsetting a radius-5 circle by 2 along its normal yields a radius-7 circle
+        expect(offsetEdge.length()).toBeCloseTo(2 * Math.PI * 7, 6);
+    });
+});
+
+// ============================================================================
+// OccHyperbola / OccParabola — from cone sections
+// ============================================================================
+
+/** Section a cone (r5 → r0.1 over z 0..20) with a plane and return the basis curves. */
+function coneSectionCurves(plane: Plane) {
+    const cone = unwrapOk(factory.cone(XYZ.unitZ, XYZ.zero, 5, 0.1, 20));
+    const edges = cone.section(plane).findSubShapes(ShapeTypes.edge) as OccEdge[];
+    return edges.map((e) => basisCurveOfEdge(e));
+}
+
+describe("OccHyperbola", () => {
+    // A plane parallel to the cone axis (but offset from it) cuts a hyperbola
+    const axialPlane = () =>
+        new Plane({ origin: new XYZ({ x: 0, y: 1, z: 0 }), normal: XYZ.unitY, xvec: XYZ.unitX });
+
+    test("cone sectioned by an axial-offset plane yields a hyperbola", () => {
+        const curves = coneSectionCurves(axialPlane());
+        const hyperbola = curves.find((c) => c instanceof OccHyperbola) as OccHyperbola | undefined;
+        expect(hyperbola).toBeDefined();
+        const hyp = hyperbola as OccHyperbola;
+        expect(hyp.focal()).toBeCloseTo(8.4047, 3);
+        expect(hyp.majorRadius).toBeCloseTo(4.0816, 3);
+        expect(hyp.minorRadius).toBeCloseTo(1, 6);
+        expect(hyp.location.y).toBeCloseTo(1, 6);
+        // The foci are symmetric about the center: focus1 + focus2 = 2 * location
+        const sum = hyp.focus1.add(hyp.focus2);
+        expect(sum.x).toBeCloseTo(2 * hyp.location.x, 6);
+        expect(sum.y).toBeCloseTo(2 * hyp.location.y, 6);
+        expect(sum.z).toBeCloseTo(2 * hyp.location.z, 6);
+    });
+
+    test("radius setters update the focal distance (focal = 2√(a²+b²))", () => {
+        const curves = coneSectionCurves(axialPlane());
+        const hyperbola = curves.find((c) => c instanceof OccHyperbola) as OccHyperbola | undefined;
+        expect(hyperbola).toBeDefined();
+        const hyp = hyperbola as OccHyperbola;
+        hyp.minorRadius = 2;
+        expect(hyp.minorRadius).toBeCloseTo(2, 6);
+        expect(hyp.focal()).toBeCloseTo(2 * Math.sqrt(hyp.majorRadius ** 2 + 4), 6);
+        hyp.majorRadius = 6;
+        expect(hyp.majorRadius).toBeCloseTo(6, 6);
+        expect(hyp.focal()).toBeCloseTo(2 * Math.sqrt(36 + 4), 6);
+    });
+});
+
+describe("OccParabola", () => {
+    test("cone sectioned by a generatrix-parallel plane yields a parabola", () => {
+        // dr/dz = (0.1 - 5) / 20 = -0.245; a plane parallel to a generatrix cuts a parabola
+        const len = Math.sqrt(1 + 0.245 ** 2);
+        const normal = new XYZ({ x: 1 / len, y: 0, z: 0.245 / len });
+        const plane = new Plane({ origin: new XYZ({ x: 2, y: 0, z: 10 }), normal, xvec: XYZ.unitY });
+        const curves = coneSectionCurves(plane);
+        const parabola = curves.find((c) => c instanceof OccParabola) as OccParabola | undefined;
+        expect(parabola).toBeDefined();
+        const par = parabola as OccParabola;
+        expect(par.focal()).toBeCloseTo(0.06544, 3);
+        // By definition, the focus-to-directrix distance equals 2 * focal
+        expect(par.focus.distanceTo(par.directrix)).toBeCloseTo(2 * par.focal(), 6);
     });
 });

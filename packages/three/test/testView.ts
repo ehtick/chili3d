@@ -61,10 +61,25 @@ Object.defineProperties(container, {
     },
 });
 
+export interface TestViewOptions {
+    name?: string;
+    workplane?: Plane;
+    /** Whether to call setDom(container) in the constructor. Defaults to true. */
+    setDom?: boolean;
+}
+
 export class TestView extends ThreeView {
-    constructor(document: IDocument, content: ThreeVisualContext) {
-        super(document, "test", Plane.XY, new ThreeHighlighter(content), content);
-        this.setDom(container);
+    constructor(document: IDocument, content: ThreeVisualContext, options?: TestViewOptions) {
+        super(
+            document,
+            options?.name ?? "test",
+            options?.workplane ?? Plane.XY,
+            new ThreeHighlighter(content),
+            content,
+        );
+        if (options?.setDom !== false) {
+            this.setDom(container);
+        }
         this.camera.position.set(0, 0, 100);
         this.camera.lookAt(0, 0, 0);
     }

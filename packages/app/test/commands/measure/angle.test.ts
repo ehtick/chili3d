@@ -15,7 +15,7 @@ afterAll(() => restoreApp());
 describe("AngleMeasure", () => {
     test("should have command metadata", () => {
         const data = (AngleMeasure as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("measure.angle");
         expect(data.icon).toBe("icon-measureAngle");
     });

@@ -4,92 +4,13 @@
 import {
     History,
     type IApplication,
-    type IDataExchange,
-    type IDocument,
     InternalClassName,
-    type IPluginManager,
-    type IShapeConverter,
-    type IShapeFactory,
-    type IShapeProvider,
-    type IStorage,
-    type IView,
-    type IVisual,
-    type IVisualFactory,
     ModelManager,
     ObservableCollection,
 } from "@chili3d/core";
-import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockApplication } from "@chili3d/core/test-utils";
+import { afterEach, beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { Document } from "../src/document";
-
-const createMockApplication = (): IApplication => {
-    const mockDocuments = new Set<IDocument>();
-    const mockViews = new ObservableCollection<IView>();
-
-    return {
-        storage: {
-            createDBIfNeeded: async () => {},
-            get: async () => undefined,
-            put: async () => true,
-            delete: async () => true,
-            page: async () => [],
-        } as IStorage,
-        visualFactory: {
-            kernelName: "mock",
-            create: (doc: IDocument) =>
-                ({
-                    document: doc,
-                    context: {
-                        dispose: () => {},
-                        removeNode: () => {},
-                        redrawNode: () => {},
-                        getVisual: () => undefined,
-                        setVisible: () => {},
-                    },
-                    viewHandler: {} as any,
-                    highlighter: {
-                        addState: () => {},
-                        removeState: () => {},
-                        getState: () => undefined,
-                        clear: () => {},
-                        resetState: () => {},
-                        highlightMesh: () => 0,
-                        removeHighlightMesh: () => {},
-                    },
-                    meshExporter: {
-                        exportToStl: async () => ({ ok: false }),
-                        exportToPly: async () => ({ ok: false }),
-                        exportToObj: async () => ({ ok: false }),
-                    },
-                    update: () => {},
-                    eventHandler: {} as any,
-                    resetEventHandler: () => {},
-                    isExcutingHandler: () => false,
-                    createView: () => ({}) as IView,
-                    dispose: () => {},
-                }) as unknown as IVisual,
-        } as unknown as IVisualFactory,
-        shapeProvider: {
-            factory: {} as IShapeFactory,
-            converter: {} as IShapeConverter,
-        } as IShapeProvider,
-        dataExchange: {} as IDataExchange,
-        services: [],
-        pluginManager: {} as IPluginManager,
-        views: mockViews,
-        documents: mockDocuments,
-        activeView: undefined,
-        lastCommand: undefined,
-        executingCommand: undefined,
-        dispose: () => {},
-        removePropertyChanged: () => {},
-        clearPropertyChanged: () => {},
-        onPropertyChanged: () => {},
-        newDocument: async () => ({}) as IDocument,
-        openDocument: async () => undefined,
-        loadDocument: async () => undefined,
-        loadFileFromUrl: async () => {},
-    };
-};
 
 describe("Document", () => {
     let mockApp: IApplication;
@@ -127,17 +48,14 @@ describe("Document", () => {
         });
 
         test("should initialize modelManager", () => {
-            expect(document.modelManager).toBeDefined();
             expect(document.modelManager).toBeInstanceOf(ModelManager);
         });
 
         test("should initialize history", () => {
-            expect(document.history).toBeDefined();
             expect(document.history).toBeInstanceOf(History);
         });
 
         test("should initialize acts collection", () => {
-            expect(document.acts).toBeDefined();
             expect(document.acts).toBeInstanceOf(ObservableCollection);
             expect(document.acts.length).toBe(0);
         });
@@ -222,6 +140,68 @@ describe("Document", () => {
             document.userData = { test: "data" };
             const serialized = document.serialize();
             expect(serialized["userData"]).toEqual({ test: "data" });
+        });
+    });
+
+    describe("serialize → deserialize roundtrip", () => {
+        test("should restore id, name and userData through Document.load", async () => {
+            document.userData = { layer: "roundtrip", count: 3 };
+            const serialized = document.serialize();
+
+            const loaded = await Document.load(mockApp, serialized);
+
+            try {
+                expect(loaded).not.toBeUndefined();
+                expect(loaded!.id).toBe(document.id);
+                expect(loaded!.name).toBe(document.name);
+                expect(loaded!.userData).toEqual({ layer: "roundtrip", count: 3 });
+                // The loaded document is registered on the application
+                expect(mockApp.documents.has(loaded!)).toBe(true);
+            } finally {
+                loaded?.dispose();
+            }
+        });
+
+        test("should restore the model tree root through Document.load", async () => {
+            const serialized = document.serialize();
+
+            const loaded = (await Document.load(mockApp, serialized)) as Document;
+
+            try {
+                expect(loaded.modelManager.rootNode.name).toBe(document.modelManager.rootNode.name);
+                expect(loaded.acts.length).toBe(0);
+                // History is re-enabled after loading
+                expect(loaded.history.disabled).toBe(false);
+            } finally {
+                loaded.dispose();
+            }
+        });
+    });
+
+    describe("dispose", () => {
+        test("should dispose modelManager, visual, history and selection", () => {
+            const modelManagerSpy = rs.spyOn(document.modelManager, "dispose");
+            const visualSpy = rs.spyOn(document.visual, "dispose");
+            const historySpy = rs.spyOn(document.history, "dispose");
+            const selectionSpy = rs.spyOn(document.selection, "dispose");
+
+            document.dispose();
+
+            expect(modelManagerSpy).toHaveBeenCalledTimes(1);
+            expect(visualSpy).toHaveBeenCalledTimes(1);
+            expect(historySpy).toHaveBeenCalledTimes(1);
+            expect(selectionSpy).toHaveBeenCalledTimes(1);
+        });
+
+        test("should dispose all acts and clear the acts collection", () => {
+            const actDispose = rs.fn();
+            document.acts.push({ dispose: actDispose } as any);
+            expect(document.acts.length).toBe(1);
+
+            document.dispose();
+
+            expect(actDispose).toHaveBeenCalledTimes(1);
+            expect(document.acts.length).toBe(0);
         });
     });
 });

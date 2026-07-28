@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Cone", () => {
     test("should have command metadata", () => {
         const data = (Cone as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.cone");
         expect(data.icon).toBe("icon-cone");
     });

@@ -3,72 +3,31 @@
 
 import { describe, expect, test } from "@rstest/core";
 
-// CSS modules
-rs.mock("../src/project/toolBar.module.css", () => ({
-    panel: "tb-panel",
-    svg: "tb-svg",
-}));
+import type { PubSubRecorder } from "./_helpers/coreMocks";
 
-rs.mock("../src/project/tree/treeItemGroup.module.css", () => ({
-    group: "tig-group",
-    header: "tig-header",
-    children: "tig-children",
-}));
+// CSS modules (shared via helper)
+import "./_helpers/cssMocks";
 
-// Track PubSub pub calls
-const pubSubCalls: string[] = [];
+// Track PubSub pub calls via the shared recorder
+const pubSubRecorder = rs.hoisted((): PubSubRecorder => {
+    const { createPubSubRecorder } = require("./_helpers/coreMocks");
+    return createPubSubRecorder();
+});
 
 // Mock core
 rs.mock("@chili3d/core", () => {
     const actual = rs.hoisted(() => require("@chili3d/core"));
+    const { I18nMock } = rs.hoisted(() => require("./_helpers/coreMocks"));
     return {
         ...actual,
-        I18n: { translate: (key: unknown) => String(key) },
-        PubSub: {
-            default: {
-                pub: (topic: string, ..._args: unknown[]) => {
-                    pubSubCalls.push(topic);
-                },
-                sub: () => {},
-            },
-        },
+        I18n: I18nMock,
+        PubSub: pubSubRecorder.stub,
         NodeUtils: { isLinkedListNode: () => true },
     };
 });
 
 // Mock element helpers
-// biome-ignore lint/suspicious/noExplicitAny: test mock for DOM element factory
-rs.mock("@chili3d/element", () => {
-    function createEl(tag: string, props: Record<string, unknown> | null, ...children: unknown[]): any {
-        const el: any =
-            tag === "svg"
-                ? document.createElementNS("http://www.w3.org/2000/svg", "svg")
-                : document.createElement(tag);
-        if (props && typeof props === "object") {
-            if (props["className"]) {
-                if (el.setAttribute) {
-                    el.setAttribute("class", String(props["className"]));
-                } else {
-                    el.className = String(props["className"]);
-                }
-            }
-            if (props["title"]) el.title = String(props["title"]);
-            if (props["textContent"]) el.textContent = String(props["textContent"]);
-            if (props["onclick"] && el instanceof SVGElement) {
-                (el as any)._onclick = props["onclick"];
-            }
-        }
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-        }
-        return el;
-    }
-
-    return {
-        a: (props: Record<string, unknown>, ...children: unknown[]) => createEl("a", props, ...children),
-        svg: (props: Record<string, unknown>) => createEl("svg", props),
-    };
-});
+import "./_helpers/mockElement";
 
 // Mock treeItemGroup
 rs.mock("../src/project/tree/treeItemGroup", () => ({
@@ -78,6 +37,8 @@ rs.mock("../src/project/tree/treeItemGroup", () => ({
 }));
 
 import { ToolBar } from "../src/project/toolBar";
+import { TreeGroup } from "../src/project/tree/treeItemGroup";
+import { mustQuery } from "./_helpers/domHelpers";
 
 describe("ToolBar", () => {
     function createMockProjectView(tree?: unknown) {
@@ -94,14 +55,18 @@ describe("ToolBar", () => {
     }
 
     beforeEach(() => {
-        pubSubCalls.length = 0;
+        pubSubRecorder.reset();
     });
+
+    function publishedTopics() {
+        return pubSubRecorder.pubs.map((p) => p.topic);
+    }
 
     describe("constructor", () => {
         test("should set className", () => {
             const pv = createMockProjectView() as any;
             const tb = new ToolBar(pv);
-            expect(tb.className).toBeTruthy();
+            expect(tb.className).toBe("tb-panel");
         });
 
         test("should create three buttons (newFolder, expandAll, unexpandAll)", () => {
@@ -133,42 +98,52 @@ describe("ToolBar", () => {
             const pv = createMockProjectView() as any;
             const tb = new ToolBar(pv);
 
-            const firstSvg = tb.querySelector("svg") as SVGElement;
-            const onclick = (firstSvg as any)._onclick;
-            if (onclick) onclick();
+            const firstSvg = mustQuery<SVGElement>(tb, "svg");
+            const onclick = (firstSvg as any)._onclick as (() => void) | undefined;
+            expect(onclick).toBeDefined();
+            onclick!();
 
-            expect(pubSubCalls).toContain("executeCommand");
+            expect(publishedTopics()).toContain("executeCommand");
         });
     });
 
     describe("expandAll / unExpandAll", () => {
-        test("expandAll should not throw when no active tree", () => {
+        test("expandAll should be a no-op when no active tree", () => {
             const pv = createMockProjectView(undefined) as any;
             const tb = new ToolBar(pv);
+            expect(pv.activeTree()).toBeUndefined();
 
             // Find the expand button (index 2 based on the array)
             const svgs = tb.querySelectorAll("svg");
-            const expandSvg = svgs[2] as SVGElement; // expandAll is last in array
-            const onclick = (expandSvg as any)._onclick;
-            expect(() => onclick?.()).not.toThrow();
+            expect(svgs.length).toBe(3);
+            const onclick = (svgs[2] as SVGElement as any)._onclick as (() => void) | undefined; // expandAll is last
+            expect(onclick).toBeDefined();
+            onclick!();
+
+            // no tree and no command published — nothing happened
+            expect(publishedTopics()).toEqual([]);
         });
 
-        test("unExpandAll should not throw when no active tree", () => {
+        test("unExpandAll should be a no-op when no active tree", () => {
             const pv = createMockProjectView(undefined) as any;
             const tb = new ToolBar(pv);
+            expect(pv.activeTree()).toBeUndefined();
 
             const svgs = tb.querySelectorAll("svg");
-            const unexpandSvg = svgs[1] as SVGElement; // unExpandAll is second
-            const onclick = (unexpandSvg as any)._onclick;
-            expect(() => onclick?.()).not.toThrow();
+            expect(svgs.length).toBe(3);
+            const onclick = (svgs[1] as SVGElement as any)._onclick as (() => void) | undefined; // unExpandAll is second
+            expect(onclick).toBeDefined();
+            onclick!();
+
+            expect(publishedTopics()).toEqual([]);
         });
 
-        test("expandAll should set expand on tree item when tree exists", () => {
-            const expanded = false;
+        test("expandAll should set isExpanded on tree group items", () => {
+            // TreeGroup is mocked above with a zero-arg class; cast through any
+            // because tsc still sees the real constructor signature
+            const item = new (TreeGroup as any)() as { isExpanded: boolean };
             const mockTree = {
-                treeItem: () => ({
-                    isExpanded: false,
-                }),
+                treeItem: () => item,
             };
 
             // Mock activeTree to return our mock
@@ -188,9 +163,13 @@ describe("ToolBar", () => {
 
             const tb = new ToolBar(pv);
             const svgs = tb.querySelectorAll("svg");
-            const expandSvg = svgs[2] as SVGElement;
-            const onclick = (expandSvg as any)._onclick;
-            expect(() => onclick?.()).not.toThrow();
+            expect(svgs.length).toBe(3);
+            const onclick = (svgs[2] as SVGElement as any)._onclick as (() => void) | undefined;
+            expect(onclick).toBeDefined();
+
+            expect(item.isExpanded).toBe(false);
+            onclick!();
+            expect(item.isExpanded).toBe(true);
         });
     });
 });

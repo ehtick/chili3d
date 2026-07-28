@@ -199,27 +199,27 @@ describe("XYZ class tests", () => {
     describe("Rotation operations", () => {
         test("should rotate vector correctly", () => {
             const v = XYZ.unitX.add(XYZ.unitZ);
-            expect(v.rotate(v, 90)?.isEqualTo(v)).toBeTruthy();
+            expect(v.rotate(v, 90)?.isEqualTo(v)).toBe(true);
             expect(
                 XYZ.unitX
                     .rotate(XYZ.unitZ, Math.PI / 4)
                     ?.isEqualTo(new XYZ({ x: 1, y: 1, z: 0 }).normalize()!),
-            ).toBeTruthy();
-            expect(
-                XYZ.unitX.rotate(XYZ.unitZ, Math.PI / 2)?.isEqualTo(new XYZ({ x: 0, y: 1, z: 0 })),
-            ).toBeTruthy();
-            expect(
-                XYZ.unitX.rotate(XYZ.unitZ, Math.PI / 1)?.isEqualTo(new XYZ({ x: -1, y: 0, z: 0 })),
-            ).toBeTruthy();
+            ).toBe(true);
+            expect(XYZ.unitX.rotate(XYZ.unitZ, Math.PI / 2)?.isEqualTo(new XYZ({ x: 0, y: 1, z: 0 }))).toBe(
+                true,
+            );
+            expect(XYZ.unitX.rotate(XYZ.unitZ, Math.PI / 1)?.isEqualTo(new XYZ({ x: -1, y: 0, z: 0 }))).toBe(
+                true,
+            );
             expect(
                 XYZ.unitX.rotate(XYZ.unitZ, Math.PI * 1.5)?.isEqualTo(new XYZ({ x: 0, y: -1, z: 0 })),
-            ).toBeTruthy();
+            ).toBe(true);
 
             const result = XYZ.unitX.rotate(XYZ.unitZ, Math.PI / 2);
-            expect(result?.isEqualTo(XYZ.unitY, 1e-10)).toBeTruthy();
+            expect(result?.isEqualTo(XYZ.unitY, 1e-10)).toBe(true);
 
             const result2 = XYZ.unitY.rotate(XYZ.unitZ, Math.PI / 2);
-            expect(result2?.isEqualTo(XYZ.unitX.reverse(), 1e-10)).toBeTruthy();
+            expect(result2?.isEqualTo(XYZ.unitX.reverse(), 1e-10)).toBe(true);
         });
 
         test("should handle edge cases for rotation", () => {
@@ -232,54 +232,54 @@ describe("XYZ class tests", () => {
         test("isEqualTo should work correctly", () => {
             const a = new XYZ({ x: 1, y: 2, z: 3 });
             const b = new XYZ({ x: 1, y: 2, z: 3 });
-            expect(a.isEqualTo(b)).toBeTruthy();
+            expect(a.isEqualTo(b)).toBe(true);
 
             const c = new XYZ({ x: 1.1, y: 2, z: 3 });
-            expect(a.isEqualTo(c, 0.2)).toBeTruthy(); // within tolerance
-            expect(a.isEqualTo(c, 0.05)).toBeFalsy(); // outside tolerance
+            expect(a.isEqualTo(c, 0.2)).toBe(true); // within tolerance
+            expect(a.isEqualTo(c, 0.05)).toBe(false); // outside tolerance
         });
 
         test("isPerpendicularTo should work correctly", () => {
             const a = new XYZ({ x: 1, y: 0, z: 0 });
             const b = new XYZ({ x: 0, y: 1, z: 0 });
-            expect(a.isPerpendicularTo(b)).toBeTruthy();
-            expect(a.isPerpendicularTo(b.reverse())).toBeTruthy();
+            expect(a.isPerpendicularTo(b)).toBe(true);
+            expect(a.isPerpendicularTo(b.reverse())).toBe(true);
 
             const c = new XYZ({ x: 1, y: 1, z: 0 });
-            expect(a.isPerpendicularTo(c, 0.1)).toBeFalsy();
+            expect(a.isPerpendicularTo(c, 0.1)).toBe(false);
         });
 
         test("isParallelTo should work correctly", () => {
             const a = new XYZ({ x: 1, y: 0, z: 0 });
             const b = new XYZ({ x: 2, y: 0, z: 0 });
-            expect(a.isParallelTo(b)).toBeTruthy();
+            expect(a.isParallelTo(b)).toBe(true);
 
             const c = new XYZ({ x: -1, y: 0, z: 0 });
-            expect(a.isParallelTo(c)).toBeTruthy(); // opposite direction is still parallel
+            expect(a.isParallelTo(c)).toBe(true); // opposite direction is still parallel
         });
 
         test("isOppositeTo should work correctly", () => {
             const a = new XYZ({ x: 1, y: 0, z: 0 });
             const b = new XYZ({ x: -1, y: 0, z: 0 });
-            expect(a.isOppositeTo(b)).toBeTruthy();
+            expect(a.isOppositeTo(b)).toBe(true);
 
             const c = new XYZ({ x: 0, y: 1, z: 0 });
-            expect(a.isOppositeTo(c)).toBeFalsy();
+            expect(a.isOppositeTo(c)).toBe(false);
         });
 
         test("isPerpendicularTo returns false for zero vector", () => {
-            expect(XYZ.zero.isPerpendicularTo(XYZ.unitX)).toBeFalsy();
-            expect(XYZ.unitX.isPerpendicularTo(XYZ.zero)).toBeFalsy();
+            expect(XYZ.zero.isPerpendicularTo(XYZ.unitX)).toBe(false);
+            expect(XYZ.unitX.isPerpendicularTo(XYZ.zero)).toBe(false);
         });
 
         test("isParallelTo returns false for zero vector", () => {
-            expect(XYZ.zero.isParallelTo(XYZ.unitX)).toBeFalsy();
-            expect(XYZ.unitX.isParallelTo(XYZ.zero)).toBeFalsy();
+            expect(XYZ.zero.isParallelTo(XYZ.unitX)).toBe(false);
+            expect(XYZ.unitX.isParallelTo(XYZ.zero)).toBe(false);
         });
 
         test("isOppositeTo returns false for zero vector", () => {
-            expect(XYZ.zero.isOppositeTo(XYZ.unitX)).toBeFalsy();
-            expect(XYZ.unitX.isOppositeTo(XYZ.zero)).toBeFalsy();
+            expect(XYZ.zero.isOppositeTo(XYZ.unitX)).toBe(false);
+            expect(XYZ.unitX.isOppositeTo(XYZ.zero)).toBe(false);
         });
     });
 
@@ -293,22 +293,22 @@ describe("XYZ class tests", () => {
 });
 
 describe("getVectorComponent", () => {
-    it("should return the x component when index is 0", () => {
+    test("should return the x component when index is 0", () => {
         const point = { x: 1, y: 2, z: 3 };
         expect(getVectorComponent(point, 0)).toBe(1);
     });
 
-    it("should return the y component when index is 1", () => {
+    test("should return the y component when index is 1", () => {
         const point = { x: 1, y: 2, z: 3 };
         expect(getVectorComponent(point, 1)).toBe(2);
     });
 
-    it("should return the z component when index is 2", () => {
+    test("should return the z component when index is 2", () => {
         const point = { x: 1, y: 2, z: 3 };
         expect(getVectorComponent(point, 2)).toBe(3);
     });
 
-    it("should throw an error when index is out of range", () => {
+    test("should throw an error when index is out of range", () => {
         const point = { x: 1, y: 2, z: 3 };
         expect(() => getVectorComponent(point, 3)).toThrow("index out of range");
         expect(() => getVectorComponent(point, -1)).toThrow("index out of range");

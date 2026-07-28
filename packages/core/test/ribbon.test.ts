@@ -36,7 +36,7 @@ describe("RibbonGroup", () => {
         test("should be an ObservableCollection", () => {
             const group = new RibbonGroup("ribbon.group.sketch" as any, []);
 
-            expect(group.items).toBeDefined();
+            expect(group.items).not.toBeNull();
             expect(typeof group.items.push).toBe("function");
             expect(typeof group.items.length).toBe("number");
         });
@@ -131,7 +131,7 @@ describe("RibbonTab", () => {
         test("should be an ObservableCollection", () => {
             const tab = new RibbonTab("ribbon.tab.model" as any);
 
-            expect(tab.groups).toBeDefined();
+            expect(tab.groups).not.toBeNull();
             expect(typeof tab.groups.push).toBe("function");
         });
     });
@@ -279,7 +279,7 @@ describe("Ribbon", () => {
             const sketchGroup = tab1.groups.find(
                 (g: RibbonGroup) => (g.groupName as string) === "ribbon.group.sketch",
             );
-            expect(sketchGroup).toBeDefined();
+            expect(sketchGroup).not.toBeNull();
             expect(sketchGroup!.items.length).toBe(2);
         });
 

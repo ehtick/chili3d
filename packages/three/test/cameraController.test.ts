@@ -2,7 +2,17 @@
 // See LICENSE file in the project root for full license information.
 
 import type { IDocument } from "@chili3d/core";
-import { Object3D, OrthographicCamera, PerspectiveCamera, Scene } from "three";
+import { createMockSelection } from "@chili3d/core/test-utils";
+import {
+    BufferAttribute,
+    BufferGeometry,
+    Mesh,
+    MeshBasicMaterial,
+    Object3D,
+    OrthographicCamera,
+    PerspectiveCamera,
+    Scene,
+} from "three";
 import { CameraController } from "../src/cameraController";
 import { Constants } from "../src/constants";
 import type { ThreeHighlighter } from "../src/threeHighlighter";
@@ -24,14 +34,7 @@ function createFakeView(overrides: Partial<ThreeView> = {}): ThreeView {
         },
         get document(): IDocument {
             return {
-                selection: {
-                    getSelectedNodes() {
-                        return [];
-                    },
-                    getSelectedVisualNodes() {
-                        return [];
-                    },
-                },
+                selection: createMockSelection(),
                 visual: {
                     context: {
                         visualShapes,
@@ -115,13 +118,13 @@ describe("CameraController — cameraType", () => {
         expect(cc.camera).toBeInstanceOf(PerspectiveCamera);
     });
 
-    test("setting same cameraType is no-op", () => {
+    test("setting same cameraType keeps the camera instance", () => {
         const view = createFakeView();
         const cc = new CameraController(view);
-        // Access camera to initialize it
-        expect(cc.camera).toBeDefined();
+        const camera = cc.camera;
         cc.cameraType = "perspective"; // same as current
         expect(cc.cameraType).toBe("perspective");
+        expect(cc.camera).toBe(camera);
     });
 });
 
@@ -162,11 +165,19 @@ describe("CameraController — setSize", () => {
         expect(cam.aspect).toBeCloseTo(800 / 600);
     });
 
-    test("setSize does not throw for orthographic camera", () => {
+    test("setSize updates the frustum for orthographic camera", () => {
         const view = createFakeView();
         const cc = new CameraController(view);
         cc.cameraType = "orthographic";
-        expect(() => cc.setSize(800, 600)).not.toThrow();
+        cc.setSize(800, 600);
+
+        const cam = cc.camera as OrthographicCamera;
+        const distance = Math.sqrt(3 * 1500 * 1500);
+        const halfHeight = distance * Math.tan((25 * Math.PI) / 180);
+        expect(cam.top).toBeCloseTo(halfHeight);
+        expect(cam.bottom).toBeCloseTo(-halfHeight);
+        expect(cam.right / cam.left).toBeCloseTo(-1);
+        expect(cam.right / cam.top).toBeCloseTo(800 / 600);
     });
 });
 
@@ -184,11 +195,16 @@ describe("CameraController — pan", () => {
         expect(cc.target.x).not.toBeCloseTo(origTarget.x);
     });
 
-    test("pan with zero deltas does not throw", () => {
+    test("pan with zero deltas keeps target and position", () => {
         const view = createFakeView();
         const cc = new CameraController(view);
-        // With zero delta, pan is a no-op
-        expect(() => cc.pan(0, 0)).not.toThrow();
+        cc.pan(0, 0);
+        expect(cc.target.x).toBe(0);
+        expect(cc.target.y).toBe(0);
+        expect(cc.target.z).toBe(0);
+        expect(cc.cameraPosition.x).toBeCloseTo(1500);
+        expect(cc.cameraPosition.y).toBeCloseTo(1500);
+        expect(cc.cameraPosition.z).toBeCloseTo(1500);
     });
 });
 
@@ -206,10 +222,16 @@ describe("CameraController — rotate", () => {
         expect(cc.cameraPosition.x).not.toBeCloseTo(origPos.x);
     });
 
-    test("rotate with zero deltas", () => {
+    test("rotate with zero deltas repositions the camera on the +Z axis of the target", () => {
         const view = createFakeView();
         const cc = new CameraController(view);
-        expect(() => cc.rotate(0, 0)).not.toThrow();
+        const distance = Math.sqrt(3 * 1500 * 1500);
+        cc.rotate(0, 0);
+        // With an identity camera quaternion the eye is placed at target + (0, 0, distance)
+        expect(cc.cameraPosition.x).toBeCloseTo(0);
+        expect(cc.cameraPosition.y).toBeCloseTo(0);
+        expect(cc.cameraPosition.z).toBeCloseTo(distance);
+        expect(cc.cameraPosition.distanceTo(cc.cameraTarget)).toBeCloseTo(distance);
     });
 });
 
@@ -228,10 +250,14 @@ describe("CameraController — zoom", () => {
         expect(newDist).not.toBeCloseTo(origDist);
     });
 
-    test("zoom with zero delta", () => {
+    test("zoom with zero delta still applies the negative zoom factor", () => {
         const view = createFakeView();
         const cc = new CameraController(view);
-        expect(() => cc.zoom(400, 300, 0)).not.toThrow();
+        const origDist = cc.cameraPosition.distanceTo(cc.cameraTarget);
+        cc.zoom(400, 300, 0);
+        // delta=0 takes the `delta > 0 ? f : -f` else-branch, so the distance
+        // is scaled by (1 - 0.1) instead of staying unchanged.
+        expect(cc.cameraPosition.distanceTo(cc.cameraTarget)).toBeCloseTo(origDist * 0.9);
     });
 });
 
@@ -240,10 +266,17 @@ describe("CameraController — zoom", () => {
 // ============================================================================
 
 describe("CameraController — startRotate", () => {
-    test("startRotate with no selection detects nothing", () => {
+    test("startRotate with no selection and no detected shape sets no rotate center", () => {
         const view = createFakeView();
         const cc = new CameraController(view);
-        expect(() => cc.startRotate(400, 300)).not.toThrow();
+        cc.startRotate(400, 300);
+        expect((cc as any)._rotateCenter).toBeUndefined();
+
+        // Without a rotate center, rotate orbits the target and keeps it fixed
+        cc.rotate(10, 0);
+        expect(cc.target.x).toBeCloseTo(0);
+        expect(cc.target.y).toBeCloseTo(0);
+        expect(cc.target.z).toBeCloseTo(0);
     });
 });
 
@@ -252,17 +285,59 @@ describe("CameraController — startRotate", () => {
 // ============================================================================
 
 describe("CameraController — fitContent", () => {
-    test("fitContent on empty scene sets default sphere radius", () => {
+    function addBoxMesh(view: ThreeView, halfSize: number) {
+        const geo = new BufferGeometry();
+        const s = halfSize;
+        geo.setAttribute(
+            "position",
+            new BufferAttribute(new Float32Array([-s, -s, -s, s, -s, -s, s, s, s, -s, s, s]), 3),
+        );
+        const mesh = new Mesh(geo, new MeshBasicMaterial());
+        (view.content.visualShapes as Object3D).add(mesh);
+        return mesh;
+    }
+
+    test("fitContent on empty scene falls back to the default sphere radius", () => {
         const view = createFakeView();
         const cc = new CameraController(view);
-        expect(() => cc.fitContent()).not.toThrow();
+        cc.fitContent();
+
+        // Empty scene produces an invalid sphere, so SHAPE_EMPTY_SIZE (800) is used
+        const expectedDistance = 800 / Math.sin((25 * Math.PI) / 180);
+        expect(cc.target.x).toBeCloseTo(0);
+        expect(cc.target.y).toBeCloseTo(0);
+        expect(cc.target.z).toBeCloseTo(0);
+        expect(cc.cameraPosition.distanceTo(cc.cameraTarget)).toBeCloseTo(expectedDistance);
+        expect(cc.camera.near).toBeCloseTo(expectedDistance / 1000);
+        expect(cc.camera.far).toBeCloseTo(expectedDistance * 100);
     });
 
-    test("fitContent with orthographic camera", () => {
+    test("fitContent frames the bounding sphere of the scene content", () => {
         const view = createFakeView();
+        addBoxMesh(view, 10);
+        const cc = new CameraController(view);
+        cc.fitContent();
+
+        const radius = Math.sqrt(3 * 10 * 10);
+        const expectedDistance = radius / Math.sin((25 * Math.PI) / 180);
+        expect(cc.target.x).toBeCloseTo(0);
+        expect(cc.target.y).toBeCloseTo(0);
+        expect(cc.target.z).toBeCloseTo(0);
+        expect(cc.cameraPosition.distanceTo(cc.cameraTarget)).toBeCloseTo(expectedDistance);
+    });
+
+    test("fitContent with orthographic camera updates the frustum", () => {
+        const view = createFakeView();
+        addBoxMesh(view, 10);
         const cc = new CameraController(view);
         cc.cameraType = "orthographic";
-        expect(() => cc.fitContent()).not.toThrow();
+        cc.fitContent();
+
+        const radius = Math.sqrt(3 * 10 * 10);
+        const expectedDistance = radius / Math.sin((25 * Math.PI) / 180);
+        const cam = cc.camera as OrthographicCamera;
+        expect(cam.top).toBeCloseTo(expectedDistance * Math.tan((25 * Math.PI) / 180));
+        expect(cc.cameraPosition.distanceTo(cc.cameraTarget)).toBeCloseTo(expectedDistance);
     });
 });
 

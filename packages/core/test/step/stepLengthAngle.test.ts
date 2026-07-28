@@ -6,7 +6,7 @@ import { Plane } from "../../src/math";
 import type { LengthAtAxisSnapData, PointSnapData, SnapLengthAtPlaneData } from "../../src/snap";
 import { AngleSnapEventHandler, SnapLengthAtAxisHandler, SnapLengthAtPlaneHandler } from "../../src/snap";
 import { AngleStep, LengthAtAxisStep, LengthAtPlaneStep } from "../../src/step";
-import { TestDocument } from "../mocks";
+import { TestDocument } from "../../test-utils";
 
 function tip(): string {
     return "test.tip" as unknown as string;

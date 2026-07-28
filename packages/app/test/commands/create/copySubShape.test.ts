@@ -22,7 +22,7 @@ afterAll(() => restoreApp());
 describe("CopySubShapeCommand", () => {
     test("should have command metadata", () => {
         const data = (CopySubShapeCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.copyShape");
         expect(data.icon).toBe("icon-subShape");
     });

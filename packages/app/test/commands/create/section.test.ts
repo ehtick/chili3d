@@ -15,7 +15,7 @@ afterAll(() => restoreApp());
 describe("Section", () => {
     test("should have command metadata", () => {
         const data = (Section as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.section");
         expect(data.icon).toBe("icon-section");
     });

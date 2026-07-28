@@ -21,7 +21,7 @@ afterAll(() => restoreApp());
 describe("OffsetCommand", () => {
     test("should have command metadata", () => {
         const data = (OffsetCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.offset");
         expect(data.icon).toBe("icon-offset");
     });

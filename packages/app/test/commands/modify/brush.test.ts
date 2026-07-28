@@ -38,7 +38,7 @@ function makeGeometryNodeSpy(doc: IDocument) {
 describe("AddBrushCommand", () => {
     test("should have command metadata", () => {
         const data = (AddBrushCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.brushAdd");
         expect(data.icon).toBe("icon-addBrush");
     });
@@ -126,7 +126,7 @@ describe("AddBrushCommand", () => {
 describe("RemoveBrushCommand", () => {
     test("should have command metadata", () => {
         const data = (RemoveBrushCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.brushRemove");
         expect(data.icon).toBe("icon-removeBrush");
     });
@@ -191,7 +191,7 @@ describe("RemoveBrushCommand", () => {
 describe("ClearBrushCommand", () => {
     test("should have command metadata", () => {
         const data = (ClearBrushCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.brushClear");
         expect(data.icon).toBe("icon-clearBrush");
     });

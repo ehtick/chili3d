@@ -3,7 +3,7 @@
 
 import { Config } from "../src/config";
 import { Navigation3D, Navigation3DTypes } from "../src/navigation";
-import { mockLocalStorage } from "./localStorageMock";
+import { mockLocalStorage } from "../test-utils";
 
 describe("Navigation3DTypes", () => {
     test("should contain Chili3d", () => {

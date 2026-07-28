@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { WireNode } from "../../src/bodys/wire";
-import { createMockDocument } from "../_helpers";
 import { createMockEdge, createMockWire, setupShapeFactoryMock } from "./_utils";
 
 describe("WireNode", () => {
@@ -57,26 +57,21 @@ describe("WireNode", () => {
         test("should emit on edges change", () => {
             setupShapeFactoryMock({ wire: () => Result.ok(createMockWire() as any) });
             const node = new WireNode({ document: doc, edges: [createMockEdge() as any] });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.edges = [createMockEdge() as any];
-            expect(events).toContain("edges");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("edges");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.wire with edges", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                wire: (edges: any[]) => {
-                    calledWith = edges;
-                    return Result.ok(createMockWire() as any);
-                },
-            });
+            const wire = rs.fn(() => Result.ok(createMockWire() as any));
+            setupShapeFactoryMock({ wire });
             const edges: any = [createMockEdge()];
             const node = new WireNode({ document: doc, edges });
             node.generateShape();
-            expect(calledWith).toEqual(edges);
+            expect(wire).toHaveBeenCalledWith(edges);
         });
 
         test("should return Result.err when shapeFactory.wire fails", () => {

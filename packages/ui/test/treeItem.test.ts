@@ -1,0 +1,187 @@
+// Part of the Chili3d Project, under the AGPL-3.0 License.
+// See LICENSE file in the project root for full license information.
+
+import type { INode } from "@chili3d/core";
+// test-utils must load BEFORE the core-mock helper so the real core module is
+// fully cached by the time `rs.mock("@chili3d/core")` registers.
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { afterEach, describe, expect, rs, test } from "@rstest/core";
+
+// CSS modules under test
+rs.mock("../src/project/tree/treeItem.module.css", () => ({
+    name: "ti-name",
+    icon: "ti-icon",
+    "parent-hidden": "ti-parent-hidden",
+}));
+
+rs.mock("../src/project/tree/treeModel.module.css", () => ({
+    panel: "tm-panel",
+}));
+
+// Mock core: no-op Binding, immediate Transaction
+import "./_helpers/mockCoreBinding";
+
+// Mock element helpers
+import "./_helpers/mockElement";
+
+import { TreeModel } from "../src/project/tree/treeModel";
+
+type PropertyHandler = (property: string, model: unknown) => void;
+
+class MockNode {
+    name = "mock-node";
+    visible = true;
+    parentVisible: boolean | undefined = true;
+    parent: MockNode | undefined;
+    private handlers = new Set<PropertyHandler>();
+
+    onPropertyChanged(handler: PropertyHandler) {
+        this.handlers.add(handler);
+    }
+    removePropertyChanged(handler: PropertyHandler) {
+        this.handlers.delete(handler);
+    }
+    emit(property: string) {
+        this.handlers.forEach((h) => h(property, this));
+    }
+    handlerCount() {
+        return this.handlers.size;
+    }
+}
+
+function makeDoc() {
+    const doc = createMockDocument();
+    doc.visual.update = rs.fn(() => {});
+    return doc;
+}
+
+const fakeEvent = { stopPropagation: () => {} } as MouseEvent;
+
+describe("TreeModel (TreeItem)", () => {
+    let node: MockNode;
+    let doc: ReturnType<typeof makeDoc>;
+
+    afterEach(() => {
+        document.body.innerHTML = "";
+    });
+
+    function createItem(overrides: Partial<MockNode> = {}) {
+        node = new MockNode();
+        Object.assign(node, overrides);
+        doc = makeDoc();
+        return new TreeModel(doc, node as unknown as INode);
+    }
+
+    describe("rendering", () => {
+        test("should render name label and visible icon", () => {
+            const item = createItem();
+            expect(item.name.tagName).toBe("LABEL");
+            expect(item.name.className).toBe("ti-name");
+            expect(item.visibleIcon.getAttribute("icon")).toBe("icon-eye");
+            expect(item.visibleIcon.classList.contains("ti-icon")).toBe(true);
+        });
+
+        test("should append name and visible icon to itself with panel class", () => {
+            const item = createItem();
+            expect(item.classList.contains("tm-panel")).toBe(true);
+            expect(item.children[0]).toBe(item.name);
+            expect(item.children[1]).toBe(item.visibleIcon);
+        });
+
+        test("should be draggable", () => {
+            const item = createItem();
+            expect(item.draggable).toBe(true);
+        });
+
+        test("should use eye-slash icon when node is invisible", () => {
+            const item = createItem({ visible: false });
+            expect(item.visibleIcon.getAttribute("icon")).toBe("icon-eye-slash");
+        });
+
+        test.each([
+            { parentVisible: true, hasClass: false },
+            { parentVisible: false, hasClass: true },
+            { parentVisible: undefined, hasClass: true },
+        ])("should set parent-hidden class when parentVisible=$parentVisible", ({
+            parentVisible,
+            hasClass,
+        }) => {
+            const item = createItem({ parentVisible });
+            expect(item.visibleIcon.classList.contains("ti-parent-hidden")).toBe(hasClass);
+        });
+
+        test("mainElement should return itself", () => {
+            const item = createItem();
+            expect(item.mainElement()).toBe(item);
+        });
+    });
+
+    describe("style helpers", () => {
+        test("addStyle/removeStyle should toggle classes on mainElement", () => {
+            const item = createItem();
+            item.addStyle("extra-style");
+            expect(item.classList.contains("extra-style")).toBe(true);
+            item.removeStyle("extra-style");
+            expect(item.classList.contains("extra-style")).toBe(false);
+        });
+    });
+
+    describe("visible icon click", () => {
+        test("should toggle node visibility and update visual", () => {
+            const item = createItem({ visible: true });
+            (item.visibleIcon as unknown as { _onclick: (e: MouseEvent) => void })._onclick(fakeEvent);
+            expect(node.visible).toBe(false);
+            expect(doc.visual.update).toHaveBeenCalledTimes(1);
+        });
+
+        test("should toggle invisible node back to visible", () => {
+            const item = createItem({ visible: false });
+            (item.visibleIcon as unknown as { _onclick: (e: MouseEvent) => void })._onclick(fakeEvent);
+            expect(node.visible).toBe(true);
+        });
+    });
+
+    describe("property changed", () => {
+        test("should register handler on connect and unregister on disconnect", () => {
+            const item = createItem();
+            expect(node.handlerCount()).toBe(0);
+            document.body.appendChild(item);
+            expect(node.handlerCount()).toBe(1);
+            item.remove();
+            expect(node.handlerCount()).toBe(0);
+        });
+
+        test("should swap visible icon when node visible property changes", () => {
+            const item = createItem({ visible: true });
+            document.body.appendChild(item);
+
+            node.visible = false;
+            node.emit("visible");
+            expect(item.visibleIcon.getAttribute("icon")).toBe("icon-eye-slash");
+
+            node.visible = true;
+            node.emit("visible");
+            expect(item.visibleIcon.getAttribute("icon")).toBe("icon-eye");
+        });
+
+        test("should update parent-hidden style when parentVisible property changes", () => {
+            const item = createItem({ parentVisible: true });
+            document.body.appendChild(item);
+            expect(item.visibleIcon.classList.contains("ti-parent-hidden")).toBe(false);
+
+            node.parentVisible = false;
+            node.emit("parentVisible");
+            expect(item.visibleIcon.classList.contains("ti-parent-hidden")).toBe(true);
+        });
+
+        test("should not react to property changes after dispose", () => {
+            const item = createItem({ visible: true });
+            document.body.appendChild(item);
+            item.dispose();
+
+            node.visible = false;
+            node.emit("visible");
+            expect(item.visibleIcon.getAttribute("icon")).toBe("icon-eye");
+        });
+    });
+});

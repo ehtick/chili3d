@@ -1,22 +1,23 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { IShape } from "@chili3d/core";
 import { Line, Plane, ShapeTypes, XYZ } from "@chili3d/core";
+import { OccLine } from "../src/curve";
 import type { ShapeFactory } from "../src/factory";
-import type { OccEdge, OccFace, OccShape } from "../src/shape";
+import type { OccEdge, OccFace } from "../src/shape";
 import {
+    OccBSplineSurface,
     OccConicalSurface,
     OccCylindricalSurface,
     type OccElementarySurface,
+    OccOffsetSurface,
     OccPlane,
-    OccRectangularSurface,
     OccSphericalSurface,
     OccSurfaceOfLinearExtrusion,
     OccSurfaceOfRevolution,
     OccToroidalSurface,
 } from "../src/surface";
-import { createTestFactory, unwrapOk } from "./helpers";
+import { createTestFactory, firstFace, surfaceOfFace, unwrapOk } from "./helpers";
 import "./setup";
 
 let factory: ShapeFactory;
@@ -25,14 +26,18 @@ beforeEach(() => {
     factory = createTestFactory();
 });
 
-/** Get the surface from a face. */
-function surfaceOfFace(face: OccFace) {
-    return face.surface();
-}
-
-/** Get the first face from a shape. */
-function firstFace(shape: IShape): OccFace {
-    return shape.findSubShapes(ShapeTypes.face)[0] as OccFace;
+/**
+ * Extrude a face with a curved (bezier) boundary — the swept side face is a
+ * Geom_SurfaceOfLinearExtrusion (planar boundaries are simplified to planes instead).
+ */
+function curvedBoundaryPrism(factory: ShapeFactory) {
+    const bezier = unwrapOk(
+        factory.bezier([XYZ.zero, new XYZ({ x: 5, y: 5, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })]),
+    );
+    const closing = unwrapOk(factory.line(new XYZ({ x: 10, y: 0, z: 0 }), XYZ.zero));
+    const wire = unwrapOk(factory.wire([bezier, closing]));
+    const face = unwrapOk(factory.face([wire]));
+    return unwrapOk(factory.prism(face, new XYZ({ x: 0, y: 0, z: 10 })));
 }
 
 // ============================================================================
@@ -68,9 +73,8 @@ describe("OccSurface.wrap — type dispatch", () => {
         expect(surfaceTypes.some((s) => s instanceof OccConicalSurface)).toBe(true);
     });
 
-    test("extruded face → side faces may be extrusion surfaces", () => {
-        const rect = unwrapOk(factory.rect(Plane.XY, 10, 10));
-        const prism = unwrapOk(factory.prism(rect, new XYZ({ x: 0, y: 0, z: 20 })));
+    test("extruded curved-profile face → side faces are extrusion surfaces", () => {
+        const prism = curvedBoundaryPrism(factory);
         const faces = prism.findSubShapes(ShapeTypes.face);
         const surfaceTypes = faces.map((f) => {
             try {
@@ -79,11 +83,11 @@ describe("OccSurface.wrap — type dispatch", () => {
                 return null;
             }
         });
-        // At least one side face should be an extrusion surface (exclude top/bottom planar faces)
-        expect(surfaceTypes.length).toBeGreaterThan(0);
+        // The side face swept from the bezier boundary is a linear extrusion surface
+        expect(surfaceTypes.some((s) => s instanceof OccSurfaceOfLinearExtrusion)).toBe(true);
     });
 
-    test("revolved face → faces may include revolution surfaces", () => {
+    test("revolved face → side faces are cylindrical surfaces", () => {
         const rect = unwrapOk(
             factory.rect(
                 new Plane({
@@ -98,7 +102,15 @@ describe("OccSurface.wrap — type dispatch", () => {
         const axis = new Line({ point: XYZ.zero, direction: XYZ.unitZ });
         const revolved = unwrapOk(factory.revolve(rect, axis, 360));
         const faces = revolved.findSubShapes(ShapeTypes.face);
-        expect(faces.length).toBeGreaterThan(0);
+        const surfaceTypes = faces.map((f) => {
+            try {
+                return surfaceOfFace(f as OccFace);
+            } catch {
+                return null;
+            }
+        });
+        // Revolving a rectangle around an offset axis yields cylindrical side faces
+        expect(surfaceTypes.some((s) => s instanceof OccCylindricalSurface)).toBe(true);
     });
 });
 
@@ -118,120 +130,117 @@ describe("OccSurface — core methods", () => {
         expect(plane.isPlanar()).toBe(true);
     });
 
-    test("continuity returns a continuity value", () => {
-        const c = plane.continuity();
-        expect(["c0", "g1", "c1", "g2", "c2", "c3", "cn"]).toContain(c);
+    test("continuity of a plane is cn", () => {
+        expect(plane.continuity()).toBe("cn");
     });
 
-    test("value returns 3D point at UV", () => {
+    test("value returns 3D point at UV, consistent with d0", () => {
         const p = plane.value(0, 0);
-        expect(typeof p.x).toBe("number");
-        expect(typeof p.y).toBe("number");
-        expect(typeof p.z).toBe("number");
+        expect(p.distanceTo(plane.d0(0, 0))).toBeCloseTo(0, 9);
+        // A plane is unit-parameterized: moving 1 in U moves the point by 1
+        expect(plane.value(1, 0).distanceTo(p)).toBeCloseTo(1, 9);
     });
 
     test("d0 returns point at UV", () => {
         const p = plane.d0(0.5, 0.5);
-        expect(typeof p.x).toBe("number");
+        expect(p.distanceTo(plane.value(0.5, 0.5))).toBeCloseTo(0, 9);
     });
 
-    test("d1 returns point and partial derivatives", () => {
+    test("d1 returns point and unit, orthogonal partial derivatives", () => {
         const { point, d1u, d1v } = plane.d1(0.5, 0.5);
-        expect(typeof point.x).toBe("number");
-        expect(typeof d1u.x).toBe("number");
-        expect(typeof d1v.x).toBe("number");
+        expect(point.distanceTo(plane.value(0.5, 0.5))).toBeCloseTo(0, 9);
+        expect(d1u.length()).toBeCloseTo(1, 9);
+        expect(d1v.length()).toBeCloseTo(1, 9);
+        expect(d1u.dot(d1v)).toBeCloseTo(0, 9);
     });
 
-    test("d2 returns point and second derivatives", () => {
+    test("d2 returns zero second derivatives on a plane", () => {
         const result = plane.d2(0.5, 0.5);
-        expect(typeof result.point.x).toBe("number");
-        expect(typeof result.d2u.x).toBe("number");
-        expect(typeof result.d2v.x).toBe("number");
-        expect(typeof result.d2uv.x).toBe("number");
+        expect(result.d2u.length()).toBeCloseTo(0, 9);
+        expect(result.d2v.length()).toBeCloseTo(0, 9);
+        expect(result.d2uv.length()).toBeCloseTo(0, 9);
     });
 
-    test("d3 returns point and third derivatives", () => {
+    test("d3 returns zero third derivatives on a plane", () => {
         const result = plane.d3(0.5, 0.5);
-        expect(typeof result.point.x).toBe("number");
-        expect(typeof result.d3u.x).toBe("number");
+        expect(result.d3u.length()).toBeCloseTo(0, 9);
+        expect(result.d3v.length()).toBeCloseTo(0, 9);
     });
 
-    test("dn returns partial derivative", () => {
-        const v = plane.dn(0, 0, 1, 0);
-        expect(typeof v.x).toBe("number");
+    test("dn returns the first derivative direction, zero for higher orders", () => {
+        expect(plane.dn(0, 0, 1, 0).length()).toBeCloseTo(1, 9);
+        expect(plane.dn(0, 0, 2, 0).length()).toBeCloseTo(0, 9);
     });
 
-    test("bounds returns UV domain", () => {
+    test("bounds returns a finite UV domain", () => {
         const b = plane.bounds();
-        expect(b).toBeDefined();
-        if (b) {
-            expect(typeof b.u1).toBe("number");
-            expect(typeof b.u2).toBe("number");
-            expect(typeof b.v1).toBe("number");
-            expect(typeof b.v2).toBe("number");
-        }
+        expect(Number.isFinite(b.u1)).toBe(true);
+        expect(Number.isFinite(b.u2)).toBe(true);
+        expect(Number.isFinite(b.v1)).toBe(true);
+        expect(Number.isFinite(b.v2)).toBe(true);
     });
 
-    test("uIso returns isoparametric curve", () => {
+    test("uIso returns a line", () => {
         const c = plane.uIso(0);
-        expect(c).toBeDefined();
+        expect(c instanceof OccLine).toBe(true);
     });
 
-    test("vIso returns isoparametric curve", () => {
+    test("vIso returns a line", () => {
         const c = plane.vIso(0);
-        expect(c).toBeDefined();
+        expect(c instanceof OccLine).toBe(true);
     });
 
-    test("isUClosed / isVClosed are booleans", () => {
-        expect(typeof plane.isUClosed()).toBe("boolean");
-        expect(typeof plane.isVClosed()).toBe("boolean");
+    test("isUClosed / isVClosed are false for a plane", () => {
+        expect(plane.isUClosed()).toBe(false);
+        expect(plane.isVClosed()).toBe(false);
     });
 
-    test("isUPreiodic / isVPreiodic are booleans", () => {
-        expect(typeof plane.isUPreiodic()).toBe("boolean");
-        expect(typeof plane.isVPreiodic()).toBe("boolean");
+    test("isUPreiodic / isVPreiodic are false for a plane", () => {
+        expect(plane.isUPreiodic()).toBe(false);
+        expect(plane.isVPreiodic()).toBe(false);
     });
 
-    test("uPeriod / vPeriod", () => {
-        // For a plane these should be valid numbers (or throw which is ok)
-        try {
-            expect(typeof plane.uPeriod()).toBe("number");
-        } catch {
-            // Some surfaces throw for period — acceptable
-        }
+    test("uPeriod / vPeriod throw a catchable error on non-periodic surfaces", () => {
+        // A plane is not periodic — the wrapper guards the OCCT call with a
+        // catchable error instead of letting the wasm runtime abort
+        expect(() => plane.uPeriod()).toThrow("Surface is not periodic in the U direction");
+        expect(() => plane.vPeriod()).toThrow("Surface is not periodic in the V direction");
     });
 
-    test("isCNu / isCNv are booleans", () => {
-        expect(typeof plane.isCNu(1)).toBe("boolean");
-        expect(typeof plane.isCNv(1)).toBe("boolean");
+    test("isCNu / isCNv are true for a plane", () => {
+        expect(plane.isCNu(1)).toBe(true);
+        expect(plane.isCNv(1)).toBe(true);
     });
 
-    test("copy creates independent surface", () => {
+    test("copy creates an independent surface of the same type", () => {
         const copy = plane.copy();
         expect(copy.geometryType).toBe("surface");
+        expect(copy instanceof OccPlane).toBe(true);
     });
 
-    test("project returns points on surface", () => {
-        const pts = plane.project(new XYZ({ x: 5, y: 5, z: 10 }));
-        expect(pts.length).toBeGreaterThanOrEqual(0);
+    test("project returns the single projection point on the plane", () => {
+        const query = new XYZ({ x: 5, y: 5, z: 10 });
+        const pts = plane.project(query);
+        expect(pts.length).toBe(1);
+        expect(pts[0]).toBeInstanceOf(XYZ);
+        // The projection lies on the surface
+        expect(plane.parameter(pts[0], 1e-6)).toBeDefined();
     });
 
     test("parameter returns UV for a point on surface", () => {
         const p = plane.value(0.5, 0.5);
         const uv = plane.parameter(p, 0.1);
-        if (uv) {
-            expect(typeof uv.u).toBe("number");
-            expect(typeof uv.v).toBe("number");
-        }
+        expect(uv).toBeDefined();
+        expect(uv!.u).toBeCloseTo(0.5, 1);
+        expect(uv!.v).toBeCloseTo(0.5, 1);
     });
 
     test("nearestPoint returns closest point info", () => {
         const r = plane.nearestPoint(new XYZ({ x: 5, y: 5, z: 10 }));
-        if (r) {
-            const [pt, param] = r;
-            expect(typeof pt.x).toBe("number");
-            expect(typeof param).toBe("number");
-        }
+        expect(r).toBeDefined();
+        const [pt, param] = r!;
+        expect(pt).toBeInstanceOf(XYZ);
+        expect(Number.isFinite(param)).toBe(true);
     });
 
     test("projectCurve projects a curve onto surface", () => {
@@ -239,9 +248,8 @@ describe("OccSurface — core methods", () => {
             factory.line(new XYZ({ x: 0, y: 0, z: 5 }), new XYZ({ x: 10, y: 0, z: 5 })),
         ) as OccEdge;
         const result = plane.projectCurve(edge.curve);
-        if (result) {
-            expect(result.geometryType).toBe("curve");
-        }
+        expect(result).toBeDefined();
+        expect(result!.geometryType).toBe("curve");
     });
 });
 
@@ -260,7 +268,8 @@ describe("OccPlane", () => {
     test("plane getter returns a Plane object", () => {
         const p = plane.plane;
         expect(p).toBeInstanceOf(Plane);
-        expect(typeof p.origin.x).toBe("number");
+        // A box face plane has an axis-aligned unit normal
+        expect(Math.abs(p.normal.x) + Math.abs(p.normal.y) + Math.abs(p.normal.z)).toBeCloseTo(1, 9);
     });
 
     test("plane setter updates geometry", () => {
@@ -301,9 +310,19 @@ describe("OccCylindricalSurface", () => {
         expect(cyl.radius).toBeCloseTo(8);
     });
 
-    test("inherited location and axis are defined", () => {
-        expect(cyl.location).toBeDefined();
-        expect(cyl.axis).toBeDefined();
+    test("inherited location and axis match the creation parameters", () => {
+        expect(cyl.location.distanceTo(XYZ.zero)).toBeCloseTo(0, 6);
+        expect(cyl.axis.z).toBeCloseTo(1, 6);
+    });
+
+    test("uPeriod returns 2π for the periodic U direction", () => {
+        expect(cyl.isUPreiodic()).toBe(true);
+        expect(cyl.uPeriod()).toBeCloseTo(2 * Math.PI);
+    });
+
+    test("vPeriod throws a catchable error for the non-periodic V direction", () => {
+        expect(cyl.isVPreiodic()).toBe(false);
+        expect(() => cyl.vPeriod()).toThrow("Surface is not periodic in the V direction");
     });
 });
 
@@ -331,9 +350,12 @@ describe("OccConicalSurface", () => {
         expect(conical.refRadius()).toBeGreaterThan(0);
     });
 
-    test("apex returns a point", () => {
+    test("apex lies on the cone axis", () => {
         const apex = conical.apex();
-        expect(typeof apex.x).toBe("number");
+        expect(apex.x).toBeCloseTo(0, 6);
+        expect(apex.y).toBeCloseTo(0, 6);
+        // r1=5 at z=0, r2=3 at z=20 → radius reaches 0 at z=50
+        expect(Math.abs(apex.z)).toBeCloseTo(50, 6);
     });
 
     test("setRadius updates reference radius", () => {
@@ -342,11 +364,10 @@ describe("OccConicalSurface", () => {
         expect(conical.refRadius()).not.toBeCloseTo(old);
     });
 
-    test("semiAngle setter", () => {
+    test("semiAngle setter updates the semi-angle", () => {
         const old = conical.semiAngle;
-        expect(() => {
-            conical.semiAngle = old + 0.1;
-        }).not.toThrow();
+        conical.semiAngle = old + 0.1;
+        expect(conical.semiAngle).toBeCloseTo(old + 0.1, 9);
     });
 });
 
@@ -402,11 +423,8 @@ describe("OccElementarySurface", () => {
         elem = surfaceOfFace(firstFace(box)) as OccPlane; // OccPlane extends OccElementarySurface
     });
 
-    test("location getter returns a point", () => {
-        const loc = elem.location;
-        expect(typeof loc.x).toBe("number");
-        expect(typeof loc.y).toBe("number");
-        expect(typeof loc.z).toBe("number");
+    test("location getter matches the position origin", () => {
+        expect(elem.location.distanceTo(elem.coordinates.origin)).toBeCloseTo(0, 9);
     });
 
     test("location setter", () => {
@@ -414,11 +432,9 @@ describe("OccElementarySurface", () => {
         expect(elem.location.x).toBeCloseTo(20);
     });
 
-    test("axis getter returns a non-zero direction vector", () => {
+    test("axis getter returns an axis-aligned unit direction", () => {
         const axis = elem.axis;
-        expect(typeof axis.x).toBe("number");
-        // Plane's axis has at least one non-zero component
-        expect(Math.abs(axis.x) + Math.abs(axis.y) + Math.abs(axis.z)).toBeGreaterThan(0);
+        expect(Math.abs(axis.x) + Math.abs(axis.y) + Math.abs(axis.z)).toBeCloseTo(1, 9);
     });
 
     test("axis setter", () => {
@@ -443,22 +459,20 @@ describe("OccElementarySurface", () => {
 });
 
 // ============================================================================
-// OccRectangularSurface
+// factory.face — rebuild a face from an extracted wire
 // ============================================================================
 
-describe("OccRectangularSurface", () => {
-    test("can get rectangular trim surface from a face", () => {
+describe("factory.face from an extracted wire", () => {
+    test("face rebuilt from a box face wire is planar with the original area", () => {
         const box = unwrapOk(factory.box(Plane.XY, 10, 10, 10));
         const face = firstFace(box);
-        const wire = (face as OccFace).outerWire();
+        const wire = face.outerWire();
         const faceResult = factory.face([wire]);
-        if (faceResult.isOk) {
-            const s = surfaceOfFace(faceResult.value as OccFace);
-            if (s instanceof OccRectangularSurface) {
-                expect(s.basisSurface()).toBeDefined();
-                s.setTrim(0, 1, 0, 1);
-            }
-        }
+        expect(faceResult.isOk).toBe(true);
+
+        const newFace = faceResult.value as OccFace;
+        expect(newFace.area()).toBeCloseTo(100, 6);
+        expect(surfaceOfFace(newFace) instanceof OccPlane).toBe(true);
     });
 });
 
@@ -467,12 +481,9 @@ describe("OccRectangularSurface", () => {
 // ============================================================================
 
 describe("OccSurfaceOfLinearExtrusion", () => {
-    test("extruded face creates linear extrusion surface", () => {
-        const rect = unwrapOk(factory.rect(Plane.XY, 10, 10));
-        const prism = unwrapOk(factory.prism(rect, new XYZ({ x: 0, y: 0, z: 20 })));
-        const faces = prism.findSubShapes(ShapeTypes.face);
-        // Find a side face which should be a linear extrusion surface
-        const surfaces = faces.map((f) => {
+    test("extruded curved-profile face creates a linear extrusion surface", () => {
+        const prism = curvedBoundaryPrism(factory);
+        const surfaces = prism.findSubShapes(ShapeTypes.face).map((f) => {
             try {
                 return surfaceOfFace(f as OccFace);
             } catch {
@@ -480,12 +491,13 @@ describe("OccSurfaceOfLinearExtrusion", () => {
             }
         });
         const extrusionSurface = surfaces.find((s) => s instanceof OccSurfaceOfLinearExtrusion);
-        if (extrusionSurface) {
-            expect(extrusionSurface).toBeDefined();
-            // direction() and basisCurve() should work
-            const dir = (extrusionSurface as OccSurfaceOfLinearExtrusion).direction();
-            expect(typeof dir.x).toBe("number");
-        }
+        expect(extrusionSurface).toBeDefined();
+
+        const extrusion = extrusionSurface as OccSurfaceOfLinearExtrusion;
+        // The prism was extruded along +Z
+        const dir = extrusion.direction();
+        expect(Math.abs(dir.z)).toBeCloseTo(1, 6);
+        expect(extrusion.basisCurve()).toBeDefined();
     });
 });
 
@@ -494,34 +506,26 @@ describe("OccSurfaceOfLinearExtrusion", () => {
 // ============================================================================
 
 describe("OccSurfaceOfRevolution", () => {
-    test("revolved face creates revolution surface", () => {
-        const rect = unwrapOk(
-            factory.rect(
-                new Plane({
-                    origin: new XYZ({ x: 5, y: 0, z: 0 }),
-                    normal: XYZ.unitX,
-                    xvec: XYZ.unitZ,
-                }),
-                10,
-                20,
-            ),
+    test("revolved bezier profile creates revolution surface", () => {
+        // A non-linear profile (bezier) revolves into a generic surface of revolution;
+        // linear profiles would be simplified to planes/cylinders instead
+        const profile = unwrapOk(
+            factory.bezier([
+                new XYZ({ x: 5, y: 0, z: 0 }),
+                new XYZ({ x: 8, y: 0, z: 5 }),
+                new XYZ({ x: 5, y: 0, z: 10 }),
+            ]),
         );
         const axis = new Line({ point: XYZ.zero, direction: XYZ.unitZ });
-        const revolved = unwrapOk(factory.revolve(rect, axis, 360));
-        const faces = revolved.findSubShapes(ShapeTypes.face);
-        const surfaces = faces.map((f) => {
-            try {
-                return surfaceOfFace(f as OccFace);
-            } catch {
-                return null;
-            }
-        });
+        const revolved = unwrapOk(factory.revolve(profile, axis, 360));
+        const surfaces = revolved.findSubShapes(ShapeTypes.face).map((f) => surfaceOfFace(f as OccFace));
 
         const revSurface = surfaces.find((s) => s instanceof OccSurfaceOfRevolution);
-        if (revSurface) {
-            const rev = revSurface as OccSurfaceOfRevolution;
-            expect(typeof rev.location.x).toBe("number");
-        }
+        expect(revSurface).toBeDefined();
+        const rev = revSurface as OccSurfaceOfRevolution;
+        // The revolution axis goes through the origin
+        expect(rev.location.x).toBeCloseTo(0, 6);
+        expect(rev.location.y).toBeCloseTo(0, 6);
     });
 });
 
@@ -530,53 +534,107 @@ describe("OccSurfaceOfRevolution", () => {
 // ============================================================================
 
 describe("OccToroidalSurface", () => {
-    test("torus from revolved circle has toroidal surface", () => {
+    function revolvedTorus(): OccToroidalSurface {
         const circle = unwrapOk(factory.circle(XYZ.unitY, new XYZ({ x: 5, y: 0, z: 0 }), 2));
         const axis = new Line({ point: XYZ.zero, direction: XYZ.unitZ });
-        const revolved = factory.revolve(circle, axis, 360);
-        if (revolved.isOk) {
-            const faces = revolved.value.findSubShapes(ShapeTypes.face);
-            const surfaces = faces.map((f) => {
-                try {
-                    return surfaceOfFace(f as OccFace);
-                } catch {
-                    return null;
-                }
-            });
-            const torus = surfaces.find((s) => s instanceof OccToroidalSurface) as
-                | OccToroidalSurface
-                | undefined;
-            if (torus) {
-                expect(torus.majorRadius).toBeGreaterThan(0);
-                expect(torus.minorRadius).toBeGreaterThan(0);
-                expect(torus.area()).toBeGreaterThan(0);
+        const revolved = unwrapOk(factory.revolve(circle, axis, 360));
+        const surfaces = revolved.findSubShapes(ShapeTypes.face).map((f) => {
+            try {
+                return surfaceOfFace(f as OccFace);
+            } catch {
+                return null;
             }
-        }
+        });
+        const torus = surfaces.find((s) => s instanceof OccToroidalSurface) as OccToroidalSurface | undefined;
+        expect(torus).toBeDefined();
+        return torus as OccToroidalSurface;
+    }
+
+    test("torus from revolved circle has expected radii and area", () => {
+        const torus = revolvedTorus();
+        expect(torus.majorRadius).toBeCloseTo(5, 6);
+        expect(torus.minorRadius).toBeCloseTo(2, 6);
+        // Torus area = (2πR)(2πr)
+        expect(torus.area()).toBeCloseTo(4 * Math.PI * Math.PI * 5 * 2, 3);
     });
 
     test("torus surface setters", () => {
-        const circle = unwrapOk(factory.circle(XYZ.unitY, new XYZ({ x: 5, y: 0, z: 0 }), 2));
-        const axis = new Line({ point: XYZ.zero, direction: XYZ.unitZ });
-        const revolved = factory.revolve(circle, axis, 360);
-        if (revolved.isOk) {
-            const faces = revolved.value.findSubShapes(ShapeTypes.face);
-            const surfaces = faces.map((f) => {
-                try {
-                    return surfaceOfFace(f as OccFace);
-                } catch {
-                    return null;
-                }
-            });
-            const torus = surfaces.find((s) => s instanceof OccToroidalSurface) as
-                | OccToroidalSurface
-                | undefined;
-            if (torus) {
-                const oldMajor = torus.majorRadius;
-                torus.majorRadius = oldMajor + 1;
-                expect(torus.majorRadius).not.toBeCloseTo(oldMajor);
-                torus.majorRadius = oldMajor;
-                expect(torus.majorRadius).toBeCloseTo(oldMajor);
-            }
-        }
+        const torus = revolvedTorus();
+        const oldMajor = torus.majorRadius;
+        torus.majorRadius = oldMajor + 1;
+        expect(torus.majorRadius).not.toBeCloseTo(oldMajor);
+        torus.majorRadius = oldMajor;
+        expect(torus.majorRadius).toBeCloseTo(oldMajor);
+    });
+});
+
+// ============================================================================
+// OccBSplineSurface — from lofted circles
+// ============================================================================
+
+describe("OccBSplineSurface", () => {
+    /** Loft between offset circles (r5 → r3) produces a BSpline side surface. */
+    function loftedBSplineSurface(): OccBSplineSurface {
+        const c1 = unwrapOk(factory.circle(XYZ.unitZ, XYZ.zero, 5));
+        const c2 = unwrapOk(factory.circle(XYZ.unitZ, new XYZ({ x: 5, y: 5, z: 15 }), 3));
+        const loft = unwrapOk(factory.loft([c1, c2], true, false, "c0"));
+        const surface = loft
+            .findSubShapes(ShapeTypes.face)
+            .map((f) => surfaceOfFace(f as OccFace))
+            .find((s) => s instanceof OccBSplineSurface) as OccBSplineSurface | undefined;
+        expect(surface).toBeDefined();
+        return surface as OccBSplineSurface;
+    }
+
+    test("side surface is closed in U and open in V", () => {
+        const surface = loftedBSplineSurface();
+        expect(surface.isUClosed()).toBe(true);
+        expect(surface.isVClosed()).toBe(false);
+    });
+
+    test("U domain spans the full 2π of the section circles", () => {
+        const surface = loftedBSplineSurface();
+        const bounds = surface.bounds();
+        expect(bounds).toBeDefined();
+        expect(bounds.u1).toBeCloseTo(0, 6);
+        expect(bounds.u2).toBeCloseTo(2 * Math.PI, 6);
+    });
+
+    test("vIso at the bottom boundary is the radius-5 circle", () => {
+        const surface = loftedBSplineSurface();
+        const iso = surface.vIso(0);
+        expect(iso.length()).toBeCloseTo(2 * Math.PI * 5, 6);
+    });
+});
+
+// ============================================================================
+// OccOffsetSurface — from thickening a BSpline face
+// ============================================================================
+
+describe("OccOffsetSurface", () => {
+    /** Thickening the lofted BSpline face by 1 leaves an offset surface behind. */
+    function thickenedOffsetSurface(): OccOffsetSurface {
+        const c1 = unwrapOk(factory.circle(XYZ.unitZ, XYZ.zero, 5));
+        const c2 = unwrapOk(factory.circle(XYZ.unitZ, new XYZ({ x: 5, y: 5, z: 15 }), 3));
+        const loft = unwrapOk(factory.loft([c1, c2], false, false, "c0"));
+        const thick = unwrapOk(factory.makeThickSolidBySimple(loft, 1));
+        const surface = thick
+            .findSubShapes(ShapeTypes.face)
+            .map((f) => surfaceOfFace(f as OccFace))
+            .find((s) => s instanceof OccOffsetSurface) as OccOffsetSurface | undefined;
+        expect(surface).toBeDefined();
+        return surface as OccOffsetSurface;
+    }
+
+    test("offset surface reports the thickening distance and its basis surface", () => {
+        const surface = thickenedOffsetSurface();
+        expect(surface.offset).toBeCloseTo(1, 6);
+        expect(surface.basisSurface instanceof OccBSplineSurface).toBe(true);
+    });
+
+    test("offset setter updates the offset value", () => {
+        const surface = thickenedOffsetSurface();
+        surface.offset = 2;
+        expect(surface.offset).toBeCloseTo(2, 6);
     });
 });

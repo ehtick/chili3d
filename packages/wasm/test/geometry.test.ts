@@ -2,11 +2,11 @@
 // See LICENSE file in the project root for full license information.
 
 import { Matrix4, Plane, ShapeTypes, XYZ } from "@chili3d/core";
-import type { OccLine, OccTrimmedCurve } from "../src/curve";
+import type { OccLine } from "../src/curve";
 import type { ShapeFactory } from "../src/factory";
 import type { OccEdge, OccFace } from "../src/shape";
 import type { OccPlane } from "../src/surface";
-import { createTestFactory, unwrapOk } from "./helpers";
+import { basisCurveOfEdge, createTestFactory, surfaceOfFace, unwrapOk } from "./helpers";
 import "./setup";
 
 let factory: ShapeFactory;
@@ -15,43 +15,47 @@ beforeEach(() => {
     factory = createTestFactory();
 });
 
-function basisCurveOfEdge(edge: OccEdge) {
-    return (edge.curve as OccTrimmedCurve).basisCurve;
-}
-
-function surfaceOfFace(face: OccFace) {
-    return face.surface();
-}
-
 // ============================================================================
 // OccGeometry — dispose / idempotency (base class behavior)
 // ============================================================================
 
 describe("OccGeometry — dispose", () => {
-    test("dispose on curve does not throw", () => {
+    test("dispose deletes the curve geometry handle", () => {
         const line = basisCurveOfEdge(factory.line(XYZ.zero, XYZ.unitX).value as OccEdge) as OccLine;
-        expect(() => line.dispose()).not.toThrow();
-    });
-
-    test("double dispose on curve does not throw (idempotent)", () => {
-        const line = basisCurveOfEdge(factory.line(XYZ.zero, XYZ.unitX).value as OccEdge) as OccLine;
+        const handle = (line as any)._handleGeometry;
+        const deleteSpy = rs.spyOn(handle, "delete");
         line.dispose();
-        expect(() => line.dispose()).not.toThrow();
+        expect(deleteSpy).toHaveBeenCalledTimes(1);
     });
 
-    test("dispose on surface does not throw", () => {
+    test("double dispose on curve is idempotent (handle deleted once)", () => {
+        const line = basisCurveOfEdge(factory.line(XYZ.zero, XYZ.unitX).value as OccEdge) as OccLine;
+        const handle = (line as any)._handleGeometry;
+        const deleteSpy = rs.spyOn(handle, "delete");
+        line.dispose();
+        line.dispose();
+        expect(deleteSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("dispose deletes the surface geometry handle", () => {
         const box = unwrapOk(factory.box(Plane.XY, 10, 10, 10));
         const face = box.findSubShapes(ShapeTypes.face)[0] as OccFace;
         const plane = surfaceOfFace(face);
-        expect(() => plane.dispose()).not.toThrow();
-    });
-
-    test("double dispose on surface does not throw (idempotent)", () => {
-        const box = unwrapOk(factory.box(Plane.XY, 10, 10, 10));
-        const face = box.findSubShapes(ShapeTypes.face)[0] as OccFace;
-        const plane = surfaceOfFace(face);
+        const handle = (plane as any)._handleGeometry;
+        const deleteSpy = rs.spyOn(handle, "delete");
         plane.dispose();
-        expect(() => plane.dispose()).not.toThrow();
+        expect(deleteSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("double dispose on surface is idempotent (handle deleted once)", () => {
+        const box = unwrapOk(factory.box(Plane.XY, 10, 10, 10));
+        const face = box.findSubShapes(ShapeTypes.face)[0] as OccFace;
+        const plane = surfaceOfFace(face);
+        const handle = (plane as any)._handleGeometry;
+        const deleteSpy = rs.spyOn(handle, "delete");
+        plane.dispose();
+        plane.dispose();
+        expect(deleteSpy).toHaveBeenCalledTimes(1);
     });
 });
 

@@ -2,12 +2,12 @@
 // See LICENSE file in the project root for full license information.
 
 import { FolderNode, type IDocument } from "../src";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
-describe("test NodeLinkedList", () => {
+describe("NodeLinkedList", () => {
     const doc: IDocument = new TestDocument() as any;
 
-    test("test add and remove", () => {
+    test("should add and remove nodes", () => {
         const l1 = new FolderNode({ document: doc, name: "l1" });
         const l2 = new FolderNode({ document: doc, name: "l2" });
         const l3 = new FolderNode({ document: doc, name: "l3" });
@@ -48,7 +48,7 @@ describe("test NodeLinkedList", () => {
         expect(l1.size()).toBe(2);
     });
 
-    test("test insert before", () => {
+    test("should insert before a node", () => {
         const l1 = new FolderNode({ document: doc, name: "l1" });
         const l2 = new FolderNode({ document: doc, name: "l2" });
         const l3 = new FolderNode({ document: doc, name: "l3" });
@@ -73,7 +73,7 @@ describe("test NodeLinkedList", () => {
         expect(l1.size()).toBe(3);
     });
 
-    test("test insert after", () => {
+    test("should insert after a node", () => {
         const l1 = new FolderNode({ document: doc, name: "l1" });
         const l2 = new FolderNode({ document: doc, name: "l2" });
         const l3 = new FolderNode({ document: doc, name: "l3" });
@@ -106,7 +106,7 @@ describe("test NodeLinkedList", () => {
         expect(l2.previousSibling).toBe(l5);
     });
 
-    test("test moveTo", () => {
+    test("should move a node to a new parent", () => {
         const l1 = new FolderNode({ document: doc, name: "l1" });
         const l2 = new FolderNode({ document: doc, name: "l2" });
         const l3 = new FolderNode({ document: doc, name: "l3" });
@@ -133,7 +133,7 @@ describe("test NodeLinkedList", () => {
         expect(l6.previousSibling?.name).toBe(l4.name);
     });
 
-    test("test undo redo", () => {
+    test("should undo and redo node operations", () => {
         const l1 = new FolderNode({ document: doc, name: "l1" });
 
         // add undo redo

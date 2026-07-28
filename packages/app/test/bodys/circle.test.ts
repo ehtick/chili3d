@@ -1,11 +1,11 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { IDocument } from "@chili3d/core";
+import type { IDocument, IEdge } from "@chili3d/core";
 import { Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { CircleNode } from "../../src/bodys/circle";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, createMockWireShape, setupShapeFactoryMock } from "./_utils";
 
 describe("CircleNode", () => {
@@ -90,10 +90,10 @@ describe("CircleNode", () => {
                 wire: () => Result.ok(createMockShape()),
             });
             const node = new CircleNode({ document: doc, normal, center, radius: 5 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.radius = 99;
-            expect(events).toContain("radius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("radius");
         });
 
         test("should emit on center change", () => {
@@ -102,10 +102,10 @@ describe("CircleNode", () => {
                 wire: () => Result.ok(createMockShape()),
             });
             const node = new CircleNode({ document: doc, normal, center, radius: 5 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.center = new XYZ({ x: 9, y: 9, z: 9 });
-            expect(events).toContain("center");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("center");
         });
 
         test("should emit on isFace change", () => {
@@ -114,54 +114,39 @@ describe("CircleNode", () => {
                 wire: () => Result.ok(createMockWireShape()),
             });
             const node = new CircleNode({ document: doc, normal, center, radius: 5 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.isFace = true;
-            expect(events).toContain("isFace");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("isFace");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.circle, and when isFace=true also wire and toFace", () => {
-            let circleCalledWith: any[] = [];
-            let wireCalledWith: any[] = [];
             const mockCircle = createMockShape();
-            const mockWire = { ...createMockShape(), toFace: () => Result.ok(createMockShape()) };
+            const mockWire = createMockWireShape();
+            const circle = rs.fn(() => Result.ok(mockCircle));
+            const wire = rs.fn((_edges: IEdge[]) => Result.ok(mockWire));
 
-            setupShapeFactoryMock({
-                circle: (...args: any[]) => {
-                    circleCalledWith = args;
-                    return Result.ok(mockCircle);
-                },
-                wire: (edges: any[]) => {
-                    wireCalledWith = edges;
-                    return Result.ok(mockWire);
-                },
-            });
+            setupShapeFactoryMock({ circle, wire });
 
             const node = new CircleNode({ document: doc, normal, center, radius: 10 });
             node.isFace = true;
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(circleCalledWith[0]).toBe(normal);
-            expect(circleCalledWith[1]).toBe(center);
-            expect(circleCalledWith[2]).toBe(10);
-            expect(wireCalledWith.length).toBe(1);
+            expect(circle).toHaveBeenCalledWith(normal, center, 10);
+            // wire may be invoked by multiple re-evaluations; the original test asserted the last call
+            expect(wire.mock.calls.at(-1)?.[0].length).toBe(1);
         });
 
         test("should return circle result when isFace is false", () => {
-            let calledWith: any[] = [];
             const mockCircle = createMockShape();
-            setupShapeFactoryMock({
-                circle: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(mockCircle);
-                },
-            });
+            const circle = rs.fn(() => Result.ok(mockCircle));
+            setupShapeFactoryMock({ circle });
             const node = new CircleNode({ document: doc, normal, center, radius: 10 });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
-            expect(calledWith[2]).toBe(10);
+            expect(circle).toHaveBeenCalledWith(normal, center, 10);
         });
 
         test("should return Result.err when shapeFactory.circle fails", () => {

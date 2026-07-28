@@ -94,7 +94,7 @@ function buildStepDatas() {
 describe("RemoveFaceCommand", () => {
     test("should have command metadata", () => {
         const data = (RemoveFaceCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.removeFeature");
         expect(data.icon).toBe("icon-removeFeature");
     });

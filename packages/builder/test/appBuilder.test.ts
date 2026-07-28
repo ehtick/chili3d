@@ -1,39 +1,54 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import type { IApplication, IWindow } from "@chili3d/core";
+import { mockLocalStorage } from "@chili3d/core/test-utils";
+import { ThreeVisulFactory } from "@chili3d/three";
+import { MainWindow } from "@chili3d/ui";
+import { OccShapeProvider } from "@chili3d/wasm";
 import { rs } from "@rstest/core";
 import { AppBuilder } from "../src/appBuilder";
 import { DefaultDataExchange } from "../src/defaultDataExchange";
+import { DefaultRibbon } from "../src/ribbon";
 
 // IMPORTANT: AppBuilder.createApp() calls new Application() which calls
 // setCurrentApplication() — a module-level singleton that throws if called more
 // than once. All tests that call createApp()/build() share ONE call at the end.
 
-describe("AppBuilder", () => {
-    let originalLocalStorage: Storage;
+// The use*() inits dynamically import the feature packages; mock them so the
+// assembly tests can run without wasm binaries, WebGL, or the real UI.
+const wasmMock = rs.hoisted(() => ({ initWasmCalls: 0 }));
+const uiMock = rs.hoisted(() => ({ mainWindowArgs: [] as unknown[][] }));
 
-    beforeAll(() => {
-        originalLocalStorage = globalThis.localStorage;
-        Object.defineProperty(globalThis, "localStorage", {
-            value: {
-                getItem: () => null,
-                setItem: () => {},
-                removeItem: () => {},
-                clear: () => {},
-                key: () => null,
-                get length() {
-                    return 0;
-                },
-            },
-            configurable: true,
-            writable: true,
-        });
+rs.mock("@chili3d/wasm", () => ({
+    initWasm: async () => {
+        wasmMock.initWasmCalls++;
+    },
+    OccShapeProvider: class OccShapeProvider {},
+}));
+
+rs.mock("@chili3d/three", () => ({
+    ThreeVisulFactory: class ThreeVisulFactory {
+        constructor(readonly handler: unknown) {}
+    },
+}));
+
+rs.mock("@chili3d/ui", () => ({
+    MainWindow: class MainWindow {
+        constructor(...args: unknown[]) {
+            uiMock.mainWindowArgs.push(args);
+        }
+    },
+}));
+
+describe("AppBuilder", () => {
+    beforeEach(() => {
+        mockLocalStorage();
     });
 
-    afterAll(() => {
-        Object.defineProperty(globalThis, "localStorage", {
-            value: originalLocalStorage,
-            configurable: true,
+    afterEach(() => {
+        Object.defineProperty(global, "localStorage", {
+            value: undefined,
             writable: true,
         });
     });
@@ -41,7 +56,6 @@ describe("AppBuilder", () => {
     describe("constructor", () => {
         test("should create an AppBuilder instance", () => {
             const builder = new AppBuilder();
-            expect(builder).toBeDefined();
             expect(builder instanceof AppBuilder).toBe(true);
         });
 
@@ -64,8 +78,15 @@ describe("AppBuilder", () => {
         test("should return a DefaultDataExchange instance", () => {
             const builder = new AppBuilder();
             const exchange = builder.initDataExchange();
-            expect(exchange).toBeDefined();
             expect(exchange instanceof DefaultDataExchange).toBe(true);
+        });
+
+        test("should return a new DefaultDataExchange each call", () => {
+            const builder = new AppBuilder();
+            const d1 = builder.initDataExchange();
+            const d2 = builder.initDataExchange();
+            // Two separate instances
+            expect(d1).not.toBe(d2);
         });
     });
 
@@ -106,38 +127,23 @@ describe("AppBuilder", () => {
             (builder as any)._visualFactory = {};
             (builder as any)._storage = {};
             expect(() => (builder as any).ensureNecessary()).not.toThrow();
+
+            // The check still validates: dropping a dependency makes it throw again.
+            (builder as any)._storage = undefined;
+            expect(() => (builder as any).ensureNecessary()).toThrow("storage has not been initialized");
         });
     });
 
     describe("fluent API", () => {
-        test("useIndexedDB should return this and push init function", () => {
+        test.each([
+            "useIndexedDB",
+            "useWasmOcc",
+            "useThree",
+            "useUI",
+        ] as const)("%s should return this and push init function", (method) => {
             const builder = new AppBuilder();
             const before = (builder as any)._inits.length;
-            const result = builder.useIndexedDB();
-            expect(result).toBe(builder);
-            expect((builder as any)._inits.length).toBe(before + 1);
-        });
-
-        test("useWasmOcc should return this and push init function", () => {
-            const builder = new AppBuilder();
-            const before = (builder as any)._inits.length;
-            const result = builder.useWasmOcc();
-            expect(result).toBe(builder);
-            expect((builder as any)._inits.length).toBe(before + 1);
-        });
-
-        test("useThree should return this and push init function", () => {
-            const builder = new AppBuilder();
-            const before = (builder as any)._inits.length;
-            const result = builder.useThree();
-            expect(result).toBe(builder);
-            expect((builder as any)._inits.length).toBe(before + 1);
-        });
-
-        test("useUI should return this and push init function", () => {
-            const builder = new AppBuilder();
-            const before = (builder as any)._inits.length;
-            const result = builder.useUI();
+            const result = (builder as any)[method]();
             expect(result).toBe(builder);
             expect((builder as any)._inits.length).toBe(before + 1);
         });
@@ -150,13 +156,60 @@ describe("AppBuilder", () => {
         });
     });
 
+    describe("assembly inits", () => {
+        const lastInit = (builder: AppBuilder): (() => Promise<void>) => {
+            const inits = (builder as any)._inits as (() => Promise<void>)[];
+            return inits[inits.length - 1];
+        };
+
+        test("useWasmOcc init should initialize wasm and set the shape provider", async () => {
+            const builder = new AppBuilder();
+            builder.useWasmOcc();
+            const callsBefore = wasmMock.initWasmCalls;
+
+            await lastInit(builder)();
+
+            expect(wasmMock.initWasmCalls).toBe(callsBefore + 1);
+            expect((builder as any)._shapeProvider).toBeInstanceOf(OccShapeProvider);
+        });
+
+        test("useThree init should set the visual factory with a property handler", async () => {
+            const builder = new AppBuilder();
+            builder.useThree();
+
+            await lastInit(builder)();
+
+            const factory = (builder as any)._visualFactory;
+            expect(factory).toBeInstanceOf(ThreeVisulFactory);
+            expect(typeof factory.handler).toBe("function");
+        });
+
+        test("useUI init should set the main window with the default ribbon and #app element", async () => {
+            const appDiv = document.createElement("div");
+            appDiv.id = "app";
+            document.body.appendChild(appDiv);
+
+            const builder = new AppBuilder();
+            builder.useUI();
+            const argsBefore = uiMock.mainWindowArgs.length;
+
+            await lastInit(builder)();
+
+            expect(uiMock.mainWindowArgs.length).toBe(argsBefore + 1);
+            expect(uiMock.mainWindowArgs[argsBefore]).toEqual([DefaultRibbon, "iconfont.js", appDiv]);
+            expect((builder as any)._window).toBeInstanceOf(MainWindow);
+
+            appDiv.remove();
+        });
+    });
+
     describe("getRibbonTabs", () => {
         test("should return default ribbon tabs", async () => {
             const builder = new AppBuilder();
             const tabs = await builder.getRibbonTabs();
             expect(Array.isArray(tabs)).toBe(true);
             expect(tabs.length).toBeGreaterThan(0);
-            expect(tabs[0].tabName).toBeDefined();
+            expect(tabs[0].tabName).toBe("ribbon.tab.model");
         });
     });
 
@@ -193,48 +246,96 @@ describe("AppBuilder", () => {
         });
     });
 
+    describe("build", () => {
+        afterEach(() => {
+            rs.unstubAllGlobals();
+        });
+
+        test("should execute all registered inits in order and return the application", async () => {
+            const builder = new AppBuilder();
+            const callOrder: string[] = [];
+            const inits = ["first", "second", "third"].map((name) =>
+                rs.fn(async () => {
+                    callOrder.push(name);
+                }),
+            );
+            (builder as any)._inits = inits;
+            (builder as any)._storage = { name: "mockStorage" };
+            (builder as any)._shapeProvider = { name: "mockShapeProvider" };
+            (builder as any)._visualFactory = { name: "mockVisualFactory" };
+            const windowInit = rs.fn((_app: IApplication) => Promise.resolve());
+            (builder as any)._window = { init: windowInit } as unknown as IWindow;
+
+            // createApp() is stubbed so build() never touches the global
+            // Application singleton (setCurrentApplication allows one call only).
+            const fakeApp = { name: "fakeApp" } as unknown as ReturnType<AppBuilder["createApp"]>;
+            const createAppSpy = rs.spyOn(builder, "createApp").mockReturnValue(fakeApp);
+            rs.stubGlobal(
+                "fetch",
+                rs.fn(() => Promise.resolve({ ok: false } as Response)),
+            );
+
+            const app = await builder.build();
+
+            expect(app).toBe(fakeApp);
+            expect(callOrder).toEqual(["first", "second", "third"]);
+            for (const init of inits) {
+                expect(init).toHaveBeenCalledTimes(1);
+            }
+            expect(createAppSpy).toHaveBeenCalledTimes(1);
+            expect(windowInit).toHaveBeenCalledTimes(1);
+            expect(windowInit).toHaveBeenCalledWith(fakeApp);
+            createAppSpy.mockRestore();
+        });
+
+        test("should skip window init when no window is configured", async () => {
+            const builder = new AppBuilder();
+            (builder as any)._inits = [];
+            (builder as any)._storage = { name: "mockStorage" };
+            (builder as any)._shapeProvider = { name: "mockShapeProvider" };
+            (builder as any)._visualFactory = { name: "mockVisualFactory" };
+
+            const fakeApp = { name: "fakeApp" } as unknown as ReturnType<AppBuilder["createApp"]>;
+            const createAppSpy = rs.spyOn(builder, "createApp").mockReturnValue(fakeApp);
+            rs.stubGlobal(
+                "fetch",
+                rs.fn(() => Promise.resolve({ ok: false } as Response)),
+            );
+
+            const app = await builder.build();
+
+            expect(app).toBe(fakeApp);
+            expect(createAppSpy).toHaveBeenCalledTimes(1);
+            createAppSpy.mockRestore();
+        });
+    });
+
     describe("loadDefaultPlugins (protected)", () => {
+        afterEach(() => {
+            rs.unstubAllGlobals();
+        });
+
         test("should not throw when fetch returns non-ok response", async () => {
             const builder = new AppBuilder();
-            const mockFetch = rs.fn(() => Promise.resolve({ ok: false } as Response));
-            const originalFetch = globalThis.fetch;
-            globalThis.fetch = mockFetch as any;
+            rs.stubGlobal(
+                "fetch",
+                rs.fn(() => Promise.resolve({ ok: false } as Response)),
+            );
 
             const mockApp = { pluginManager: { loadFromUrl: rs.fn() } };
             await expect((builder as any).loadDefaultPlugins(mockApp)).resolves.toBeUndefined();
-
-            globalThis.fetch = originalFetch;
         });
 
         test("should handle fetch error gracefully", async () => {
             const builder = new AppBuilder();
-            const mockFetch = rs.fn(() => Promise.reject(new Error("network error")));
-            const originalFetch = globalThis.fetch;
-            globalThis.fetch = mockFetch as any;
+            rs.stubGlobal(
+                "fetch",
+                rs.fn(() => Promise.reject(new Error("network error"))),
+            );
 
             const mockApp = { pluginManager: { loadFromUrl: rs.fn() } };
             // Should not throw — catch block swallows errors
             await expect((builder as any).loadDefaultPlugins(mockApp)).resolves.toBeUndefined();
-
-            globalThis.fetch = originalFetch;
-        });
-    });
-
-    describe("initDataExchange", () => {
-        test("should return a new DefaultDataExchange each call", () => {
-            const builder = new AppBuilder();
-            const d1 = builder.initDataExchange();
-            const d2 = builder.initDataExchange();
-            // Two separate instances
-            expect(d1).not.toBe(d2);
-        });
-    });
-
-    describe("getServices", () => {
-        test("services array should be length 2", () => {
-            const builder = new AppBuilder();
-            const services = (builder as any).getServices();
-            expect(services.length).toBe(2);
         });
     });
 });

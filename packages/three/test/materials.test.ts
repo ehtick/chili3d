@@ -106,11 +106,12 @@ describe("materials", () => {
             const originalColor = VisualConfig.defaultEdgeColor;
             const testColor = 0xabcdef;
 
-            VisualConfig.defaultEdgeColor = testColor;
-            expect(defaultEdgeMaterial.color.getHex()).toBe(testColor);
-
-            // Restore original
-            VisualConfig.defaultEdgeColor = originalColor;
+            try {
+                VisualConfig.defaultEdgeColor = testColor;
+                expect(defaultEdgeMaterial.color.getHex()).toBe(testColor);
+            } finally {
+                VisualConfig.defaultEdgeColor = originalColor;
+            }
             expect(defaultEdgeMaterial.color.getHex()).toBe(originalColor);
         });
     });

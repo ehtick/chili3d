@@ -5,7 +5,7 @@ import type { IDocument } from "../src/document";
 import { XYZ } from "../src/math";
 import type { SnapResult } from "../src/snap";
 import { TrackingBase } from "../src/snap/tracking/trackingBase";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 // ============================================================================
 // Concrete TrackingBase subclass for testing
@@ -161,7 +161,7 @@ describe("TrackingBase", () => {
 
             const id = tracking.testDisplayPoint(doc, snap, 5, 0xff0000);
             expect(id).toBe(77);
-            expect(displayedData).toBeDefined();
+            expect(displayedData).not.toBeNull();
 
             const removedIds: number[] = [];
             doc.visual.context.removeMesh = (id: number) => {

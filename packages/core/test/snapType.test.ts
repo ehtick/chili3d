@@ -3,8 +3,8 @@
 
 import { type ObjectSnapType, ObjectSnapTypes, ObjectSnapTypeUtils } from "../src";
 
-test("test SnapType", () => {
+test("should check combined snap types with hasType", () => {
     const ts = (ObjectSnapTypes.endPoint | ObjectSnapTypes.midPoint) as ObjectSnapType;
-    expect(ObjectSnapTypeUtils.hasType(ts, ObjectSnapTypes.center)).toBeFalsy();
-    expect(ObjectSnapTypeUtils.hasType(ts, ObjectSnapTypes.midPoint)).toBeTruthy();
+    expect(ObjectSnapTypeUtils.hasType(ts, ObjectSnapTypes.center)).toBe(false);
+    expect(ObjectSnapTypeUtils.hasType(ts, ObjectSnapTypes.midPoint)).toBe(true);
 });

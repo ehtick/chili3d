@@ -3,7 +3,7 @@
 
 import { Quaternion, XYZ } from "../src";
 
-describe("test Quaternion", () => {
+describe("Quaternion", () => {
     describe("constructor", () => {
         test("default constructor creates identity quaternion", () => {
             const q = new Quaternion();
@@ -142,20 +142,20 @@ describe("test Quaternion", () => {
             const vector = new XYZ({ x: 0, y: 1, z: 0 });
             const gtRotVector = new XYZ({ x: -0.573223, y: 0.739199, z: 0.353553 });
             const afterRotVec = quat.rotateVector(vector);
-            expect(afterRotVec.isEqualTo(gtRotVector)).toBeTruthy();
+            expect(afterRotVec.isEqualTo(gtRotVector)).toBe(true);
         });
 
         test("identity quaternion returns same vector", () => {
             const v = new XYZ({ x: 1, y: 2, z: 3 });
             const result = new Quaternion().rotateVector(v);
-            expect(result.isEqualTo(v)).toBeTruthy();
+            expect(result.isEqualTo(v)).toBe(true);
         });
 
         test("90 degree Z rotation", () => {
             const q = Quaternion.fromAxisAngle(XYZ.unitZ, Math.PI / 2);
             const v = XYZ.unitX;
             const result = q.rotateVector(v);
-            expect(result.isEqualTo(XYZ.unitY, 1e-10)).toBeTruthy();
+            expect(result.isEqualTo(XYZ.unitY, 1e-10)).toBe(true);
         });
     });
 
@@ -233,7 +233,7 @@ describe("test Quaternion", () => {
             const v = new XYZ({ x: 1, y: 2, z: 3 });
             const r1 = q.rotateVector(v);
             const r2 = q2.rotateVector(v);
-            expect(r1.isEqualTo(r2, 1e-6)).toBeTruthy();
+            expect(r1.isEqualTo(r2, 1e-6)).toBe(true);
         });
 
         test("gimbal lock - test > sig * unit (pitch near 90 degrees)", () => {
@@ -242,19 +242,17 @@ describe("test Quaternion", () => {
             const q = Quaternion.fromAxisAngle(XYZ.unitY, Math.PI / 2);
             const euler = q.toEuler();
             // Should produce finite values
-            expect(Number.isFinite(euler.x)).toBeTruthy();
-            expect(Number.isFinite(euler.y)).toBeTruthy();
-            expect(Number.isFinite(euler.z)).toBeTruthy();
+            expect(Number.isFinite(euler.x)).toBe(true);
+            expect(Number.isFinite(euler.y)).toBe(true);
+            expect(Number.isFinite(euler.z)).toBe(true);
         });
 
         test("gimbal lock - test < -sig * unit (pitch near -90 degrees)", () => {
             const q = Quaternion.fromAxisAngle(XYZ.unitY, -Math.PI / 2);
             const euler = q.toEuler();
-            if (euler) {
-                expect(Number.isFinite(euler.x)).toBeTruthy();
-                expect(Number.isFinite(euler.y)).toBeTruthy();
-                expect(Number.isFinite(euler.z)).toBeTruthy();
-            }
+            expect(Number.isFinite(euler.x)).toBe(true);
+            expect(Number.isFinite(euler.y)).toBe(true);
+            expect(Number.isFinite(euler.z)).toBe(true);
         });
     });
 
@@ -272,7 +270,7 @@ describe("test Quaternion", () => {
             const v = XYZ.unitY;
             const rotated = q.rotateVector(v);
             // Pitch=90deg rotates Y to Z
-            expect(rotated.isEqualTo(XYZ.unitZ, 1e-10)).toBeTruthy();
+            expect(rotated.isEqualTo(XYZ.unitZ, 1e-10)).toBe(true);
         });
 
         test("yaw only", () => {
@@ -280,7 +278,7 @@ describe("test Quaternion", () => {
             const v = XYZ.unitX;
             const rotated = q.rotateVector(v);
             // Yaw=90deg rotates X to -Z
-            expect(rotated.isEqualTo(XYZ.unitNZ, 1e-10)).toBeTruthy();
+            expect(rotated.isEqualTo(XYZ.unitNZ, 1e-10)).toBe(true);
         });
 
         test("roll only", () => {
@@ -288,7 +286,7 @@ describe("test Quaternion", () => {
             const v = XYZ.unitX;
             const rotated = q.rotateVector(v);
             // Roll=90deg rotates X to Y
-            expect(rotated.isEqualTo(XYZ.unitY, 1e-10)).toBeTruthy();
+            expect(rotated.isEqualTo(XYZ.unitY, 1e-10)).toBe(true);
         });
 
         test("all axes nonzero", () => {

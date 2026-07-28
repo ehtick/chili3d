@@ -2,15 +2,15 @@
 // See LICENSE file in the project root for full license information.
 
 import { type Act, I18n } from "@chili3d/core";
+import { createMockApplication } from "@chili3d/core/test-utils";
 import { describe, expect, test } from "@rstest/core";
 import { ActAlignCameraCommand } from "../../src/commands/createActCommand";
-import { createMockApplication } from "../_helpers";
 
 describe("ActAlignCameraCommand", () => {
     test("should have command metadata via @command decorator", () => {
         const cmd = new ActAlignCameraCommand();
         const data = (Object.getPrototypeOf(cmd).constructor as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("act.alignCamera");
         expect(data.icon).toBe("icon-act");
     });
@@ -20,7 +20,11 @@ describe("ActAlignCameraCommand", () => {
         app.activeView = undefined;
 
         const cmd = new ActAlignCameraCommand();
-        await cmd.execute(app);
+        await expect(cmd.execute(app)).resolves.toBeUndefined();
+
+        // No document or acts collection is touched without an active view
+        expect(app.activeView).toBeUndefined();
+        expect(app.views.length).toBe(0);
     });
 
     test("should push an Act to the document acts collection", async () => {

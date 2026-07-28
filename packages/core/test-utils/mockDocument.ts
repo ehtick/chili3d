@@ -1,24 +1,25 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type {
-    History,
-    I18nKeys,
-    IApplication,
-    IDocument,
-    IEventHandler,
-    INode,
-    IPicker,
-    ISelection,
-    IStorage,
-    ModelManager,
-    ObservableCollection,
-    Serialized,
+import {
+    BoundingBox,
+    type History,
+    type I18nKeys,
+    type IApplication,
+    type IDocument,
+    Id,
+    type INode,
+    type IPicker,
+    type ISelection,
+    type IStorage,
+    type ModelManager,
+    type ObservableCollection,
+    type Serialized,
     Signal,
-    VisualShapeData,
-} from "@chili3d/core";
-import { BoundingBox, VisualNode } from "@chili3d/core";
-import { createMockVisual } from "./mockVisual";
+    VisualNode,
+    type VisualShapeData,
+} from "../src";
+import { createMockVisualWithDocument } from "./mockVisual";
 
 export interface MockDocumentOverrides {
     id?: string;
@@ -48,14 +49,33 @@ export class TestNode extends VisualNode {
 
 /**
  * Create a plain INode (not a VisualNode) for testing instanceof filtering.
+ * Accepts an optional name and id so it can also stand in for a generic
+ * sibling/parent node in tree-structure tests.
  */
-export function createPlainNode(): INode {
-    return {} as unknown as INode;
+export function createPlainNode(name = "plain-node", id?: string): INode {
+    return {
+        id: id ?? Id.generate(),
+        name,
+        visible: true,
+        parentVisible: true,
+        parent: undefined,
+        previousSibling: undefined,
+        nextSibling: undefined,
+        onPropertyChanged: () => {},
+        removePropertyChanged: () => {},
+        clearPropertyChanged: () => {},
+        clone: () => ({}) as INode,
+        dispose: () => {},
+    } as unknown as INode;
 }
 
 /**
  * Create a configurable mock IDocument for unit tests.
- * Builds on top of createMockVisual.
+ * Builds on top of createMockVisualWithDocument.
+ *
+ * Unlike `TestDocument` (which wires real `History` / `ModelManager` instances),
+ * this is a pure mock object: every collaborator is a stub and each slice
+ * (selection / history / modelManager / ...) can be overridden per field.
  */
 export function createMockDocument(overrides: MockDocumentOverrides = {}): IDocument {
     const docId = overrides.id ?? "mock-doc-id";
@@ -63,8 +83,8 @@ export function createMockDocument(overrides: MockDocumentOverrides = {}): IDocu
 
     const mockApp = (overrides.application ?? {}) as IApplication;
 
-    const onNodeChangedSignal = createMockSignal<(selected: INode[]) => void>();
-    const onShapeChangedSignal = createMockSignal<(selected: VisualShapeData[]) => void>();
+    const onNodeChangedSignal = new Signal<(selected: INode[]) => void>();
+    const onShapeChangedSignal = new Signal<(selected: VisualShapeData[]) => void>();
 
     const selection: ISelection = {
         onNodeChanged: onNodeChangedSignal,
@@ -95,13 +115,14 @@ export function createMockDocument(overrides: MockDocumentOverrides = {}): IDocu
         materials: [],
         addNode: () => {},
         getChildren: () => [],
+        notifyNodeChanged: () => {},
         dispose: () => {},
         ...overrides.modelManager,
     } as unknown as ModelManager;
 
     // resolve circular reference — declare doc first so visual can reference it
     const doc = {} as IDocument;
-    const visual = createMockVisual(doc);
+    const visual = createMockVisualWithDocument(doc);
 
     Object.assign(doc, {
         id: docId,
@@ -132,25 +153,4 @@ export function createMockDocument(overrides: MockDocumentOverrides = {}): IDocu
     (visual as any).document = doc;
 
     return doc;
-}
-
-/** Helper to create a minimal mock Signal */
-function createMockSignal<T extends (...args: any[]) => void>(): Signal<T> {
-    let listeners: T[] = [];
-    return {
-        sub: (listener: T) => {
-            listeners.push(listener);
-        },
-        remove: (listener: T) => {
-            listeners = listeners.filter((l) => l !== listener);
-        },
-        emit: (...args: any[]) => {
-            for (const l of listeners) {
-                l(...(args as any));
-            }
-        },
-        dispose: () => {
-            listeners = [];
-        },
-    } as unknown as Signal<T>;
 }

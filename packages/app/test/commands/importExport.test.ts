@@ -10,9 +10,9 @@ import {
     SelectNodeStep,
     setCurrentApplication,
 } from "@chili3d/core";
+import { createMockApplication, createMockDocument } from "@chili3d/core/test-utils";
 import { describe, expect, rs, test } from "@rstest/core";
 import { Export, Import } from "../../src/commands/importExport";
-import { createMockApplication, createMockDocument } from "../_helpers";
 
 // Ensure a mock application is set (Export constructor calls getCurrentApplication)
 try {
@@ -24,7 +24,7 @@ try {
 describe("Import", () => {
     test("should have command metadata", () => {
         const data = (Import as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("file.import");
         expect(data.icon).toBe("icon-import");
     });
@@ -47,7 +47,7 @@ describe("Import", () => {
 
     test("Import instance should have type-safe execute signature", () => {
         const cmd = new Import();
-        expect(cmd).toBeDefined();
+        expect(cmd).toBeInstanceOf(Import);
         expect(typeof cmd.execute).toBe("function");
     });
 
@@ -55,14 +55,15 @@ describe("Import", () => {
         // When readFilesAsync returns empty files, Import shows an alert.
         // We verify the command can be constructed and has proper metadata.
         const cmd = new Import();
-        expect(cmd).toBeDefined();
+        expect(cmd).toBeInstanceOf(Import);
+        expect((Import as any).prototype.data.key).toBe("file.import");
     });
 });
 
 describe("Export", () => {
     test("should have command metadata", () => {
         const data = (Export as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("file.export");
         expect(data.icon).toBe("icon-export");
     });

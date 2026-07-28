@@ -2,7 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import { FolderNode, type IDocument, Id, type INode, NodeUtils } from "../src";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 function newNode(name: string, id?: string): INode {
     return {
@@ -21,10 +21,10 @@ function newNode(name: string, id?: string): INode {
     };
 }
 
-describe("test node", () => {
+describe("node", () => {
     const doc: IDocument = new TestDocument() as any;
 
-    test("test get all nodes between two nodes", () => {
+    test("should get all nodes between two nodes", () => {
         const n1 = new FolderNode({ document: doc, name: "n1" });
         const n2 = new FolderNode({ document: doc, name: "n2" });
         const n3 = new FolderNode({ document: doc, name: "n3" });
@@ -68,7 +68,7 @@ describe("test node", () => {
     });
 });
 
-describe("test node utils", () => {
+describe("node utils", () => {
     describe("NodeUtils Class Tests", () => {
         let doc: IDocument;
 

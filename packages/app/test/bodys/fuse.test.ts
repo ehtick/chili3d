@@ -2,9 +2,9 @@
 // See LICENSE file in the project root for full license information.
 
 import type { IDocument } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { FuseNode } from "../../src/bodys/fuse";
-import { createMockDocument } from "../_helpers";
 import { createMockShape } from "./_utils";
 
 describe("FuseNode", () => {
@@ -73,26 +73,26 @@ describe("FuseNode", () => {
     describe("onPropertyChanged", () => {
         test("should emit on bottom change before generateShape throws", () => {
             const node = new FuseNode({ document: doc, bottom, top });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             try {
                 node.bottom = createMockShape() as any;
             } catch (_e) {
                 // expected
             }
-            expect(events).toContain("bottom");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("bottom");
         });
 
         test("should emit on top change before generateShape throws", () => {
             const node = new FuseNode({ document: doc, bottom, top });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             try {
                 node.top = createMockShape() as any;
             } catch (_e) {
                 // expected
             }
-            expect(events).toContain("top");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("top");
         });
     });
 

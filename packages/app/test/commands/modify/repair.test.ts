@@ -77,7 +77,7 @@ describe("RepairShapeCommand", () => {
 
     test("should have command metadata", () => {
         const data = (RepairShapeCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.repairShape");
         expect(data.icon).toBe("icon-repair");
     });
@@ -106,10 +106,10 @@ describe("RepairShapeCommand", () => {
             (cmd as any).executeMainTask();
 
             // Each shape had its repair pipeline invoked.
-            expect(shapes[0].calls.get("setTolerance")).toBeDefined();
-            expect(shapes[0].calls.get("shellSewing")).toBeDefined();
-            expect(shapes[1].calls.get("fixShape")).toBeDefined();
-            expect(shapes[1].calls.get("fixSmallFace")).toBeDefined();
+            expect(shapes[0].calls.get("setTolerance")).toHaveLength(1);
+            expect(shapes[0].calls.get("shellSewing")).toHaveLength(1);
+            expect(shapes[1].calls.get("fixShape")).toHaveLength(1);
+            expect(shapes[1].calls.get("fixSmallFace")).toHaveLength(1);
 
             expect(parent.added).toHaveLength(2);
             expect(parent.removed).toHaveLength(2);

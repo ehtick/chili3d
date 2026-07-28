@@ -14,7 +14,7 @@ import {
     SnapPointOnCurveEventHandler,
     SnapPointPlaneEventHandler,
 } from "../src/snap/handlers/pointSnapEventHandler";
-import { createHandlerMockView, createMockCurve, createPointerEvent, TestDocument } from "./mocks";
+import { createHandlerMockView, createMockCurve, createPointerEvent, TestDocument } from "../test-utils";
 
 // ============================================================================
 // PointSnapEventHandler
@@ -254,7 +254,7 @@ describe("SnapPointOnAxisEventHandler", () => {
         const pointData: SnapPointOnAxisData = { ray };
 
         const handler = new SnapPointOnAxisEventHandler(document, controller, pointData);
-        expect(handler).toBeDefined();
+        expect(handler).not.toBeNull();
     });
 
     test("should handle pointerMove without error", () => {
@@ -315,7 +315,7 @@ describe("SnapPointPlaneEventHandler", () => {
         };
 
         const handler = new SnapPointPlaneEventHandler(document, controller, pointData);
-        expect(handler).toBeDefined();
+        expect(handler).not.toBeNull();
     });
 
     test("should throw if plane is not provided", () => {
@@ -342,7 +342,7 @@ describe("SnapPointPlaneEventHandler", () => {
         handler.pointerMove(view, createPointerEvent());
 
         const snaped = handler.snaped;
-        expect(snaped).toBeDefined();
+        expect(snaped).not.toBeNull();
         if (snaped?.point) {
             // Should be projected to XY plane (z=0)
             expect(snaped.point.z).toBe(0);

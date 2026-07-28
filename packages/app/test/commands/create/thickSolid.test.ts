@@ -22,7 +22,7 @@ afterAll(() => restoreApp());
 describe("ThickSolidCommand", () => {
     test("should have command metadata", () => {
         const data = (ThickSolidCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.thickSolid");
         expect(data.icon).toBe("icon-thickSolid");
     });

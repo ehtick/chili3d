@@ -57,7 +57,7 @@ function trackingNode(parent?: any) {
 describe("Rotate", () => {
     test("should have command metadata", () => {
         const data = (Rotate as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.rotate");
         expect(data.icon).toBe("icon-rotate");
     });
@@ -151,7 +151,7 @@ describe("Rotate", () => {
             // [1] line from center to end
             expect(Array.from(preview[1].position)).toEqual([0, 0, 0, 2, 0, 0]);
             // [2] circle shape mesh (stub factory returns an edges-mesh shape)
-            expect(preview[2]).toBeDefined();
+            expect(preview[2]).not.toBeNull();
             expect(preview[2].type).toBe("edges");
         });
     });
@@ -240,7 +240,7 @@ describe("Rotate", () => {
             const withArc = (cmd as any).anglePreview(new XYZ({ x: 0, y: 1, z: 0 }));
             expect(withArc.length).toBe(6);
             // the last element is the arc shape mesh (stub factory edges-mesh)
-            expect(withArc[5]).toBeDefined();
+            expect(withArc[5]).not.toBeNull();
             expect(withArc[5].type).toBe("edges");
         });
 

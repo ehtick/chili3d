@@ -2,6 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import { ShapeTypes, XYZ } from "@chili3d/core";
+import { MockShape } from "@chili3d/core/test-utils";
 import type { OccShapeConverter } from "../src/converter";
 import type { ShapeFactory } from "../src/factory";
 import type { OccSolid } from "../src/shape";
@@ -70,11 +71,13 @@ describe("BREP conversion", () => {
         expect(restored.shapeType).toBe(ShapeTypes.solid);
     });
 
-    test("multiple shapes → single BREP → restores first", () => {
+    test("convertFromBrep restores a valid solid from a box BREP string", () => {
         const box = createBox(factory, 10, 10, 10);
         const brep = converter.convertToBrep(box).value;
         const restored = converter.convertFromBrep(brep);
         expect(restored.isOk).toBe(true);
+        expect(restored.value.shapeType).toBe(ShapeTypes.solid);
+        expect(restored.value.isNull()).toBe(false);
     });
 
     test("convertFromBrep with invalid string returns error", () => {
@@ -84,7 +87,7 @@ describe("BREP conversion", () => {
     });
 
     test("convertToBrep with non-OccShape returns error", () => {
-        const fake = { shapeType: "solid" } as any;
+        const fake = new MockShape({ shapeType: ShapeTypes.solid });
         const result = converter.convertToBrep(fake);
         expect(result.isOk).toBe(false);
         expect(result.error).toBe("Shape is not an OccShape");
@@ -117,7 +120,7 @@ describe("STEP conversion", () => {
     });
 
     test("convertToSTEP with non-OccShape throws", () => {
-        const fake = { shapeType: "solid" } as any;
+        const fake = new MockShape({ shapeType: ShapeTypes.solid });
         expect(() => converter.convertToSTEP(fake)).toThrow("Shape is not an OccShape");
     });
 });
@@ -147,13 +150,13 @@ describe("IGES conversion", () => {
     });
 
     test("convertToIGES with non-OccShape throws", () => {
-        const fake = { shapeType: "solid" } as any;
+        const fake = new MockShape({ shapeType: ShapeTypes.solid });
         expect(() => converter.convertToIGES(fake)).toThrow("Shape is not an OccShape");
     });
 });
 
 // ============================================================================
-// STL conversion (extended from stl.test.ts)
+// STL conversion
 // ============================================================================
 
 describe("STL conversion", () => {
@@ -165,7 +168,7 @@ describe("STL conversion", () => {
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         const tris = view.getUint32(80, true);
         expect(tris).toBeGreaterThanOrEqual(12);
-        expect(bytes.length).toBeGreaterThanOrEqual(84 + 50 * tris);
+        expect(bytes.length).toBe(84 + 50 * tris);
     });
 
     test("ASCII STL is well-formed", () => {
@@ -176,6 +179,24 @@ describe("STL conversion", () => {
         expect(text.startsWith("solid")).toBe(true);
         expect(text).toContain("facet normal");
         expect(text.trimEnd().endsWith("endsolid chili3d")).toBe(true);
+    });
+
+    test("ASCII STL uses the provided solid name", () => {
+        const box = createBox(factory, 10, 20, 30);
+        const result = converter.convertToSTL([box], { binary: false, name: "mybox" });
+        expect(result.isOk).toBe(true);
+        const text = new TextDecoder().decode(result.value);
+        expect(text.startsWith("solid mybox")).toBe(true);
+        expect(text.trimEnd().endsWith("endsolid mybox")).toBe(true);
+    });
+
+    test("binary STL ignores the solid name option", () => {
+        const box = createBox(factory, 10, 20, 30);
+        const result = converter.convertToSTL([box], { binary: true, name: "mybox" });
+        expect(result.isOk).toBe(true);
+        const view = new DataView(result.value.buffer, result.value.byteOffset, result.value.byteLength);
+        // Binary STL keeps the fixed binary header and a real triangle count
+        expect(view.getUint32(80, true)).toBeGreaterThanOrEqual(12);
     });
 
     test("STL with empty shapes array", () => {

@@ -3,50 +3,50 @@
 
 import { MathUtils, Precision, XYZ } from "../src";
 
-describe("test math", () => {
-    test("test anyEqualZero", () => {
-        expect(MathUtils.anyEqualZero(0.00000000000000000001)).toBeTruthy();
-        expect(MathUtils.anyEqualZero(1)).toBeFalsy();
-        expect(MathUtils.anyEqualZero(1, 1, 1)).toBeFalsy();
-        expect(MathUtils.anyEqualZero(1, 0, 1)).toBeTruthy();
-        expect(MathUtils.anyEqualZero(1, 0.0000000000000000001, 1)).toBeTruthy();
+describe("MathUtils", () => {
+    test("should detect if any value equals zero", () => {
+        expect(MathUtils.anyEqualZero(0.00000000000000000001)).toBe(true);
+        expect(MathUtils.anyEqualZero(1)).toBe(false);
+        expect(MathUtils.anyEqualZero(1, 1, 1)).toBe(false);
+        expect(MathUtils.anyEqualZero(1, 0, 1)).toBe(true);
+        expect(MathUtils.anyEqualZero(1, 0.0000000000000000001, 1)).toBe(true);
     });
 
-    test("test allEqualZero", () => {
-        expect(MathUtils.allEqualZero(0.00000000000000000001)).toBeTruthy();
-        expect(MathUtils.allEqualZero(1)).toBeFalsy();
-        expect(MathUtils.allEqualZero(1, 1, 1)).toBeFalsy();
-        expect(MathUtils.allEqualZero(0, 0, 0.000000000000000001)).toBeTruthy();
-        expect(MathUtils.allEqualZero(0, 0, 0)).toBeTruthy();
+    test("should detect if all values equal zero", () => {
+        expect(MathUtils.allEqualZero(0.00000000000000000001)).toBe(true);
+        expect(MathUtils.allEqualZero(1)).toBe(false);
+        expect(MathUtils.allEqualZero(1, 1, 1)).toBe(false);
+        expect(MathUtils.allEqualZero(0, 0, 0.000000000000000001)).toBe(true);
+        expect(MathUtils.allEqualZero(0, 0, 0)).toBe(true);
     });
 
-    test("test almostEqual", () => {
-        expect(MathUtils.almostEqual(1, 1, 0.01)).toBeTruthy();
-        expect(MathUtils.almostEqual(1.001, 1.002, 0.01)).toBeTruthy();
-        expect(MathUtils.almostEqual(1.001, 1.002, 0.001)).toBeFalsy();
+    test("should compare numbers within tolerance", () => {
+        expect(MathUtils.almostEqual(1, 1, 0.01)).toBe(true);
+        expect(MathUtils.almostEqual(1.001, 1.002, 0.01)).toBe(true);
+        expect(MathUtils.almostEqual(1.001, 1.002, 0.001)).toBe(false);
     });
 
-    test("test clamp", () => {
+    test("should clamp value to range", () => {
         expect(MathUtils.clamp(1, 2, 3)).toBe(2);
         expect(MathUtils.clamp(2.5, 2, 3)).toBe(2.5);
         expect(MathUtils.clamp(4, 2, 3)).toBe(3);
     });
 
-    test("test degToRad", () => {
+    test("should convert degrees to radians", () => {
         expect(MathUtils.degToRad(0)).toBe(0);
         expect(MathUtils.degToRad(90)).toBeCloseTo(Math.PI / 2);
         expect(MathUtils.degToRad(180)).toBeCloseTo(Math.PI);
         expect(MathUtils.degToRad(360)).toBeCloseTo(2 * Math.PI);
     });
 
-    test("test radToDeg", () => {
+    test("should convert radians to degrees", () => {
         expect(MathUtils.radToDeg(0)).toBe(0);
         expect(MathUtils.radToDeg(Math.PI / 2)).toBeCloseTo(90);
         expect(MathUtils.radToDeg(Math.PI)).toBeCloseTo(180);
         expect(MathUtils.radToDeg(2 * Math.PI)).toBeCloseTo(360);
     });
 
-    test("test minMax", () => {
+    test("should compute min and max of an array", () => {
         expect(MathUtils.minMax([])).toBeUndefined();
         expect(MathUtils.minMax([5])).toEqual({ min: 5, max: 5 });
         expect(MathUtils.minMax([1, 2, 3, 4, 5])).toEqual({ min: 1, max: 5 });

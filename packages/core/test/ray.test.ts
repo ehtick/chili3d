@@ -81,12 +81,12 @@ describe("Ray", () => {
     describe("immutability", () => {
         test("point should be readonly", () => {
             const ray = new Ray({ point: new XYZ({ x: 1, y: 2, z: 3 }), direction: XYZ.unitX });
-            expect(ray.point).toBeDefined();
+            expect(ray.point).not.toBeNull();
         });
 
         test("direction should be readonly", () => {
             const ray = new Ray({ point: XYZ.zero, direction: XYZ.unitY });
-            expect(ray.direction).toBeDefined();
+            expect(ray.direction).not.toBeNull();
         });
     });
 });

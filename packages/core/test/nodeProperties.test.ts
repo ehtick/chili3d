@@ -3,7 +3,7 @@
 
 import { FolderNode, type IDocument, type INode, NodeUtils } from "../src";
 import { Id } from "../src/foundation";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 function newNode(name: string, id?: string): INode {
     return {
@@ -28,7 +28,7 @@ describe("Node properties", () => {
     test("should clone a FolderNode", () => {
         const n1 = new FolderNode({ document: doc, name: "original" });
         const cloned = n1.clone();
-        expect(cloned).toBeDefined();
+        expect(cloned).not.toBeNull();
         expect(cloned.id).not.toBe(n1.id);
         expect(cloned.name).toContain("original_copy");
     });

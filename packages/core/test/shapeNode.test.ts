@@ -3,7 +3,7 @@
 
 import { type IShape, type IShapeMeshData, Matrix4, Result } from "../src";
 import * as ShapeNodeClasses from "../src/model/shapeNode";
-import { MockShape, TestDocument } from "./mocks";
+import { MockShape, TestDocument } from "../test-utils";
 
 describe("shapeNode", () => {
     let doc: TestDocument;
@@ -92,7 +92,7 @@ describe("shapeNode", () => {
                 const mesh = (node as any).createMesh();
 
                 // The mock createMesh returns empty data, but that's expected
-                expect(mesh).toBeDefined();
+                expect(mesh).not.toBeNull();
             });
         });
 
@@ -131,13 +131,13 @@ describe("shapeNode", () => {
         test("should return edges when position length > 0", () => {
             // Add a shape to populate edges
             multiShapeMesh.addShape(mockShape, Matrix4.identity());
-            expect(multiShapeMesh.edges).toBeDefined();
+            expect(multiShapeMesh.edges).not.toBeNull();
         });
 
         test("should return faces when position length > 0", () => {
             // Add a shape to populate faces
             multiShapeMesh.addShape(mockShape, Matrix4.identity());
-            expect(multiShapeMesh.faces).toBeDefined();
+            expect(multiShapeMesh.faces).not.toBeNull();
         });
     });
 
@@ -165,7 +165,7 @@ describe("shapeNode", () => {
             });
             const mesh = (node as any).createMesh();
 
-            expect(mesh).toBeDefined();
+            expect(mesh).not.toBeNull();
         });
 
         test("should return correct display key", () => {
@@ -214,7 +214,7 @@ describe("shapeNode", () => {
         });
 
         test("should initialize with translated name", () => {
-            expect((node as any).name).toBeDefined();
+            expect((node as any).name).not.toBeNull();
         });
     });
 

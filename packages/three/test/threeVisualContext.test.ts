@@ -1,219 +1,56 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { IVisual, IVisualObject, Matrix4, ShapeMeshData, VisualNode } from "@chili3d/core";
-import { ShapeTypes, VisualStates } from "@chili3d/core";
-import { Group, Mesh, MeshBasicMaterial, Object3D, Scene, SphereGeometry } from "three";
+import type { IDocument, IVisual, IVisualObject, Matrix4, VisualNode } from "@chili3d/core";
+import { VisualStates } from "@chili3d/core";
+import { createMockVisual } from "@chili3d/core/test-utils";
+import { Group, MeshBasicMaterial, Object3D, Scene } from "three";
 import { ThreeVisualContext } from "../src/threeVisualContext";
-import { createMockVisualContext, createTestGeometryNode } from "./mocks";
-
-// ============================================================================
-// Mock-based tests — verify the mocked wrapper itself
-// ============================================================================
-
-describe("ThreeVisualContext (mocked)", () => {
-    let context: ThreeVisualContext;
-    let scene: Scene;
-
-    beforeEach(() => {
-        context = createMockVisualContext();
-        scene = context.scene;
-    });
-
-    test("scene exists", () => {
-        expect(scene).toBeInstanceOf(Scene);
-    });
-
-    test("visualShapes is a child of scene", () => {
-        expect(scene.children).toContain(context.visualShapes);
-    });
-
-    test("visualShapes is a Group", () => {
-        expect(context.visualShapes).toBeInstanceOf(Group);
-    });
-
-    test("tempShapes is a Group", () => {
-        expect(context.tempShapes).toBeInstanceOf(Group);
-    });
-
-    test("cssObjects is a Group", () => {
-        expect(context.cssObjects).toBeInstanceOf(Group);
-    });
-
-    test("materialMap is a Map", () => {
-        expect(context.materialMap).toBeInstanceOf(Map);
-    });
-
-    test("getVisual returns undefined when no visualMap provided", () => {
-        const node = {} as VisualNode;
-        expect(context.getVisual(node)).toBeUndefined();
-    });
-
-    test("getVisual returns mapped mesh when visualMap provided", () => {
-        const node = {} as VisualNode;
-        const mesh = new Mesh(new SphereGeometry(1, 4, 4));
-        const ctx2 = createMockVisualContext(new Map([[node, mesh]]));
-        const result = ctx2.getVisual(node);
-        expect(result).toBe(mesh);
-    });
-
-    test("getMaterial returns a MeshBasicMaterial", () => {
-        const mat = context.getMaterial("test");
-        expect(mat).toBeInstanceOf(MeshBasicMaterial);
-    });
-
-    test("visuals returns empty array", () => {
-        expect(context.visuals()).toEqual([]);
-    });
-
-    test("boundingBoxIntersectFilter returns empty array", () => {
-        expect(context.boundingBoxIntersectFilter({ min: { x: 0 }, max: { x: 1 } } as any)).toEqual([]);
-    });
-
-    test("displayMesh returns 0 (no-op)", () => {
-        expect(context.displayMesh([] as unknown as ShapeMeshData[])).toBe(0);
-    });
-
-    test("displayInstancedMesh returns 0 (no-op)", () => {
-        const meshData = {
-            position: new Float32Array(),
-            index: new Uint32Array(),
-            normal: new Float32Array(),
-            uv: new Float32Array(),
-        };
-        expect(context.displayInstancedMesh(meshData, [] as unknown as Matrix4[])).toBe(0);
-    });
-
-    test("displayLineSegments returns 0 (no-op)", () => {
-        expect(
-            context.displayLineSegments({
-                lineType: "solid",
-                position: new Float32Array(),
-                range: [],
-            } as any),
-        ).toBe(0);
-    });
-
-    test("findShapes returns empty array", () => {
-        expect(context.findShapes(ShapeTypes.edge)).toEqual([]);
-    });
-
-    test("getNode returns undefined", () => {
-        expect(context.getNode({} as any)).toBeUndefined();
-    });
-
-    test("shapeCount is 0 by default", () => {
-        const context = createMockVisualContext();
-        expect(context.shapeCount).toBe(0);
-    });
-
-    describe("non-throwing methods", () => {
-        let context: ThreeVisualContext;
-
-        beforeEach(() => {
-            context = createMockVisualContext();
-        });
-
-        test("addNode does not throw", () => {
-            expect(() => context.addNode([])).not.toThrow();
-        });
-
-        test("removeNode does not throw", () => {
-            expect(() => context.removeNode([])).not.toThrow();
-        });
-
-        test("dispose does not throw", () => {
-            expect(() => context.dispose()).not.toThrow();
-        });
-
-        test("redrawNode does not throw", () => {
-            expect(() => context.redrawNode({} as any)).not.toThrow();
-        });
-
-        test("setMeshColor does not throw", () => {
-            expect(() => context.setMeshColor(1, 0xff0000)).not.toThrow();
-        });
-
-        test("setPosition does not throw", () => {
-            expect(() => context.setPosition(1, new Float32Array([0, 0, 0]) as any)).not.toThrow();
-        });
-
-        test("setInstanceMatrix does not throw", () => {
-            expect(() => context.setInstanceMatrix(1, [] as unknown as Matrix4[])).not.toThrow();
-        });
-
-        test("removeMesh does not throw", () => {
-            expect(() => context.removeMesh(1)).not.toThrow();
-        });
-
-        test("setVisible does not throw", () => {
-            expect(() => context.setVisible({} as any, true)).not.toThrow();
-        });
-
-        test("moveNode does not throw", () => {
-            expect(() => context.moveNode({} as any, null as any)).not.toThrow();
-        });
-
-        test("addVisualObject does not throw", () => {
-            expect(() => context.addVisualObject({} as any)).not.toThrow();
-        });
-
-        test("removeVisualObject does not throw", () => {
-            expect(() => context.removeVisualObject({} as any)).not.toThrow();
-        });
-
-        test("handleNodeChanged does not throw", () => {
-            expect(() => context.handleNodeChanged([])).not.toThrow();
-        });
-    });
-});
-
-// ============================================================================
-// Real instance tests — verify actual ThreeVisualContext behaviour
-// ============================================================================
+import { createTestGeometryNode } from "./mocks";
 
 /**
- * Creates a minimal visual mock that ThreeVisualContext constructor can work with.
+ * Wraps core createMockVisual with a document whose modelManager tracks the
+ * observers registered by the ThreeVisualContext constructor.
  */
-function createMockVisual(): IVisual {
+function createVisualWithObserverTracking(): {
+    visual: IVisual;
+    nodeObservers: Array<(records: unknown[]) => void>;
+} {
     const nodeObservers: Array<(records: unknown[]) => void> = [];
     const collectionHandlers: Array<(args: unknown) => void> = [];
 
-    return {
-        document: {
-            modelManager: {
-                rootNode: { firstChild: null },
-                addNodeObserver: (fn: (records: unknown[]) => void) => {
-                    nodeObservers.push(fn);
-                },
-                removeNodeObserver: (fn: (records: unknown[]) => void) => {
-                    const idx = nodeObservers.indexOf(fn);
-                    if (idx >= 0) nodeObservers.splice(idx, 1);
-                },
-                materials: {
-                    forEach: () => {},
-                    removeCollectionChanged: () => {},
-                    onCollectionChanged: (fn: (args: unknown) => void) => {
-                        collectionHandlers.push(fn);
-                    },
-                },
-                _nodeObservers: nodeObservers,
-                _collectionHandlers: collectionHandlers,
+    const document = {
+        modelManager: {
+            addNodeObserver: (fn: (records: unknown[]) => void) => {
+                nodeObservers.push(fn);
             },
-            selection: {
-                onNodeChanged: { sub: () => {}, remove: () => {} },
+            removeNodeObserver: (fn: (records: unknown[]) => void) => {
+                const idx = nodeObservers.indexOf(fn);
+                if (idx >= 0) nodeObservers.splice(idx, 1);
+            },
+            materials: {
+                forEach: () => {},
+                removeCollectionChanged: () => {},
+                onCollectionChanged: (fn: (args: unknown) => void) => {
+                    collectionHandlers.push(fn);
+                },
             },
         },
-    } as unknown as IVisual;
+    } as unknown as IDocument;
+
+    return { visual: createMockVisual({ document }), nodeObservers };
 }
 
 describe("ThreeVisualContext (real instance)", () => {
     let context: ThreeVisualContext;
     let scene: Scene;
     let visual: IVisual;
+    let nodeObservers: Array<(records: unknown[]) => void>;
 
     beforeEach(() => {
-        visual = createMockVisual();
+        const tracked = createVisualWithObserverTracking();
+        visual = tracked.visual;
+        nodeObservers = tracked.nodeObservers;
         scene = new Scene();
         context = new ThreeVisualContext(visual, scene);
     });
@@ -233,8 +70,7 @@ describe("ThreeVisualContext (real instance)", () => {
         });
 
         test("should register node observer on model manager", () => {
-            const observers = (visual.document.modelManager as any)._nodeObservers;
-            expect(observers.length).toBeGreaterThan(0);
+            expect(nodeObservers.length).toBeGreaterThan(0);
         });
     });
 
@@ -294,8 +130,9 @@ describe("ThreeVisualContext (real instance)", () => {
     });
 
     describe("setVisible", () => {
-        test("should not throw for unknown node", () => {
-            expect(() => context.setVisible({} as VisualNode, false)).not.toThrow();
+        test("should ignore unknown node", () => {
+            context.setVisible({} as VisualNode, false);
+            expect(context.shapeCount).toBe(0);
         });
     });
 
@@ -347,6 +184,12 @@ describe("ThreeVisualContext (real instance)", () => {
             expect(scene.children).not.toContain(context.visualShapes);
             expect(scene.children).not.toContain(context.tempShapes);
         });
+
+        test("should unregister the node observer", () => {
+            expect(nodeObservers.length).toBeGreaterThan(0);
+            context.dispose();
+            expect(nodeObservers.length).toBe(0);
+        });
     });
 
     describe("visuals", () => {
@@ -397,34 +240,34 @@ describe("ThreeVisualContext (real instance)", () => {
         });
     });
 
-    describe("removeMesh", () => {
-        test("should not throw for invalid id", () => {
-            expect(() => context.removeMesh(99999)).not.toThrow();
+    describe("temp shape operations with invalid id", () => {
+        test("removeMesh ignores unknown id", () => {
+            context.removeMesh(99999);
+            expect(context.tempShapes.children.length).toBe(0);
         });
-    });
 
-    describe("setMeshColor", () => {
-        test("should not throw for invalid id", () => {
-            expect(() => context.setMeshColor(99999, 0xff0000)).not.toThrow();
+        test("setMeshColor ignores unknown id", () => {
+            context.setMeshColor(99999, 0xff0000);
+            expect(context.tempShapes.children.length).toBe(0);
         });
-    });
 
-    describe("setPosition", () => {
-        test("should not throw for invalid id", () => {
-            expect(() => context.setPosition(99999, new Float32Array([]))).not.toThrow();
+        test("setPosition ignores unknown id", () => {
+            context.setPosition(99999, new Float32Array([]));
+            expect(context.tempShapes.children.length).toBe(0);
         });
-    });
 
-    describe("setInstanceMatrix", () => {
-        test("should not throw for invalid id", () => {
-            expect(() => context.setInstanceMatrix(99999, [])).not.toThrow();
+        test("setInstanceMatrix ignores unknown id", () => {
+            context.setInstanceMatrix(99999, []);
+            expect(context.tempShapes.children.length).toBe(0);
         });
     });
 
     describe("moveNode", () => {
-        test("should not throw for node with same parent", () => {
+        test("should ignore node whose parent did not change", () => {
             const node = { parent: {} } as any;
-            expect(() => context.moveNode(node, node.parent)).not.toThrow();
+            context.moveNode(node, node.parent);
+            expect(context.getVisual(node)).toBeUndefined();
+            expect(context.shapeCount).toBe(0);
         });
     });
 
@@ -433,14 +276,19 @@ describe("ThreeVisualContext (real instance)", () => {
             context.materialMap.set("mat-1", new MeshBasicMaterial());
         });
 
-        test("addNode with duck-typed node does not throw", () => {
+        test("addNode with duck-typed node creates no visual", () => {
             const node = createTestGeometryNode();
-            expect(() => context.addNode([node as any])).not.toThrow();
+            context.addNode([node as any]);
+            // Duck-typed nodes fail the instanceof checks in displayNode
+            expect(context.getVisual(node as any)).toBeUndefined();
+            expect(context.shapeCount).toBe(0);
         });
 
-        test("removeNode with unregistered node does not throw", () => {
+        test("removeNode with unregistered node keeps the scene unchanged", () => {
             const node = createTestGeometryNode();
-            expect(() => context.removeNode([node as any])).not.toThrow();
+            context.removeNode([node as any]);
+            expect(context.getVisual(node as any)).toBeUndefined();
+            expect(context.shapeCount).toBe(0);
         });
 
         test("getVisual returns undefined for unregistered node", () => {
@@ -448,21 +296,18 @@ describe("ThreeVisualContext (real instance)", () => {
             expect(context.getVisual(node as any)).toBeUndefined();
         });
 
-        test("setVisible with unregistered node does not throw", () => {
+        test("setVisible with unregistered node changes nothing", () => {
             const node = createTestGeometryNode();
-            expect(() => context.setVisible(node as any, false)).not.toThrow();
+            context.setVisible(node as any, false);
+            expect(context.getVisual(node as any)).toBeUndefined();
+            expect(context.shapeCount).toBe(0);
         });
 
-        test("redrawNode handles single GeometryNode", () => {
+        test("redrawNode on duck-typed node creates no visual", () => {
             const node = createTestGeometryNode();
-            expect(() => context.redrawNode([node as any])).not.toThrow();
-        });
-    });
-
-    describe("setVisible with real visual", () => {
-        test("setVisible does not throw for unregistered node", () => {
-            const node = createTestGeometryNode();
-            expect(() => context.setVisible(node as any, true)).not.toThrow();
+            context.redrawNode([node as any]);
+            expect(context.getVisual(node as any)).toBeUndefined();
+            expect(context.shapeCount).toBe(0);
         });
     });
 

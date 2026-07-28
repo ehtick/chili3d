@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { PolygonNode } from "../../src/bodys/polygon";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, createMockWireShape, setupShapeFactoryMock } from "./_utils";
 
 describe("PolygonNode", () => {
@@ -82,10 +82,10 @@ describe("PolygonNode", () => {
                 wire: () => Result.ok(createMockShape()),
             });
             const node = new PolygonNode({ document: doc, points });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.points = [new XYZ({ x: 1, y: 1, z: 0 })];
-            expect(events).toContain("points");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("points");
         });
 
         test("should emit on isFace change", () => {
@@ -93,25 +93,20 @@ describe("PolygonNode", () => {
                 polygon: () => Result.ok(createMockWireShape()),
             });
             const node = new PolygonNode({ document: doc, points });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.isFace = true;
-            expect(events).toContain("isFace");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("isFace");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.polygon with points", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                polygon: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const polygon = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ polygon });
             const node = new PolygonNode({ document: doc, points });
             node.generateShape();
-            expect(calledWith[0]).toBe(points);
+            expect(polygon).toHaveBeenCalledWith(points);
         });
 
         test("should return wire result when isFace is false", () => {

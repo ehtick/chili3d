@@ -9,7 +9,7 @@ import {
     type SnapLengthAtPlaneData,
     SnapLengthAtPlaneHandler,
 } from "../src/snap/handlers/lengthSnapEventHandler";
-import { createHandlerMockView, TestDocument } from "./mocks";
+import { createHandlerMockView, TestDocument } from "../test-utils";
 
 // ============================================================================
 // SnapLengthAtAxisHandler
@@ -35,7 +35,7 @@ describe("SnapLengthAtAxisHandler", () => {
         };
 
         const handler = new SnapLengthAtAxisHandler(document, controller, lengthData);
-        expect(handler).toBeDefined();
+        expect(handler).not.toBeNull();
         expect(handler.isEnabled).toBe(true);
     });
 
@@ -119,7 +119,7 @@ describe("SnapLengthAtPlaneHandler", () => {
         };
 
         const handler = new SnapLengthAtPlaneHandler(document, controller, lengthData);
-        expect(handler).toBeDefined();
+        expect(handler).not.toBeNull();
         expect(handler.isEnabled).toBe(true);
     });
 
@@ -278,8 +278,8 @@ describe("SnapLengthAtPlaneHandler — getPointFromInput", () => {
         };
         const view = createHandlerMockView({ workplane: Plane.XY });
         const result = handler["getPointFromInput"](view, "5");
-        expect(result.point).toBeDefined();
-        expect(result.plane).toBeDefined();
+        expect(result.point).not.toBeNull();
+        expect(result.plane).not.toBeNull();
     });
 
     test("should calculate point from two coordinates", () => {
@@ -290,7 +290,7 @@ describe("SnapLengthAtPlaneHandler — getPointFromInput", () => {
         const handler = new SnapLengthAtPlaneHandler(document, controller, lengthData);
         const view = createHandlerMockView({ workplane: Plane.XY });
         const result = handler["getPointFromInput"](view, "10,20");
-        expect(result.point).toBeDefined();
+        expect(result.point).not.toBeNull();
         expect(result.point!.x).toBe(10);
         expect(result.point!.y).toBe(20);
     });

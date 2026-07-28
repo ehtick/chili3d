@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Sweep", () => {
     test("should have command metadata", () => {
         const data = (Sweep as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.sweep");
         expect(data.icon).toBe("icon-sweep");
     });

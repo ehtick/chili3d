@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { ArcNode } from "../../src/bodys/arc";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock } from "./_utils";
 
 describe("ArcNode", () => {
@@ -81,37 +81,29 @@ describe("ArcNode", () => {
         test("should emit on angle change", () => {
             setupShapeFactoryMock({ arc: () => Result.ok(createMockShape()) });
             const node = new ArcNode({ document: doc, normal, center, start, angle: 90 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.angle = 45;
-            expect(events).toContain("angle");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("angle");
         });
 
         test("should emit on center change", () => {
             setupShapeFactoryMock({ arc: () => Result.ok(createMockShape()) });
             const node = new ArcNode({ document: doc, normal, center, start, angle: 90 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.center = new XYZ({ x: 2, y: 2, z: 2 });
-            expect(events).toContain("center");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("center");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.arc", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                arc: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const arc = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ arc });
             const node = new ArcNode({ document: doc, normal, center, start, angle: 90 });
             node.generateShape();
-            expect(calledWith[0]).toBe(normal);
-            expect(calledWith[1]).toBe(center);
-            expect(calledWith[2]).toBe(start);
-            expect(calledWith[3]).toBe(90);
+            expect(arc).toHaveBeenCalledWith(normal, center, start, 90);
         });
 
         test("should return Result.err when shapeFactory.arc fails", () => {

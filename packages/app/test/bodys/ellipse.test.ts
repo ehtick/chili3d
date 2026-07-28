@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { EllipseNode } from "../../src/bodys/ellipse";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, createMockWireShape, setupShapeFactoryMock } from "./_utils";
 
 describe("EllipseNode", () => {
@@ -189,10 +189,10 @@ describe("EllipseNode", () => {
                 majorRadius: 20,
                 minorRadius: 10,
             });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.center = new XYZ({ x: 1, y: 1, z: 0 });
-            expect(events).toContain("center");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("center");
         });
 
         test("should emit on majorRadius change", () => {
@@ -208,10 +208,10 @@ describe("EllipseNode", () => {
                 majorRadius: 20,
                 minorRadius: 10,
             });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.majorRadius = 99;
-            expect(events).toContain("majorRadius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("majorRadius");
         });
 
         test("should emit on minorRadius change", () => {
@@ -227,10 +227,10 @@ describe("EllipseNode", () => {
                 majorRadius: 20,
                 minorRadius: 10,
             });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.minorRadius = 88;
-            expect(events).toContain("minorRadius");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("minorRadius");
         });
 
         test("should emit on isFace change", () => {
@@ -246,22 +246,17 @@ describe("EllipseNode", () => {
                 majorRadius: 20,
                 minorRadius: 10,
             });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.isFace = true;
-            expect(events).toContain("isFace");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("isFace");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.ellipse with all params", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                ellipse: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const ellipse = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ ellipse });
             const node = new EllipseNode({
                 document: doc,
                 normal,
@@ -271,11 +266,7 @@ describe("EllipseNode", () => {
                 minorRadius: 10,
             });
             node.generateShape();
-            expect(calledWith[0]).toBe(normal);
-            expect(calledWith[1]).toBe(center);
-            expect(calledWith[2]).toBe(xvec);
-            expect(calledWith[3]).toBe(20);
-            expect(calledWith[4]).toBe(10);
+            expect(ellipse).toHaveBeenCalledWith(normal, center, xvec, 20, 10);
         });
 
         test("should return Result.err when shapeFactory.ellipse fails", () => {

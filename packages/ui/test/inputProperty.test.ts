@@ -2,126 +2,24 @@
 // See LICENSE file in the project root for full license information.
 
 import type { I18nKeys, Property } from "@chili3d/core";
+import { describe, expect, rs, test } from "@rstest/core";
+
+// test-utils must load BEFORE the core-mock helper so the real core module is
+// fully cached by the time `rs.mock("@chili3d/core")` registers.
+import { createMockDocument, expectEmptyObjectsThrow } from "./_helpers/propertyTestHelpers";
+
+// Shared mocks: CSS modules, element helpers, core services
+import "./_helpers/cssMocks";
+import "./_helpers/mockElement";
+import "./_helpers/mockCoreProperty";
+
+// Core value imports must come AFTER the mock helper — importing them earlier
+// would load the real "@chili3d/core" before the mock registers.
 import { Result } from "@chili3d/core";
-import { describe, expect, test } from "@rstest/core";
 import { InputProperty } from "../src/property/input";
-
-// Mock CSS modules
-rs.mock("../src/property/common.module.css", () => ({
-    panel: "cm-panel",
-    propertyName: "cm-property-name",
-}));
-
-rs.mock("../src/property/input.module.css", () => ({
-    box: "ip-box",
-}));
-
-rs.mock("../src/property/propertyBase.module.css", () => ({
-    panel: "pb-panel",
-}));
-
-// Mock element helpers
-// biome-ignore lint/suspicious/noExplicitAny: test mock for DOM element factory
-rs.mock("@chili3d/element", () => {
-    // Lightweight Result mock to avoid circular dependency with @chili3d/core mock
-    // Lightweight Result mock for converters
-    const mockResult = {
-        ok: (v: unknown) => ({ isOk: true, value: v }),
-        err: (_e: unknown) => ({ isOk: false, error: _e }),
-    };
-
-    function createEl(tag: string, props: any, ...children: any[]): HTMLElement {
-        const el = document.createElement(tag);
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props.className) el.className = props.className;
-            if (props.type) (el as HTMLInputElement).type = props.type;
-            if (props.textContent && typeof props.textContent !== "object") {
-                el.textContent = String(props.textContent);
-            }
-            if (props.readOnly !== undefined) (el as HTMLInputElement).readOnly = props.readOnly;
-            if (props.onkeydown) (el as any)._onkeydown = props.onkeydown;
-            if (props.onblur) (el as any)._onblur = props.onblur;
-            if (props.onchange) (el as any)._onchange = props.onchange;
-            if (props.value !== undefined && typeof props.value === "string") {
-                (el as HTMLInputElement).value = props.value;
-            }
-        }
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-            else if (typeof c === "string") el.appendChild(document.createTextNode(c));
-        }
-        return el;
-    }
-
-    // Mock converter class factory
-    function makeConverter() {
-        return class {
-            convert(v: unknown) {
-                return mockResult.ok(String(v));
-            }
-            convertBack(v: string) {
-                return mockResult.ok(v);
-            }
-        };
-    }
-
-    const NumberConverter = makeConverter();
-    const StringConverter = makeConverter();
-    const XYConverter = makeConverter();
-    const XYZConverter = makeConverter();
-
-    return {
-        div: (props: any, ...children: any[]) => createEl("div", props, ...children),
-        span: (props: any) => createEl("span", props),
-        input: (props: any) => createEl("input", props),
-        label: (props: any) => createEl("label", props),
-        NumberConverter,
-        StringConverter,
-        XYConverter,
-        XYZConverter,
-    };
-});
-
-// Mock core services
-rs.mock("@chili3d/core", () => {
-    const actual = rs.hoisted(() => require("@chili3d/core"));
-    return {
-        ...actual,
-        Localize: class {
-            private key: unknown;
-            constructor(key: unknown) {
-                this.key = key;
-            }
-            toString() {
-                return String(this.key);
-            }
-        },
-        Binding: class {
-            constructor(_value: unknown, _prop?: string, _converter?: unknown) {}
-        },
-        Transaction: {
-            execute: (_doc: unknown, _desc: string, fn: () => void) => fn(),
-        },
-        PubSub: {
-            default: {
-                pub: () => {},
-                sub: () => {},
-            },
-        },
-        Result: actual.Result,
-        isPropertyChanged: () => false,
-        XY: class {},
-        XYZ: class {},
-    };
-});
+import { mustQuery } from "./_helpers/domHelpers";
 
 describe("InputProperty", () => {
-    function createMockDocument() {
-        return {
-            visual: { update: () => {} },
-        } as any;
-    }
-
     const valueProp: Property = { name: "value", display: "test.value" } as unknown as Property;
     const numberProp: Property = {
         name: "value",
@@ -131,8 +29,7 @@ describe("InputProperty", () => {
 
     describe("constructor basics", () => {
         test("should throw when objects array is empty", () => {
-            const doc = createMockDocument();
-            expect(() => new InputProperty(doc, [], numberProp)).toThrow("there are no objects");
+            expectEmptyObjectsThrow(() => new InputProperty(createMockDocument(), [], numberProp));
         });
 
         test("should create DOM structure with panel div", () => {
@@ -179,32 +76,6 @@ describe("InputProperty", () => {
             expect(prop.objects).toBe(objs);
             expect(prop.objects.length).toBe(2);
         });
-
-        test("should use property.converter when provided", () => {
-            const doc = createMockDocument();
-            const obj = { value: "hello" };
-            const customConverter = {
-                convert: (v: unknown) => Result.ok(String(v)),
-                convertBack: (v: string) => Result.ok(v.toUpperCase()),
-            };
-            const prop = new InputProperty(doc, [obj], {
-                name: "value",
-                display: "test.value",
-                converter: customConverter,
-            } as unknown as Property);
-
-            expect(prop.converter).toBe(customConverter);
-        });
-
-        test("should handle object-type value with converter lookup", () => {
-            const doc = createMockDocument();
-            class CustomValue {}
-            const obj = { value: new CustomValue() };
-            const prop = new InputProperty(doc, [obj], valueProp);
-
-            // No converter found for CustomValue — converter resolves to undefined
-            expect(prop.converter).toBeUndefined();
-        });
     });
 
     describe("keydown and blur handling", () => {
@@ -213,30 +84,42 @@ describe("InputProperty", () => {
             const obj = { value: "test" };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            const inputEl = prop.querySelector("input") as HTMLInputElement;
-            expect(inputEl).not.toBeNull();
+            const inputEl = mustQuery<HTMLInputElement>(prop, "input");
+            expect((inputEl as any)._onkeydown).toBeDefined();
         });
 
-        test("should process blur event without error", () => {
+        test("should not change readonly value on blur", () => {
             const doc = createMockDocument();
             const obj = { value: "test" };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            const inputEl = prop.querySelector("input") as HTMLInputElement;
-            expect(() => {
-                inputEl.dispatchEvent(new FocusEvent("blur"));
-            }).not.toThrow();
+            const inputEl = mustQuery<HTMLInputElement>(prop, "input");
+            // plain object property without setter → readonly input
+            expect(inputEl.readOnly).toBe(true);
+            const blurHandler = (inputEl as any)._onblur as ((e: FocusEvent) => void) | undefined;
+            expect(blurHandler).toBeDefined();
+
+            inputEl.value = "changed";
+            blurHandler!({ target: inputEl } as unknown as FocusEvent);
+
+            // setValue returns early for readonly, so value unchanged
+            expect(obj.value).toBe("test");
         });
 
-        test("should process Enter key without error for readonly input", () => {
+        test("should not change readonly value on Enter key", () => {
             const doc = createMockDocument();
             const obj = { value: "readonly string" };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            const inputEl = prop.querySelector("input") as HTMLInputElement;
-            expect(() => {
-                inputEl.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-            }).not.toThrow();
+            const inputEl = mustQuery<HTMLInputElement>(prop, "input");
+            const keyHandler = (inputEl as any)._onkeydown as ((e: KeyboardEvent) => void) | undefined;
+            expect(keyHandler).toBeDefined();
+
+            inputEl.value = "changed";
+            keyHandler!(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+            // setValue returns early for readonly, so value unchanged
+            expect(obj.value).toBe("readonly string");
         });
 
         test("should stopPropagation on keydown when converter exists", () => {
@@ -244,16 +127,19 @@ describe("InputProperty", () => {
             const obj = { value: 42 };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            const inputEl = prop.querySelector("input") as HTMLInputElement;
+            const inputEl = mustQuery<HTMLInputElement>(prop, "input");
             const keyHandler = (inputEl as any)._onkeydown as ((e: KeyboardEvent) => void) | undefined;
+            expect(keyHandler).toBeDefined();
 
             inputEl.value = "99";
-            if (keyHandler) {
-                const event = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
-                keyHandler(event);
-            }
-            // stopPropagation was called; for plain objects isReadOnly is true, so value unchanged
-            expect(prop).toBeDefined();
+            const event = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
+            const stopSpy = rs.fn();
+            event.stopPropagation = stopSpy;
+            keyHandler!(event);
+
+            expect(stopSpy).toHaveBeenCalled();
+            // for plain objects isReadOnly is true, so value unchanged
+            expect(obj.value).toBe(42);
         });
 
         test("should handle blur even for readonly values", () => {
@@ -261,13 +147,12 @@ describe("InputProperty", () => {
             const obj = { value: 42 };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            const inputEl = prop.querySelector("input") as HTMLInputElement;
+            const inputEl = mustQuery<HTMLInputElement>(prop, "input");
             const blurHandler = (inputEl as any)._onblur as ((e: FocusEvent) => void) | undefined;
+            expect(blurHandler).toBeDefined();
 
             inputEl.value = "55";
-            if (blurHandler) {
-                blurHandler({ target: inputEl } as unknown as FocusEvent);
-            }
+            blurHandler!({ target: inputEl } as unknown as FocusEvent);
 
             // setValue returns early for readonly, so value unchanged
             expect(obj.value).toBe(42);
@@ -278,34 +163,16 @@ describe("InputProperty", () => {
             const obj = { value: 42 };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            const inputEl = prop.querySelector("input") as HTMLInputElement;
+            const inputEl = mustQuery<HTMLInputElement>(prop, "input");
             const keyHandler = (inputEl as any)._onkeydown as ((e: KeyboardEvent) => void) | undefined;
+            expect(keyHandler).toBeDefined();
 
-            if (keyHandler) {
-                const event = new KeyboardEvent("keydown", { key: "Tab" });
-                keyHandler(event);
-            }
-            expect(prop).toBeDefined();
-        });
-    });
+            const event = new KeyboardEvent("keydown", { key: "Tab" });
+            const stopSpy = rs.fn();
+            event.stopPropagation = stopSpy;
+            keyHandler!(event);
 
-    describe("setValue behavior", () => {
-        test("should have converter defined for Number-typed value", () => {
-            const doc = createMockDocument();
-            const obj = { value: 42 };
-            const prop = new InputProperty(doc, [obj], valueProp);
-
-            // The value { value: 42 } has Number constructor name, so converter resolves
-            expect(prop.converter).toBeDefined();
-        });
-
-        test("should have input element with correct properties", () => {
-            const doc = createMockDocument();
-            const obj = { value: 10 };
-            const prop = new InputProperty(doc, [obj], valueProp);
-
-            const inputEl = prop.querySelector("input") as HTMLInputElement;
-            expect(inputEl).not.toBeNull();
+            expect(stopSpy).toHaveBeenCalled();
         });
     });
 
@@ -315,7 +182,7 @@ describe("InputProperty", () => {
             const obj = { value: 42 };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            expect(prop.converter).toBeDefined();
+            expect(typeof prop.converter?.convert).toBe("function");
         });
 
         test("should resolve String converter for String-typed values", () => {
@@ -323,7 +190,7 @@ describe("InputProperty", () => {
             const obj = { value: "hello" };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            expect(prop.converter).toBeDefined();
+            expect(typeof prop.converter?.convert).toBe("function");
         });
 
         test("should resolve undefined for unknown types", () => {
@@ -332,7 +199,7 @@ describe("InputProperty", () => {
             const obj = { value: new UnknownType() };
             const prop = new InputProperty(doc, [obj], valueProp);
 
-            expect(prop).toBeDefined();
+            expect(prop.converter).toBeUndefined();
         });
 
         test("should use custom converter from property definition", () => {
@@ -369,7 +236,7 @@ describe("InputProperty", () => {
             // It should NOT be the NumberConverter from getConverter
         });
 
-        test("should not crash when value is null", () => {
+        test("should throw when value is null", () => {
             const doc = createMockDocument();
             const obj = { value: null };
             expect(() => new InputProperty(doc, [obj], valueProp)).toThrow();
@@ -379,10 +246,6 @@ describe("InputProperty", () => {
 
 // Test ArrayValueConverter indirectly through InputProperty construction
 describe("ArrayValueConverter (via InputProperty)", () => {
-    function createMockDocument() {
-        return { visual: { update: () => {} } } as any;
-    }
-
     test("should show single value when all objects have same value", () => {
         const doc = createMockDocument();
         const objs = [{ name: "same" }, { name: "same" }];
@@ -391,12 +254,11 @@ describe("ArrayValueConverter (via InputProperty)", () => {
             display: "test.name",
         } as unknown as Property);
 
-        // InputProperty should be created without error
-        expect(prop).toBeDefined();
         expect(prop.objects.length).toBe(2);
+        expect(prop.querySelector("input")).not.toBeNull();
     });
 
-    test("should handle objects with different values", () => {
+    test("should construct property for objects with different values", () => {
         const doc = createMockDocument();
         const objs = [{ name: "a" }, { name: "b" }];
         const prop = new InputProperty(doc, objs, {
@@ -404,11 +266,10 @@ describe("ArrayValueConverter (via InputProperty)", () => {
             display: "test.name",
         } as unknown as Property);
 
-        // ArrayValueConverter should show empty string when values differ
-        expect(prop).toBeDefined();
+        expect(prop.querySelector("input")).not.toBeNull();
     });
 
-    test("should handle number values", () => {
+    test("should construct property for number values", () => {
         const doc = createMockDocument();
         const objs = [{ x: 10 }, { x: 20 }];
         const prop = new InputProperty(doc, objs, {
@@ -416,10 +277,10 @@ describe("ArrayValueConverter (via InputProperty)", () => {
             display: "test.x",
         } as unknown as Property);
 
-        expect(prop).toBeDefined();
+        expect(prop.querySelector("input")).not.toBeNull();
     });
 
-    test("should handle single object with numeric value", () => {
+    test("should construct property for single object with numeric value", () => {
         const doc = createMockDocument();
         const obj = { count: 5 };
         const prop = new InputProperty(doc, [obj], {
@@ -427,6 +288,6 @@ describe("ArrayValueConverter (via InputProperty)", () => {
             display: "test.count",
         } as unknown as Property);
 
-        expect(prop).toBeDefined();
+        expect(prop.querySelector("input")).not.toBeNull();
     });
 });

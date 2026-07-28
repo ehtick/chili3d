@@ -2,14 +2,14 @@
 // See LICENSE file in the project root for full license information.
 
 import { PubSub, Transaction } from "@chili3d/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
 import { describe, expect, test } from "@rstest/core";
 import { Delete } from "../../src/commands/delete";
-import { createMockDocument } from "../_helpers";
 
 describe("Delete", () => {
     test("should have command metadata", () => {
         const data = (Delete as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.deleteNode");
         expect(data.icon).toBe("icon-delete");
     });

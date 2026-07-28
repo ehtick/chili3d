@@ -1,6 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import { rs } from "@rstest/core";
 import { Config, type ObjectSnapType, ObjectSnapTypes } from "../src";
 import { Plane, Ray, XYZ } from "../src/math";
 import { AxisSnap } from "../src/snap/snaps/axisSnap";
@@ -8,7 +9,7 @@ import { PlaneSnap, WorkplaneSnap } from "../src/snap/snaps/planeSnap";
 import { PointOnCurveSnap } from "../src/snap/snaps/pointOnCurveSnap";
 import { SurfaceSnap } from "../src/snap/snaps/surfaceSnap";
 import type { IView, VisualShapeData } from "../src/visual";
-import { createMockCurve, createMockView, createMouseAndDetected } from "./mocks";
+import { createMockCurve, createMockView, createMouseAndDetected } from "../test-utils";
 
 /**
  * Camera orientation suitable for geometric snap tests: looking along Z with Y up.
@@ -45,29 +46,45 @@ describe("AxisSnap", () => {
         const data = createMouseAndDetected(view, { mx: 450, my: 300 });
 
         const result = snap.snap(data);
-        expect(result).toBeDefined();
-        if (result) {
-            expect(result.point).toBeDefined();
-            expect(result.type).toBe("axis");
-        }
+        expect(result).not.toBeNull();
+        expect(result!.point).not.toBeNull();
+        expect(result!.type).toBe("axis");
     });
 
     test("clear should clean up temp lines", () => {
         const view = createSnapTestView();
+        const context = view.document.visual.context;
+        const displayMesh = rs.fn((_meshes: unknown[]) => 1);
+        const removeMesh = rs.fn((_id: number) => {});
+        context.displayMesh = displayMesh as never;
+        context.removeMesh = removeMesh as never;
+
         const snap = new AxisSnap(point, direction);
-        const data = createMouseAndDetected(view);
+        const data = createMouseAndDetected(view, { mx: 450, my: 300 });
 
         snap.snap(data);
-        expect(() => snap.clear()).not.toThrow();
+        expect(displayMesh).toHaveBeenCalledTimes(1);
+
+        snap.clear();
+        expect(removeMesh).toHaveBeenCalledWith(1);
     });
 
     test("removeDynamicObject should clean up temp lines", () => {
         const view = createSnapTestView();
+        const context = view.document.visual.context;
+        const displayMesh = rs.fn((_meshes: unknown[]) => 1);
+        const removeMesh = rs.fn((_id: number) => {});
+        context.displayMesh = displayMesh as never;
+        context.removeMesh = removeMesh as never;
+
         const snap = new AxisSnap(point, direction);
-        const data = createMouseAndDetected(view);
+        const data = createMouseAndDetected(view, { mx: 450, my: 300 });
 
         snap.snap(data);
-        expect(() => snap.removeDynamicObject()).not.toThrow();
+        expect(displayMesh).toHaveBeenCalledTimes(1);
+
+        snap.removeDynamicObject();
+        expect(removeMesh).toHaveBeenCalledWith(1);
     });
 });
 
@@ -84,11 +101,9 @@ describe("WorkplaneSnap", () => {
         const data = createMouseAndDetected(view);
 
         const result = snap.snap(data);
-        expect(result).toBeDefined();
-        if (result) {
-            expect(result.point?.z).toBeCloseTo(0, 5);
-            expect(result.type).toBe("onSurface");
-        }
+        expect(result).not.toBeNull();
+        expect(result!.point?.z).toBeCloseTo(0, 5);
+        expect(result!.type).toBe("onSurface");
     });
 
     test("should respect refPoint for distance calculation", () => {
@@ -100,10 +115,8 @@ describe("WorkplaneSnap", () => {
         const data = createMouseAndDetected(view);
 
         const result = snap.snap(data);
-        expect(result).toBeDefined();
-        if (result) {
-            expect(result.distance).toBeCloseTo(5, 0);
-        }
+        expect(result).not.toBeNull();
+        expect(result!.distance).toBeCloseTo(5, 0);
     });
 
     test("should return undefined if ray is parallel to workplane", () => {
@@ -132,11 +145,9 @@ describe("PlaneSnap", () => {
         const data = createMouseAndDetected(view);
 
         const result = snap.snap(data);
-        expect(result).toBeDefined();
-        if (result) {
-            expect(result.plane).toBeDefined();
-            expect(result.type).toBe("onSurface");
-        }
+        expect(result).not.toBeNull();
+        expect(result!.plane).not.toBeNull();
+        expect(result!.type).toBe("onSurface");
     });
 
     test("should include plane in result", () => {
@@ -148,16 +159,15 @@ describe("PlaneSnap", () => {
         const data = createMouseAndDetected(view);
 
         const result = snap.snap(data);
-        expect(result).toBeDefined();
-        if (result?.plane) {
-            expect(result.plane.origin).toStrictEqual(Plane.XY.origin);
-        }
+        expect(result).not.toBeNull();
+        expect(result!.plane).toBeDefined();
+        expect(result!.plane!.origin).toStrictEqual(Plane.XY.origin);
     });
 
     test("removeDynamicObject and clear should be no-ops", () => {
         const snap = new PlaneSnap(() => Plane.XY);
-        expect(() => snap.removeDynamicObject()).not.toThrow();
-        expect(() => snap.clear()).not.toThrow();
+        expect(snap.removeDynamicObject()).toBeUndefined();
+        expect(snap.clear()).toBeUndefined();
     });
 });
 
@@ -174,11 +184,9 @@ describe("PointOnCurveSnap", () => {
         const data = createMouseAndDetected(view);
 
         const result = snap.snap(data);
-        expect(result).toBeDefined();
-        if (result) {
-            expect(result.point).toBe(nearestPoint);
-            expect(result.type).toBe("nearCurve");
-        }
+        expect(result).not.toBeNull();
+        expect(result!.point).toBe(nearestPoint);
+        expect(result!.type).toBe("nearCurve");
     });
 
     test("should return undefined if no nearest point on curve", () => {
@@ -194,8 +202,8 @@ describe("PointOnCurveSnap", () => {
     test("removeDynamicObject and clear should be no-ops", () => {
         const curve = createMockCurve();
         const snap = new PointOnCurveSnap({ curve });
-        expect(() => snap.removeDynamicObject()).not.toThrow();
-        expect(() => snap.clear()).not.toThrow();
+        expect(snap.removeDynamicObject()).toBeUndefined();
+        expect(snap.clear()).toBeUndefined();
     });
 });
 
@@ -249,11 +257,9 @@ describe("SurfaceSnap", () => {
         const data = createMouseAndDetected(view);
 
         const result = snap.snap(data);
-        expect(result).toBeDefined();
-        if (result) {
-            expect(result.type).toBe("onSurface");
-            expect(result.shapes.length).toBe(1);
-        }
+        expect(result).not.toBeNull();
+        expect(result!.type).toBe("onSurface");
+        expect(result!.shapes.length).toBe(1);
     });
 
     test("should return undefined when snap type does not include onSurface", () => {
@@ -282,7 +288,7 @@ describe("SurfaceSnap", () => {
 
     test("removeDynamicObject and clear should be no-ops", () => {
         const snap = new SurfaceSnap();
-        expect(() => snap.removeDynamicObject()).not.toThrow();
-        expect(() => snap.clear()).not.toThrow();
+        expect(snap.removeDynamicObject()).toBeUndefined();
+        expect(snap.clear()).toBeUndefined();
     });
 });

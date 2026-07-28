@@ -3,17 +3,14 @@
 
 import { describe, expect, test } from "@rstest/core";
 
-// CSS modules
+// CSS modules — shared ones via helper, file-specific ones inline
+import "./_helpers/cssMocks";
+
 rs.mock("../src/project/projectView.module.css", () => ({
     root: "pj-root",
     headerPanel: "pj-header-panel",
     header: "pj-header",
     itemsPanel: "pj-items-panel",
-}));
-
-rs.mock("../src/project/toolBar.module.css", () => ({
-    panel: "tb-panel",
-    svg: "tb-svg",
 }));
 
 rs.mock("../src/project/tree/tree.module.css", () => ({
@@ -27,94 +24,37 @@ rs.mock("../src/project/tree/treeItem.module.css", () => ({
     label: "ti-label",
 }));
 
-rs.mock("../src/project/tree/treeItemGroup.module.css", () => ({
-    group: "tig-group",
-    header: "tig-header",
-    children: "tig-children",
-}));
-
 rs.mock("../src/project/tree/treeModel.module.css", () => ({
     model: "tm-model",
 }));
 
-// Track PubSub subscriptions
-// biome-ignore lint/suspicious/noExplicitAny: test pubsub helper
-const pubSubSubscriptions = new Map<string, (...args: any[]) => void>();
+// Track PubSub subscriptions via the shared recorder
+const pubSubRecorder = rs.hoisted(() => {
+    const { createPubSubRecorder } = require("./_helpers/coreMocks");
+    return createPubSubRecorder();
+});
 
 // Mock core
 rs.mock("@chili3d/core", () => {
     const actual = rs.hoisted(() => require("@chili3d/core"));
+    const { I18nMock, LocalizeMock, BindingMock, TransactionMock } = rs.hoisted(() =>
+        require("./_helpers/coreMocks"),
+    );
     return {
         ...actual,
-        Localize: class {
-            private key: unknown;
-            constructor(key: unknown) {
-                this.key = key;
-            }
-            toString() {
-                return String(this.key);
-            }
-        },
-        I18n: { translate: (key: unknown) => String(key) },
-        PubSub: {
-            default: {
-                // biome-ignore lint/suspicious/noExplicitAny: test mock
-                sub: (topic: string, handler: (...args: any[]) => void) => {
-                    pubSubSubscriptions.set(topic, handler);
-                },
-                pub: () => {},
-            },
-        },
-        Binding: class {
-            constructor(_v: unknown, _p?: string, _c?: unknown) {}
-        },
-        Transaction: { execute: (_d: unknown, _s: string, fn: () => void) => fn() },
+        Localize: LocalizeMock,
+        I18n: I18nMock,
+        PubSub: pubSubRecorder.stub,
+        Binding: BindingMock,
+        Transaction: TransactionMock,
         NodeUtils: {
             isLinkedListNode: () => false,
         },
     };
 });
 
-// Mock element helpers — all models defined inline to avoid hoisting issues
-rs.mock("@chili3d/element", () => {
-    function createEl(
-        tag: string,
-        props: Record<string, unknown> | null,
-        ...children: unknown[]
-    ): HTMLElement {
-        const el = document.createElement(tag);
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props["className"]) el.className = String(props["className"]);
-            if (props["title"]) el.title = String(props["title"]);
-            if (props["textContent"] && typeof props["textContent"] !== "object") {
-                el.textContent = String(props["textContent"]);
-            }
-            if (props["onclick"]) (el as unknown as Record<string, unknown>)["_onclick"] = props["onclick"];
-        }
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-            else if (typeof c === "string") el.appendChild(document.createTextNode(c));
-        }
-        return el;
-    }
-
-    return {
-        div: (props: Record<string, unknown> | null, ...children: unknown[]) =>
-            createEl("div", props, ...children),
-        span: (props: Record<string, unknown>) => createEl("span", props),
-        a: (props: Record<string, unknown>, ...children: unknown[]) => createEl("a", props, ...children),
-        svg: (props: Record<string, unknown>) => {
-            const el = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-            if (props) {
-                if (props["className"]) el.setAttribute("class", String(props["className"]));
-                if (props["icon"]) el.setAttribute("icon", String(props["icon"]));
-                if (props["onclick"])
-                    (el as unknown as Record<string, unknown>)["_onclick"] = props["onclick"];
-            }
-            return el;
-        },
-    };
-});
+// Mock element helpers
+import "./_helpers/mockElement";
 
 // Mock tree/index.ts — use plain classes (not extending HTMLElement) since Happy-DOM
 // forbids `new` on custom elements registered via customElements.define().
@@ -161,10 +101,11 @@ rs.mock("../src/project/tree/treeItemGroup", () => ({
 }));
 
 import { ProjectView } from "../src/project/projectView";
+import { Tree } from "../src/project/tree";
 
 describe("ProjectView", () => {
     beforeEach(() => {
-        pubSubSubscriptions.clear();
+        pubSubRecorder.reset();
     });
 
     describe("constructor", () => {
@@ -175,12 +116,12 @@ describe("ProjectView", () => {
 
         test("should subscribe to activeViewChanged", () => {
             new ProjectView({ className: "test-panel" });
-            expect(pubSubSubscriptions.has("activeViewChanged")).toBe(true);
+            expect(pubSubRecorder.handlers.has("activeViewChanged")).toBe(true);
         });
 
         test("should subscribe to documentClosed", () => {
             new ProjectView({ className: "test-panel" });
-            expect(pubSubSubscriptions.has("documentClosed")).toBe(true);
+            expect(pubSubRecorder.handlers.has("documentClosed")).toBe(true);
         });
 
         test("should render header and items panel", () => {
@@ -224,27 +165,34 @@ describe("ProjectView", () => {
             const pv = new ProjectView({ className: "test-panel" });
             const doc = makeDoc();
 
-            const handler = pubSubSubscriptions.get("activeViewChanged")!;
-            handler({ document: doc });
+            const handler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(handler).toBeDefined();
+            handler!({ document: doc });
 
             expect(pv.activeDocument).toBe(doc);
-            expect(pv.activeTree()).toBeDefined();
+            expect(pv.activeTree()).toBeInstanceOf(Tree);
         });
 
-        test("should handle undefined view without error", () => {
-            new ProjectView({ className: "test-panel" });
-            const handler = pubSubSubscriptions.get("activeViewChanged")!;
-            expect(() => handler(undefined)).not.toThrow();
+        test("should ignore an undefined view", () => {
+            const pv = new ProjectView({ className: "test-panel" });
+            const handler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(handler).toBeDefined();
+
+            handler!(undefined);
+
+            expect(pv.activeDocument).toBeUndefined();
+            expect(pv.activeTree()).toBeUndefined();
         });
 
         test("should not recreate tree for same document", () => {
             const pv = new ProjectView({ className: "test-panel" });
             const doc = makeDoc();
 
-            const handler = pubSubSubscriptions.get("activeViewChanged")!;
-            handler({ document: doc });
+            const handler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(handler).toBeDefined();
+            handler!({ document: doc });
             const tree1 = pv.activeTree();
-            handler({ document: doc });
+            handler!({ document: doc });
             const tree2 = pv.activeTree();
 
             expect(tree1).toBe(tree2);
@@ -255,9 +203,10 @@ describe("ProjectView", () => {
             const doc1 = makeDoc();
             const doc2 = makeDoc();
 
-            const handler = pubSubSubscriptions.get("activeViewChanged")!;
-            handler({ document: doc1 });
-            handler({ document: doc2 });
+            const handler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(handler).toBeDefined();
+            handler!({ document: doc1 });
+            handler!({ document: doc2 });
 
             expect(pv.activeDocument).toBe(doc2);
         });
@@ -268,20 +217,33 @@ describe("ProjectView", () => {
             const pv = new ProjectView({ className: "test-panel" });
             const doc = makeDoc();
 
-            const activeHandler = pubSubSubscriptions.get("activeViewChanged")!;
-            activeHandler({ document: doc });
-            expect(pv.activeTree()).toBeDefined();
+            const activeHandler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(activeHandler).toBeDefined();
+            activeHandler!({ document: doc });
+            expect(pv.activeTree()).toBeInstanceOf(Tree);
 
-            const closeHandler = pubSubSubscriptions.get("documentClosed")!;
-            closeHandler(doc);
+            const closeHandler = pubSubRecorder.handlers.get("documentClosed");
+            expect(closeHandler).toBeDefined();
+            closeHandler!(doc);
 
             expect(pv.activeTree()).toBeUndefined();
         });
 
-        test("should handle document close for unknown document silently", () => {
+        test("should leave existing trees untouched when an unknown document closes", () => {
             const pv = new ProjectView({ className: "test-panel" });
-            const closeHandler = pubSubSubscriptions.get("documentClosed")!;
-            expect(() => closeHandler({})).not.toThrow();
+            const doc = makeDoc();
+
+            const activeHandler = pubSubRecorder.handlers.get("activeViewChanged");
+            expect(activeHandler).toBeDefined();
+            activeHandler!({ document: doc });
+            const tree = pv.activeTree();
+            expect(tree).toBeInstanceOf(Tree);
+
+            const closeHandler = pubSubRecorder.handlers.get("documentClosed");
+            expect(closeHandler).toBeDefined();
+            closeHandler!({});
+
+            expect(pv.activeTree()).toBe(tree);
         });
     });
 });

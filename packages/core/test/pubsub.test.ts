@@ -1,6 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
+import { rs } from "@rstest/core";
 import { PubSub } from "../src";
 
 describe("PubSub class", () => {
@@ -16,7 +17,7 @@ describe("PubSub class", () => {
 
     describe("static default", () => {
         test("should have a default instance", () => {
-            expect(PubSub.default).toBeDefined();
+            expect(PubSub.default).not.toBeNull();
             expect(PubSub.default).toBeInstanceOf(PubSub);
         });
     });
@@ -177,54 +178,75 @@ describe("PubSub class", () => {
     });
 
     describe("disposed state edge cases", () => {
-        test("should not throw when removing from disposed pubsub", () => {
-            const callback = () => {};
+        test("removing from disposed pubsub is a no-op", () => {
+            const callback = rs.fn(() => {});
             pubsub.sub("displayError" as any, callback);
             pubsub.dispose();
-            expect(() => pubsub.remove("displayError" as any, callback)).not.toThrow();
+            pubsub.remove("displayError" as any, callback);
+            pubsub.pub("displayError" as any, "error");
+            expect(callback).not.toHaveBeenCalled();
         });
 
-        test("should not throw when calling removeAll on disposed pubsub", () => {
-            const callback = () => {};
+        test("removeAll on disposed pubsub is a no-op", () => {
+            const callback = rs.fn(() => {});
             pubsub.sub("displayError" as any, callback);
             pubsub.dispose();
-            expect(() => pubsub.removeAll("displayError" as any)).not.toThrow();
+            pubsub.removeAll("displayError" as any);
+            pubsub.pub("displayError" as any, "error");
+            expect(callback).not.toHaveBeenCalled();
         });
 
-        test("should not throw when publishing on disposed pubsub", () => {
-            const callback = () => {};
+        test("publishing on disposed pubsub does not invoke callbacks", () => {
+            const callback = rs.fn(() => {});
             pubsub.sub("displayError" as any, callback);
             pubsub.dispose();
-            expect(() => pubsub.pub("displayError" as any, "error")).not.toThrow();
+            pubsub.pub("displayError" as any, "error");
+            expect(callback).not.toHaveBeenCalled();
         });
     });
 
     describe("remove edge cases", () => {
-        test("should not throw when removing non-existent callback", () => {
-            const cb1 = () => {};
+        test("removing non-existent callback keeps other subscribers intact", () => {
+            const cb1 = rs.fn(() => {});
             pubsub.sub("displayError" as any, cb1);
-            expect(() => pubsub.remove("displayError" as any, () => {})).not.toThrow();
+            pubsub.remove("displayError" as any, () => {});
+            pubsub.pub("displayError" as any, "error");
+            expect(cb1).toHaveBeenCalledTimes(1);
         });
 
-        test("should not throw when removing from event with no subscribers", () => {
-            expect(() => pubsub.remove("displayError" as any, () => {})).not.toThrow();
-        });
-
-        test("should not throw when removing callback from wrong event", () => {
-            const callback = () => {};
+        test("removing from event with no subscribers does not break later subscriptions", () => {
+            const callback = rs.fn(() => {});
+            pubsub.remove("displayError" as any, callback);
             pubsub.sub("displayError" as any, callback);
-            expect(() => pubsub.remove("showToast" as any, callback)).not.toThrow();
+            pubsub.pub("displayError" as any, "error");
+            expect(callback).toHaveBeenCalledTimes(1);
+        });
+
+        test("removing callback from wrong event keeps the original subscription", () => {
+            const callback = rs.fn(() => {});
+            pubsub.sub("displayError" as any, callback);
+            pubsub.remove("showToast" as any, callback);
+            pubsub.pub("displayError" as any, "error");
+            expect(callback).toHaveBeenCalledTimes(1);
         });
     });
 
     describe("removeAll edge cases", () => {
-        test("should not throw on event with no subscribers", () => {
-            expect(() => pubsub.removeAll("displayError" as any)).not.toThrow();
+        test("removeAll on event with no subscribers does not break later subscriptions", () => {
+            const callback = rs.fn(() => {});
+            pubsub.removeAll("displayError" as any);
+            pubsub.sub("displayError" as any, callback);
+            pubsub.pub("displayError" as any, "error");
+            expect(callback).toHaveBeenCalledTimes(1);
         });
 
-        test("should not throw on same event twice", () => {
+        test("removeAll on same event twice still removes all subscribers", () => {
+            const callback = rs.fn(() => {});
+            pubsub.sub("displayError" as any, callback);
             pubsub.removeAll("displayError" as any);
-            expect(() => pubsub.removeAll("displayError" as any)).not.toThrow();
+            pubsub.removeAll("displayError" as any);
+            pubsub.pub("displayError" as any, "error");
+            expect(callback).not.toHaveBeenCalled();
         });
     });
 

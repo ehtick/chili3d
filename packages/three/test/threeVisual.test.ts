@@ -2,8 +2,12 @@
 // See LICENSE file in the project root for full license information.
 
 import type { IEventHandler, IView } from "@chili3d/core";
-import { TestDocument } from "../../core/test/mocks";
+import { TestDocument } from "@chili3d/core/test-utils";
+import { Scene } from "three";
+import { ThreeMeshExporter } from "../src/meshExporter";
+import { ThreeHighlighter } from "../src/threeHighlighter";
 import { ThreeVisual } from "../src/threeVisual";
+import { ThreeVisualContext } from "../src/threeVisualContext";
 
 class TestEventHandler implements IEventHandler {
     isEnabled = true;
@@ -36,21 +40,21 @@ describe("ThreeVisual", () => {
 
     test("initScene creates scene with ambient light and axes helper", () => {
         const { visual } = createTestVisual();
-        expect(visual.scene).toBeDefined();
+        expect(visual.scene).toBeInstanceOf(Scene);
         expect(visual.scene.children.length).toBeGreaterThanOrEqual(2);
     });
 
     test("context, highlighter, meshExporter are initialized", () => {
         const { visual } = createTestVisual();
-        expect(visual.context).toBeDefined();
-        expect(visual.highlighter).toBeDefined();
-        expect(visual.meshExporter).toBeDefined();
+        expect(visual.context).toBeInstanceOf(ThreeVisualContext);
+        expect(visual.highlighter).toBeInstanceOf(ThreeHighlighter);
+        expect(visual.meshExporter).toBeInstanceOf(ThreeMeshExporter);
     });
 
     test("defaultEventHandler and viewHandler are initialized", () => {
         const { visual } = createTestVisual();
-        expect(visual.defaultEventHandler).toBeDefined();
-        expect(visual.viewHandler).toBeDefined();
+        expect(typeof visual.defaultEventHandler.pointerMove).toBe("function");
+        expect(typeof visual.viewHandler.pointerMove).toBe("function");
         expect(visual.eventHandler).toBe(visual.defaultEventHandler);
     });
 

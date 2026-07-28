@@ -84,19 +84,12 @@ describe("setProperties", () => {
 });
 
 describe("toBase64Img", () => {
-    test("should create png data URL", () => {
-        const result = toBase64Img("icon.png", "abc123");
-        expect(result).toBe("data:image/png;base64,abc123");
-    });
-
-    test("should create svg data URL", () => {
-        const result = toBase64Img("icon.svg", "xyz789");
-        expect(result).toBe("data:image/svg+xml;base64,xyz789");
-    });
-
-    test("should create jpg data URL", () => {
-        const result = toBase64Img("icon.jpg", "jpg456");
-        expect(result).toBe("data:image/jpeg;base64,jpg456");
+    test.each([
+        { file: "icon.png", base64: "abc123", expected: "data:image/png;base64,abc123" },
+        { file: "icon.svg", base64: "xyz789", expected: "data:image/svg+xml;base64,xyz789" },
+        { file: "icon.jpg", base64: "jpg456", expected: "data:image/jpeg;base64,jpg456" },
+    ])("should create $expected data URL", ({ file, base64, expected }) => {
+        expect(toBase64Img(file, base64)).toBe(expected);
     });
 
     test("should not match uppercase extension (endsWith is case-sensitive)", () => {

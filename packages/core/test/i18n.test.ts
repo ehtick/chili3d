@@ -48,6 +48,15 @@ describe("I18n", () => {
     });
 
     describe("defaultLanguage", () => {
+        const originalLanguage = navigator.language;
+
+        afterEach(() => {
+            Object.defineProperty(navigator, "language", {
+                value: originalLanguage,
+                writable: true,
+            });
+        });
+
         test("should return the browser language if it matches", () => {
             Object.defineProperty(navigator, "language", {
                 value: "en-US",

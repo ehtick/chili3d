@@ -1,99 +1,48 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { BoundingBox, type IView, Matrix4, Plane, ShapeTypes, type VisualNode, XY, XYZ } from "@chili3d/core";
+import {
+    BoundingBox,
+    Config,
+    type IView,
+    Matrix4,
+    Plane,
+    Ray,
+    ShapeTypes,
+    type VisualNode,
+    XY,
+    XYZ,
+} from "@chili3d/core";
+import { TestDocument } from "@chili3d/core/test-utils";
 import {
     BufferGeometry,
+    DirectionalLight,
     Group,
     Layers,
     type Mesh,
     MeshBasicMaterial,
-    type Object3D,
     OrthographicCamera,
     PerspectiveCamera,
     Raycaster,
     Scene,
-    Vector3,
 } from "three";
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import { TestDocument } from "../../core/test/mocks";
 import { Constants } from "../src/constants";
 import { ThreeGeometry } from "../src/threeGeometry";
-import { ThreeHighlighter } from "../src/threeHighlighter";
 import { ThreeView } from "../src/threeView";
 import type { ThreeVisualContext } from "../src/threeVisualContext";
 import { ThreeComponentObject, ThreeMeshObject, ThreeVisualObject } from "../src/threeVisualObject";
 import {
-    createMockVisualContext,
     createTestComponentNode,
     createTestGeometryNode,
     createTestMeshNode,
+    createThreeMockVisualContext,
 } from "./mocks";
+import { container, TestView } from "./testView";
 
 // ============================================================================
-// Helpers — create a TestView subclass that avoids real WebGL
+// Helpers — patch application.views and build a TestView for tests
 // ============================================================================
-
-class TestWebGLRenderer {
-    readonly domElement = document.createElement("canvas");
-
-    render(_scene: Object3D, _camera: PerspectiveCamera): void {}
-    setSize(_width: number, _height: number, _updateStyle?: boolean): void {}
-    getPixelRatio() {
-        return 1;
-    }
-    getViewport() {
-        return new Vector3() as any;
-    }
-    setViewport(_v: any) {}
-    setPixelRatio(_value: number) {}
-    getSize(_target: any) {
-        return { x: 100, y: 100 };
-    }
-    setAnimationLoop(_fn: (x: number) => void) {}
-    getRenderTarget() {
-        return null;
-    }
-    setRenderTarget() {}
-    clear() {}
-    clearDepth() {}
-    getClearColor() {}
-    getClearAlpha() {}
-    getContext() {
-        return { getExtension(_str: string) {} };
-    }
-    get domElementParent() {
-        return this.domElement.parentElement;
-    }
-}
-
-const container = document.createElement("div");
-Object.defineProperties(container, {
-    clientWidth: { get: () => 100 },
-    clientHeight: { get: () => 100 },
-});
-container.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 100 }) as any;
-
-/**
- * TestView — ThreeView with mocked WebGLRenderer so tests don't need a real GPU.
- */
-class TestView extends ThreeView {
-    constructor(document: any, content: ThreeVisualContext, options?: { name?: string; workplane?: Plane }) {
-        super(
-            document,
-            options?.name ?? "test-view",
-            options?.workplane ?? Plane.XY,
-            new ThreeHighlighter(content),
-            content,
-        );
-    }
-
-    protected override initRenderer(): any {
-        const r = new TestWebGLRenderer() as any;
-        r.setSize(100, 100);
-        return r;
-    }
-}
 
 function createViewsArray(): IView[] {
     const arr: IView[] = [];
@@ -115,15 +64,12 @@ function createTestView(overrides?: {
     if (!doc.application.views || !(doc.application.views as any).remove) {
         doc.application.views = createViewsArray() as any;
     }
-    const context = overrides?.content ?? createMockVisualContext();
+    const context = overrides?.content ?? createThreeMockVisualContext();
     (context as any).scene ??= new Scene();
     const view = new TestView(doc, context, {
         name: overrides?.name,
         workplane: overrides?.workplane,
     });
-    view.setDom(container);
-    view.camera.position.set(0, 0, 100);
-    (view.camera as PerspectiveCamera).lookAt(0, 0, 0);
     return { view, doc, context };
 }
 
@@ -154,7 +100,7 @@ describe("ThreeView — construction", () => {
 
     test("dynamicLight is a DirectionalLight", () => {
         const { view } = createTestView();
-        expect(view.dynamicLight).toBeDefined();
+        expect(view.dynamicLight).toBeInstanceOf(DirectionalLight);
         expect(view.dynamicLight.intensity).toBe(2);
     });
 
@@ -168,7 +114,7 @@ describe("ThreeView — construction", () => {
 
     test("renderer property returns the renderer", () => {
         const { view } = createTestView();
-        expect(view.renderer).toBeDefined();
+        expect(view.renderer.domElement.tagName).toBe("CANVAS");
     });
 });
 
@@ -179,8 +125,12 @@ describe("ThreeView — construction", () => {
 describe("ThreeView — properties", () => {
     test("name setter fires property changed", () => {
         const { view } = createTestView();
+        const fired: string[] = [];
+        view.onPropertyChanged((prop) => fired.push(prop as string));
+
         view.name = "renamed";
         expect(view.name).toBe("renamed");
+        expect(fired).toContain("name");
     });
 
     test("mode setter triggers camera layer update", () => {
@@ -188,12 +138,18 @@ describe("ThreeView — properties", () => {
 
         view.mode = "wireframe";
         expect(view.mode).toBe("wireframe");
+        expect(view.camera.layers.isEnabled(Constants.Layers.Wireframe)).toBe(true);
+        expect(view.camera.layers.isEnabled(Constants.Layers.Solid)).toBe(false);
 
         view.mode = "solid";
         expect(view.mode).toBe("solid");
+        expect(view.camera.layers.isEnabled(Constants.Layers.Solid)).toBe(true);
+        expect(view.camera.layers.isEnabled(Constants.Layers.Wireframe)).toBe(false);
 
         view.mode = "solidAndWireframe";
         expect(view.mode).toBe("solidAndWireframe");
+        expect(view.camera.layers.isEnabled(Constants.Layers.Wireframe)).toBe(true);
+        expect(view.camera.layers.isEnabled(Constants.Layers.Solid)).toBe(true);
     });
 
     test("workplane getter returns initial plane", () => {
@@ -204,15 +160,19 @@ describe("ThreeView — properties", () => {
 
     test("workplane setter triggers property changed", () => {
         const { view } = createTestView();
+        const fired: string[] = [];
+        view.onPropertyChanged((prop) => fired.push(prop as string));
+
         const newPlane = Plane.YZ;
         view.workplane = newPlane;
         expect(view.workplane).toBe(newPlane);
+        expect(fired).toContain("workplane");
     });
 
     test("dom returns undefined before setDom", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const doc = new TestDocument();
-        const view = new TestView(doc, context);
+        const view = new TestView(doc, context, { setDom: false });
         // setDom not called yet
         expect(view.dom).toBeUndefined();
     });
@@ -233,16 +193,16 @@ describe("ThreeView — properties", () => {
     });
 
     test("width defaults to 1 when dom is undefined", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const doc = new TestDocument();
-        const view = new TestView(doc, context);
+        const view = new TestView(doc, context, { setDom: false });
         expect(view.width).toBe(1);
     });
 
     test("height defaults to 1 when dom is undefined", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const doc = new TestDocument();
-        const view = new TestView(doc, context);
+        const view = new TestView(doc, context, { setDom: false });
         expect(view.height).toBe(1);
     });
 });
@@ -279,27 +239,31 @@ describe("ThreeView — screenToCameraRect", () => {
 // ============================================================================
 
 describe("ThreeView — worldToScreen / screenToWorld", () => {
-    test("screenToWorld returns an XYZ", () => {
+    test("screenToWorld of the viewport center lies on the view axis", () => {
         const { view } = createTestView();
+        // The renderer never runs in tests, so flush the camera transform manually
+        view.camera.updateMatrixWorld();
         const world = view.screenToWorld(50, 50);
-        expect(world).toBeDefined();
-        expect(typeof world.x).toBe("number");
+        expect(world.x).toBeCloseTo(0);
+        expect(world.y).toBeCloseTo(0);
+        // Unprojecting ndc z=0.5 (near=0.1, far=1e6) lands ~0.4 in front of the camera at z=100
+        expect(world.z).toBeCloseTo(99.6, 0);
     });
 
-    test("worldToScreen returns an XY", () => {
+    test("worldToScreen of the origin is the viewport center", () => {
         const { view } = createTestView();
+        view.camera.updateMatrixWorld();
         const screen = view.worldToScreen(new XYZ({ x: 0, y: 0, z: 0 }));
-        expect(screen).toBeDefined();
-        expect(typeof screen.x).toBe("number");
+        expect(screen.x).toBe(50);
+        expect(screen.y).toBe(50);
     });
 
-    test("worldToScreen projects arbitrary point", () => {
+    test("worldToScreen of a point on the view axis is the viewport center", () => {
         const { view } = createTestView();
-        const screen = view.worldToScreen(new XYZ({ x: 10, y: 20, z: 30 }));
-        expect(typeof screen.x).toBe("number");
-        expect(typeof screen.y).toBe("number");
-        expect(Number.isFinite(screen.x)).toBe(true);
-        expect(Number.isFinite(screen.y)).toBe(true);
+        view.camera.updateMatrixWorld();
+        const screen = view.worldToScreen(new XYZ({ x: 0, y: 0, z: 50 }));
+        expect(screen.x).toBe(50);
+        expect(screen.y).toBe(50);
     });
 });
 
@@ -311,11 +275,10 @@ describe("ThreeView — rayAt", () => {
     test("rayAt returns a Ray with point and direction", () => {
         const { view } = createTestView();
         const ray = view.rayAt(50, 50);
-        expect(ray).toBeDefined();
-        expect(ray.point).toBeDefined();
-        expect(ray.direction).toBeDefined();
+        expect(ray).toBeInstanceOf(Ray);
         expect(typeof ray.point.x).toBe("number");
         expect(typeof ray.direction.x).toBe("number");
+        expect(Math.hypot(ray.direction.x, ray.direction.y, ray.direction.z)).toBeCloseTo(1);
     });
 
     test("rayAt from center has direction toward scene", () => {
@@ -325,12 +288,13 @@ describe("ThreeView — rayAt", () => {
         expect(ray.direction.z).toBeLessThan(0);
     });
 
-    test("rayAt with orthographic camera", () => {
+    test("rayAt with orthographic camera returns a normalized direction", () => {
         const { view } = createTestView();
         view.cameraController.cameraType = "orthographic";
         const ray = view.rayAt(50, 50);
-        expect(ray).toBeDefined();
-        expect(ray.point).toBeDefined();
+        expect(ray).toBeInstanceOf(Ray);
+        expect(Number.isFinite(ray.point.x)).toBe(true);
+        expect(Math.hypot(ray.direction.x, ray.direction.y, ray.direction.z)).toBeCloseTo(1);
     });
 });
 
@@ -359,9 +323,10 @@ describe("ThreeView — direction / up", () => {
 // ============================================================================
 
 describe("ThreeView — update", () => {
-    test("calling update does not throw", () => {
+    test("update marks the view for re-rendering", () => {
         const { view } = createTestView();
-        expect(() => view.update()).not.toThrow();
+        view.update();
+        expect((view as any)._needsUpdate).toBe(true);
     });
 });
 
@@ -370,23 +335,33 @@ describe("ThreeView — update", () => {
 // ============================================================================
 
 describe("ThreeView — resize", () => {
-    test("resize with near-zero height returns early", () => {
+    test("resize with near-zero height returns early without touching the camera", () => {
         const { view } = createTestView();
-        expect(() => view.resize(100, 0)).not.toThrow();
+        view.resize(800, 600);
+        const cam = view.camera as PerspectiveCamera;
+        expect(cam.aspect).toBeCloseTo(800 / 600);
+
+        view.resize(100, 0);
+        expect(cam.aspect).toBeCloseTo(800 / 600);
     });
 
-    test("resize with valid dimensions does not throw", () => {
+    test("resize with valid dimensions updates the camera aspect", () => {
         const { view } = createTestView();
-        expect(() => view.resize(800, 600)).not.toThrow();
-        // Aspect ratio should be updated on the camera
+        view.resize(800, 600);
         const cam = view.camera as PerspectiveCamera;
         expect(cam.aspect).toBeCloseTo(800 / 600);
     });
 
-    test("resize with orthographic camera does not throw", () => {
+    test("resize with orthographic camera updates the frustum", () => {
         const { view } = createTestView();
         view.cameraController.cameraType = "orthographic";
-        expect(() => view.resize(1024, 768)).not.toThrow();
+        view.resize(1024, 768);
+
+        const cam = view.camera as OrthographicCamera;
+        const halfHeight = Math.sqrt(3 * 1500 * 1500) * Math.tan((25 * Math.PI) / 180);
+        expect(cam.top).toBeCloseTo(halfHeight);
+        expect(cam.bottom).toBeCloseTo(-halfHeight);
+        expect(cam.right / cam.top).toBeCloseTo(1024 / 768);
     });
 });
 
@@ -412,7 +387,7 @@ describe("ThreeView — close", () => {
     test("double close is a no-op", () => {
         const { view } = createTestView();
         view.close();
-        expect(() => view.close()).not.toThrow();
+        view.close();
         expect(view.isClosed).toBe(true);
     });
 });
@@ -434,14 +409,23 @@ describe("ThreeView — toImage", () => {
 // ============================================================================
 
 describe("ThreeView — isolate / unisolate", () => {
-    test("unisolate when not isolated is a no-op", () => {
+    test("unisolate when not isolated leaves camera layers untouched", () => {
         const { view } = createTestView();
-        expect(() => view.unisolate()).not.toThrow();
+        const mask = view.camera.layers.mask;
+
+        view.unisolate();
+        expect(view.camera.layers.mask).toBe(mask);
     });
 
-    test("isolate with empty nodes array does not throw", () => {
+    test("isolate with empty nodes array still restricts camera layers", () => {
         const { view } = createTestView();
-        expect(() => view.isolate([])).not.toThrow();
+
+        view.isolate([]);
+        expect(view.camera.layers.isEnabled(Constants.Layers.Default)).toBe(true);
+        expect(view.camera.layers.isEnabled(Constants.Layers.Isolation)).toBe(true);
+        expect(view.camera.layers.mask).toBe(
+            (1 << Constants.Layers.Default) | (1 << Constants.Layers.Isolation),
+        );
     });
 });
 
@@ -450,42 +434,61 @@ describe("ThreeView — isolate / unisolate", () => {
 // ============================================================================
 
 describe("ThreeView — htmlText", () => {
-    test("htmlText returns a disposable object", () => {
-        const { view } = createTestView();
+    test("htmlText adds a disposable css object to the scene", () => {
+        const { view, context } = createTestView();
+        const before = context.cssObjects.children.length;
+
         const result = view.htmlText("Hello", new XYZ({ x: 0, y: 0, z: 0 }));
-        expect(result).toBeDefined();
+        expect(context.cssObjects.children.length).toBe(before + 1);
         expect(typeof result.dispose).toBe("function");
+
+        result.dispose();
+        expect(context.cssObjects.children.length).toBe(before);
     });
 
-    test("htmlText with options returns disposable", () => {
-        const { view } = createTestView();
+    test("htmlText with className option applies the class", () => {
+        const { view, context } = createTestView();
         const result = view.htmlText("Test", new XYZ({ x: 10, y: 20, z: 30 }), {
             className: "custom",
         });
-        expect(result).toBeDefined();
-        expect(typeof result.dispose).toBe("function");
+        const cssObject = context.cssObjects.children.at(-1) as any;
+        expect(cssObject.element.classList.contains("custom")).toBe(true);
+
+        result.dispose();
     });
 
-    test("htmlText dispose does not throw", () => {
-        const { view } = createTestView();
+    test("htmlText dispose removes the css object", () => {
+        const { view, context } = createTestView();
+        const before = context.cssObjects.children.length;
+
         const result = view.htmlText("Disposable", new XYZ({ x: 0, y: 0, z: 0 }));
-        expect(() => result.dispose()).not.toThrow();
+        expect(context.cssObjects.children.length).toBe(before + 1);
+
+        result.dispose();
+        expect(context.cssObjects.children.length).toBe(before);
     });
 
-    test("htmlText with center option", () => {
-        const { view } = createTestView();
+    test("htmlText with center option sets the css object center", () => {
+        const { view, context } = createTestView();
         const result = view.htmlText("Centered", new XYZ({ x: 0, y: 0, z: 0 }), {
             center: new XY({ x: 0.5, y: 0.5 }),
         });
-        expect(result).toBeDefined();
+        const cssObject = context.cssObjects.children.at(-1) as any;
+        expect(cssObject.center.x).toBe(0.5);
+        expect(cssObject.center.y).toBe(0.5);
+
+        result.dispose();
     });
 
-    test("htmlText with hideDelete option", () => {
-        const { view } = createTestView();
+    test("htmlText with hideDelete option creates no delete icon", () => {
+        const { view, context } = createTestView();
         const result = view.htmlText("No Delete", new XYZ({ x: 0, y: 0, z: 0 }), {
             hideDelete: true,
         });
-        expect(result).toBeDefined();
+        const cssObject = context.cssObjects.children.at(-1) as any;
+        expect(cssObject.element.querySelector("svg")).toBeNull();
+
+        result.dispose();
     });
 
     test("htmlText with onDispose callback", () => {
@@ -507,9 +510,9 @@ describe("ThreeView — htmlText", () => {
 
 describe("ThreeView — setDom", () => {
     test("setDom appends renderer canvas to element", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const doc = new TestDocument();
-        const view = new TestView(doc, context);
+        const view = new TestView(doc, context, { setDom: false });
         const el = document.createElement("div");
         Object.defineProperties(el, {
             clientWidth: { get: () => 200 },
@@ -541,9 +544,9 @@ describe("ThreeView — setDom", () => {
 
 describe("ThreeView — CSS2DRenderer integration", () => {
     test("initCssRenderer returns CSS2DRenderer instance", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const doc = new TestDocument();
-        const view = new TestView(doc, context);
+        const view = new TestView(doc, context, { setDom: false });
         const cssRenderer = (view as any).initCssRenderer();
         expect(cssRenderer).toBeInstanceOf(CSS2DRenderer);
     });
@@ -691,8 +694,8 @@ describe("ThreeView — close with view switching", () => {
         // Patch the views array onto the document's application before creating views
         (doc.application as any).views = views;
 
-        const context1 = createMockVisualContext();
-        const context2 = createMockVisualContext();
+        const context1 = createThreeMockVisualContext();
+        const context2 = createThreeMockVisualContext();
         const view1 = new TestView(doc, context1, { name: "view-1" });
         const view2 = new TestView(doc, context2, { name: "view-2" });
         view1.setDom(container.cloneNode() as HTMLElement);
@@ -711,7 +714,7 @@ describe("ThreeView — close with view switching", () => {
         const views = createViewsArray();
         (doc.application as any).views = views;
 
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const view = new TestView(doc, context, { name: "view-only" });
         view.setDom(container.cloneNode() as HTMLElement);
         (doc.application as any).activeView = view;
@@ -726,14 +729,20 @@ describe("ThreeView — close with view switching", () => {
 // ============================================================================
 
 describe("ThreeView — disposeInternal", () => {
-    test("disposeInternal calls gizmo dispose and resizeObserver disconnect", () => {
-        const context = createMockVisualContext();
+    test("disposeInternal calls gizmo dispose", () => {
+        const context = createThreeMockVisualContext();
         const doc = new TestDocument();
-        const view = new TestView(doc, context);
+        const view = new TestView(doc, context, { setDom: false });
         view.setDom(container);
 
-        // Should not throw
-        expect(() => view["disposeInternal"]()).not.toThrow();
+        const gizmo = (view as any)._gizmo;
+        let gizmoDisposed = false;
+        gizmo.dispose = () => {
+            gizmoDisposed = true;
+        };
+
+        view["disposeInternal"]();
+        expect(gizmoDisposed).toBe(true);
     });
 });
 
@@ -743,25 +752,31 @@ describe("ThreeView — disposeInternal", () => {
 
 describe("ThreeView — htmlText advanced", () => {
     test("htmlText with hideDelete creates element without delete button", () => {
-        const { view } = createTestView();
+        const { view, context } = createTestView();
         const result = view.htmlText("No Delete", new XYZ({ x: 0, y: 0, z: 0 }), {
             hideDelete: true,
             className: "my-custom-class",
         });
-        expect(result).toBeDefined();
-        expect(typeof result.dispose).toBe("function");
+        const cssObject = context.cssObjects.children.at(-1) as any;
+        expect(cssObject.element.classList.contains("my-custom-class")).toBe(true);
+        expect(cssObject.element.querySelector("svg")).toBeNull();
+
+        result.dispose();
     });
 
-    test("htmlText dispose cleans up", () => {
-        const { view } = createTestView();
+    test("htmlText dispose is idempotent", () => {
+        const { view, context } = createTestView();
+        const before = context.cssObjects.children.length;
+
         const result = view.htmlText("Cleanup", new XYZ({ x: 0, y: 0, z: 0 }));
         result.dispose();
         // Second dispose should not throw
-        expect(() => result.dispose()).not.toThrow();
+        result.dispose();
+        expect(context.cssObjects.children.length).toBe(before);
     });
 
     test("htmlText with all options combined", () => {
-        const { view } = createTestView();
+        const { view, context } = createTestView();
         let disposed = false;
         const result = view.htmlText("All Options", new XYZ({ x: 5, y: 10, z: 15 }), {
             center: new XY({ x: 0.5, y: 0 }),
@@ -771,7 +786,11 @@ describe("ThreeView — htmlText advanced", () => {
                 disposed = true;
             },
         });
-        expect(result).toBeDefined();
+        const cssObject = context.cssObjects.children.at(-1) as any;
+        expect(cssObject.element.classList.contains("full-custom")).toBe(true);
+        expect(cssObject.center.x).toBe(0.5);
+        expect(cssObject.center.y).toBe(0);
+
         result.dispose();
         expect(disposed).toBe(true);
     });
@@ -782,20 +801,7 @@ describe("ThreeView — htmlText advanced", () => {
 // ============================================================================
 
 describe("ThreeView — mode transitions", () => {
-    test("mode switching covers all view modes", () => {
-        const { view } = createTestView();
-
-        view.mode = "wireframe";
-        expect(view.mode).toBe("wireframe");
-
-        view.mode = "solid";
-        expect(view.mode).toBe("solid");
-
-        view.mode = "solidAndWireframe";
-        expect(view.mode).toBe("solidAndWireframe");
-    });
-
-    test("repeated mode set to same value does not throw", () => {
+    test("repeated mode set to same value keeps the value", () => {
         const { view } = createTestView();
         view.mode = "solid";
         view.mode = "solid";
@@ -822,14 +828,19 @@ describe("ThreeView — name property", () => {
 // ============================================================================
 
 describe("ThreeView — resize edge cases", () => {
-    test("resize with very small but positive height", () => {
+    test("resize with very small but positive height below the threshold returns early", () => {
         const { view } = createTestView();
-        expect(() => view.resize(100, 0.000001)).not.toThrow();
+        const cam = view.camera as PerspectiveCamera;
+        const aspectBefore = cam.aspect;
+
+        // 0.000001 < 0.00001 threshold, so resize bails out without touching the camera
+        view.resize(100, 0.000001);
+        expect(cam.aspect).toBe(aspectBefore);
     });
 
     test("resize with large dimensions", () => {
         const { view } = createTestView();
-        expect(() => view.resize(3840, 2160)).not.toThrow();
+        view.resize(3840, 2160);
         const cam = view.camera as PerspectiveCamera;
         expect(cam.aspect).toBeCloseTo(3840 / 2160);
     });
@@ -857,21 +868,24 @@ describe("ThreeView — rayAt advanced", () => {
         view.resize(800, 600);
 
         const ray = view.rayAt(400, 300);
-        expect(ray).toBeDefined();
-        expect(ray.point).toBeDefined();
-        expect(ray.direction).toBeDefined();
+        expect(ray).toBeInstanceOf(Ray);
+        expect(Number.isFinite(ray.point.x)).toBe(true);
+        expect(Math.hypot(ray.direction.x, ray.direction.y, ray.direction.z)).toBeCloseTo(1);
+        expect(ray.direction.z).toBeLessThan(0);
     });
 
     test("rayAt from top-left corner", () => {
         const { view } = createTestView();
         const ray = view.rayAt(0, 0);
-        expect(ray).toBeDefined();
+        expect(ray).toBeInstanceOf(Ray);
+        expect(ray.direction.z).toBeLessThan(0);
     });
 
     test("rayAt from bottom-right corner", () => {
         const { view } = createTestView();
         const ray = view.rayAt(100, 100);
-        expect(ray).toBeDefined();
+        expect(ray).toBeInstanceOf(Ray);
+        expect(ray.direction.z).toBeLessThan(0);
     });
 });
 
@@ -923,7 +937,7 @@ describe("ThreeView — worldToScreen accuracy", () => {
 
 describe("ThreeView — constructor edge cases", () => {
     test("constructor with various workplane planes", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const doc = new TestDocument();
 
         const viewXY = new TestView(doc, context, { workplane: Plane.XY });
@@ -955,7 +969,7 @@ describe("ThreeView — getNodeFromObject", () => {
 
     test("extracts meshNode from ThreeMeshObject", () => {
         const node = createTestMeshNode();
-        const mockCtx = createMockVisualContext();
+        const mockCtx = createThreeMockVisualContext();
         const obj = new ThreeMeshObject(mockCtx, node);
         const { view } = createTestView();
 
@@ -965,7 +979,7 @@ describe("ThreeView — getNodeFromObject", () => {
 
     test("extracts geometryNode from ThreeGeometry", () => {
         const node = createTestGeometryNode();
-        const mockCtx = createMockVisualContext();
+        const mockCtx = createThreeMockVisualContext();
         const obj = new ThreeGeometry(node, mockCtx);
         const { view } = createTestView();
 
@@ -975,7 +989,7 @@ describe("ThreeView — getNodeFromObject", () => {
 
     test("extracts componentNode from ThreeComponentObject", () => {
         const node = createTestComponentNode();
-        const mockCtx = createMockVisualContext();
+        const mockCtx = createThreeMockVisualContext();
         const obj = new ThreeComponentObject(node, mockCtx);
         const { view } = createTestView();
 
@@ -1116,9 +1130,9 @@ describe("ThreeView — initRaycaster", () => {
     test("raycaster has SnapDistance threshold", () => {
         const { view } = createTestView();
         const raycaster = (view as any).initRaycaster(50, 50) as Raycaster;
-        expect(raycaster.params.Line2?.threshold).toBeDefined();
-        expect(raycaster.params.Line?.threshold).toBeDefined();
-        expect(raycaster.params.Points?.threshold).toBeDefined();
+        expect(raycaster.params.Line2?.threshold).toBe(Config.instance.SnapDistance);
+        expect(raycaster.params.Line?.threshold).toBe(Config.instance.SnapDistance);
+        expect(raycaster.params.Points?.threshold).toBe(Config.instance.SnapDistance);
     });
 });
 
@@ -1131,18 +1145,18 @@ describe("ThreeView — resize with orthographic camera", () => {
         const { view } = createTestView();
         view.cameraController.cameraType = "orthographic";
 
-        expect(() => view.resize(1024, 768)).not.toThrow();
+        view.resize(1024, 768);
         expect(view.camera).toBeInstanceOf(OrthographicCamera);
     });
 
-    test("resize with near-zero height returns early", () => {
+    test("resize with negative height returns early without touching the camera", () => {
         const { view } = createTestView();
-        expect(() => view.resize(100, 0)).not.toThrow();
-    });
+        view.resize(800, 600);
+        const cam = view.camera as PerspectiveCamera;
+        expect(cam.aspect).toBeCloseTo(800 / 600);
 
-    test("resize with negative height returns early", () => {
-        const { view } = createTestView();
-        expect(() => view.resize(100, -1)).not.toThrow();
+        view.resize(100, -1);
+        expect(cam.aspect).toBeCloseTo(800 / 600);
     });
 });
 
@@ -1268,32 +1282,5 @@ describe("ThreeView — isolate with real objects", () => {
         const defaultLayer = new Layers();
         defaultLayer.set(Constants.Layers.Default);
         expect(geo.layers.test(defaultLayer)).toBe(true);
-    });
-
-    test("unisolate when not isolated is a no-op", () => {
-        const { view } = createTestView();
-        expect(() => view.unisolate()).not.toThrow();
-    });
-
-    test("isolate with empty nodes array does not throw", () => {
-        const { view } = createTestView();
-        expect(() => view.isolate([])).not.toThrow();
-    });
-});
-
-// ============================================================================
-// ThreeView — mode transitions and raycaster behavior
-// ============================================================================
-
-describe("ThreeView — mode + raycaster integration", () => {
-    test("rayAt with orthographic camera returns valid ray", () => {
-        const { view } = createTestView();
-        view.cameraController.cameraType = "orthographic";
-        view.resize(800, 600);
-
-        const ray = view.rayAt(400, 300);
-        expect(ray).toBeDefined();
-        expect(ray.point).toBeDefined();
-        expect(ray.direction).toBeDefined();
     });
 });

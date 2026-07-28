@@ -21,45 +21,16 @@ rs.mock("../src/floatPanel.module.css", () => ({
     resizeHandle: "fp-resize",
 }));
 
-// Mock element helpers — test mocks need `any` for DOM factory APIs
-// biome-ignore lint/suspicious/noExplicitAny: test mock for DOM element factory
-rs.mock("@chili3d/element", () => ({
-    div: (props: any, ...children: any[]) => {
-        const el: any = document.createElement("div");
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props.className) el.className = props.className;
-            if (props.textContent) el.textContent = props.textContent;
-            if (props.onclick) el._onclick = props.onclick;
-        }
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-        }
-        return el;
-    },
-    label: (props: any) => {
-        const el = document.createElement("label");
-        if (props && typeof props === "object") {
-            if (props.textContent) el.textContent = String(props.textContent);
-        }
-        return el;
-    },
-    svg: () => document.createElementNS("http://www.w3.org/2000/svg", "svg"),
-}));
+// Mock element helpers
+import "./_helpers/mockElement";
 
 // Mock Localize
 rs.mock("@chili3d/core", () => {
     const actual = rs.hoisted(() => require("@chili3d/core"));
+    const { LocalizeMock } = rs.hoisted(() => require("./_helpers/coreMocks"));
     return {
         ...actual,
-        Localize: class {
-            private key: unknown;
-            constructor(key: unknown) {
-                this.key = key;
-            }
-            toString() {
-                return String(this.key);
-            }
-        },
+        Localize: LocalizeMock,
     };
 });
 
@@ -187,22 +158,39 @@ describe("FloatPanel", () => {
     });
 
     describe("dispose", () => {
-        test("should not throw when called without prior operations", () => {
+        function dispatchKeydown(panel: FloatPanel): boolean {
+            let stopped = false;
+            const event = new KeyboardEvent("keydown", { key: "a", bubbles: true });
+            Object.defineProperty(event, "stopImmediatePropagation", {
+                value: () => {
+                    stopped = true;
+                },
+            });
+            panel.dispatchEvent(event);
+            return stopped;
+        }
+
+        test("should remove the keydown listener on dispose", () => {
             const panel = new FloatPanel({
                 title: "Test" as I18nKeys,
                 content: document.createElement("div"),
             });
-            expect(() => panel.dispose()).not.toThrow();
+            // listener active before dispose
+            expect(dispatchKeydown(panel)).toBe(true);
+
+            panel.dispose();
+            expect(dispatchKeydown(panel)).toBe(false);
         });
 
-        test("should remove event listeners (no-op verified by no throw)", () => {
+        test("should be idempotent — second dispose keeps listeners removed", () => {
             const panel = new FloatPanel({
                 title: "Test" as I18nKeys,
                 content: document.createElement("div"),
             });
             panel.dispose();
-            // Calling dispose twice should not throw
-            expect(() => panel.dispose()).not.toThrow();
+            panel.dispose();
+
+            expect(dispatchKeydown(panel)).toBe(false);
         });
     });
 
@@ -240,8 +228,8 @@ describe("showFloatPanel constructor equivalent", () => {
             title: "Test" as I18nKeys,
             content: document.createElement("div"),
         });
-        expect(panel).toBeDefined();
-        expect(typeof panel.style.width).toBe("string");
+        expect(panel.style.width).toBe("300px");
+        expect(panel.style.height).toBe("200px");
         panel.remove();
     });
 });

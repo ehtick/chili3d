@@ -86,7 +86,7 @@ function installStubApp() {
 describe("ArrayCommand", () => {
     test("should have command metadata", () => {
         const data = (ArrayCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.array");
         expect(data.icon).toBe("icon-array");
     });

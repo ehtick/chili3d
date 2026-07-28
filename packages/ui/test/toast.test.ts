@@ -12,28 +12,10 @@ rs.mock("../src/toast/toast.module.css", () => ({
 }));
 
 // Mock I18n
-rs.mock("@chili3d/core", () => {
-    const actual = rs.hoisted(() => require("@chili3d/core"));
-    return {
-        ...actual,
-        I18n: {
-            translate: (key: string, ..._args: unknown[]) => key,
-        },
-    };
-});
+import "./_helpers/mockCoreI18n";
 
-// Mock label from @chili3d/element
-rs.mock("@chili3d/element", () => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    label: (props: any) => {
-        const el = document.createElement("label");
-        if (props && typeof props === "object") {
-            if (typeof props.className === "string") el.className = props.className;
-            if (typeof props.textContent === "string") el.textContent = props.textContent;
-        }
-        return el;
-    },
-}));
+// Mock @chili3d/element
+import "./_helpers/mockElement";
 
 import { Toast } from "../src/toast";
 

@@ -8,9 +8,11 @@ import {
     Matrix4,
     Plane,
     PubSub,
+    SelectShapeStep,
     type SnapResult,
     XYZ,
 } from "@chili3d/core";
+import { createMockApplication, createMockDocument } from "@chili3d/core/test-utils";
 import { describe, expect, rs, test } from "@rstest/core";
 import {
     AlignToPlane,
@@ -18,7 +20,6 @@ import {
     SetWorkplane,
     WorkingPlaneViewModel,
 } from "../../src/commands/workingPlane";
-import { createMockApplication, createMockDocument } from "../_helpers";
 import { mockShape, seedStepDatas, stubTransactionRun, wireCommand } from "./commandTestUtils";
 
 describe("WorkingPlaneViewModel", () => {
@@ -38,17 +39,31 @@ describe("WorkingPlaneViewModel", () => {
 describe("SetWorkplane", () => {
     test("should have command metadata", () => {
         const data = (SetWorkplane as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("workingPlane.set");
         expect(data.icon).toBe("icon-setWorkingPlane");
     });
 
     test("should do nothing when activeView is undefined", async () => {
+        let dialogShown = false;
+
+        const originalPub = PubSub.default.pub;
+        PubSub.default.pub = ((channel: string, ..._args: unknown[]) => {
+            if (channel === "showDialog") {
+                dialogShown = true;
+            }
+        }) as any;
+
         const app = createMockApplication();
         app.activeView = undefined;
 
         const cmd = new SetWorkplane();
-        await cmd.execute(app);
+        await expect(cmd.execute(app)).resolves.toBeUndefined();
+
+        // No dialog is shown without an active view
+        expect(dialogShown).toBe(false);
+
+        PubSub.default.pub = originalPub;
     });
 
     test("should show dialog when activeView exists", async () => {
@@ -79,7 +94,6 @@ describe("SetWorkplane", () => {
         const cmd = new SetWorkplane();
         const vm = new WorkingPlaneViewModel();
         const result = (cmd as any).ui(vm);
-        expect(result).toBeDefined();
         expect(result.tagName.toLowerCase()).toBe("div");
     });
 });
@@ -87,17 +101,24 @@ describe("SetWorkplane", () => {
 describe("AlignToPlane", () => {
     test("should have command metadata", () => {
         const data = (AlignToPlane as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("workingPlane.alignToPlane");
         expect(data.icon).toBe("icon-alignWorkingPlane");
     });
 
     test("should do nothing when activeView is undefined", async () => {
+        const stepExecuteSpy = rs.spyOn(SelectShapeStep.prototype, "execute");
+
         const app = createMockApplication();
         app.activeView = undefined;
 
         const cmd = new AlignToPlane();
-        await cmd.execute(app);
+        await expect(cmd.execute(app)).resolves.toBeUndefined();
+
+        // No selection step is started without an active view
+        expect(stepExecuteSpy).not.toHaveBeenCalled();
+
+        stepExecuteSpy.mockRestore();
     });
 
     test("should implement ICommand (has execute method)", () => {
@@ -109,7 +130,7 @@ describe("AlignToPlane", () => {
 describe("FromSection", () => {
     test("should have command metadata", () => {
         const data = (FromSection as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("workingPlane.fromSection");
         expect(data.icon).toBe("icon-fromSection");
     });

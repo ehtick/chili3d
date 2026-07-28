@@ -1,132 +1,102 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { CurveUtils, type ICircle, type ICurve, type ITrimmedCurve, XYZ } from "../src";
-
-/**
- * Build a minimal ICurve-like object for testing type-guard functions.
- * Uses a plain record to allow duck-typing properties not present on ICurve itself
- * (e.g. axis from IConic, center/radius from ICircle, direction from ILine).
- */
-function createMockCurve(overrides: Record<string, unknown> = {}): ICurve {
-    return {
-        curveType: "otherCurve",
-        geometryType: "curve",
-        uniformAbscissaByLength: () => [],
-        uniformAbscissaByCount: () => [],
-        length: () => 0,
-        parameter: () => undefined,
-        firstParameter: () => 0,
-        lastParameter: () => 0,
-        project: () => [],
-        value: () => XYZ.zero,
-        isCN: () => false,
-        trim: () => ({}) as ITrimmedCurve,
-        d0: () => XYZ.zero,
-        d1: () => ({ point: XYZ.zero, vec: XYZ.zero }),
-        d2: () => ({ point: XYZ.zero, vec1: XYZ.zero, vec2: XYZ.zero }),
-        d3: () => ({ point: XYZ.zero, vec1: XYZ.zero, vec2: XYZ.zero, vec3: XYZ.zero }),
-        dn: () => XYZ.zero,
-        reverse: () => {},
-        reversed: () => ({}) as ICurve,
-        nearestFromPoint: () => ({ point: XYZ.zero, parameter: 0, distance: 0 }),
-        nearestExtrema: () => undefined,
-        isClosed: () => false,
-        period: () => 0,
-        isPeriodic: () => false,
-        continuity: () => "c0",
-        transform: () => {},
-        transformed: () => ({}) as ICurve,
-        copy: () => ({}) as ICurve,
-        dispose: () => {},
-        ...overrides,
-    } as unknown as ICurve;
-}
+import { CurveUtils, type ICircle, XYZ } from "../src";
+import { createMockCurve } from "../test-utils";
 
 describe("CurveUtils", () => {
     describe("isConic", () => {
         test("should return true when curve has axis", () => {
-            const conic = createMockCurve({ axis: XYZ.unitZ });
-            expect(CurveUtils.isConic(conic)).toBeTruthy();
+            const conic = createMockCurve({ overrides: { axis: XYZ.unitZ } });
+            expect(CurveUtils.isConic(conic)).toBe(true);
         });
 
         test("should return false when curve has no axis", () => {
             const curve = createMockCurve();
-            expect(CurveUtils.isConic(curve)).toBeFalsy();
+            expect(CurveUtils.isConic(curve)).toBe(false);
         });
 
         test("should return false when axis is undefined", () => {
-            const curve = createMockCurve({ axis: undefined });
-            expect(CurveUtils.isConic(curve)).toBeFalsy();
+            const curve = createMockCurve({ overrides: { axis: undefined } });
+            expect(CurveUtils.isConic(curve)).toBe(false);
         });
     });
 
     describe("isCircle", () => {
         test("should return true when curve has center and radius", () => {
             const circle = createMockCurve({
-                curveType: "circle",
-                center: XYZ.zero,
-                radius: 5,
+                overrides: {
+                    curveType: "circle",
+                    center: XYZ.zero,
+                    radius: 5,
+                },
             });
-            expect(CurveUtils.isCircle(circle)).toBeTruthy();
+            expect(CurveUtils.isCircle(circle)).toBe(true);
         });
 
         test("should return false when curve has center but no radius", () => {
             const curve = createMockCurve({
-                center: XYZ.zero,
-                radius: undefined,
+                overrides: {
+                    center: XYZ.zero,
+                    radius: undefined,
+                },
             });
-            expect(CurveUtils.isCircle(curve)).toBeFalsy();
+            expect(CurveUtils.isCircle(curve)).toBe(false);
         });
 
         test("should return false when curve has radius but no center", () => {
             const curve = createMockCurve({
-                radius: 5,
-                center: undefined,
+                overrides: {
+                    radius: 5,
+                    center: undefined,
+                },
             });
-            expect(CurveUtils.isCircle(curve)).toBeFalsy();
+            expect(CurveUtils.isCircle(curve)).toBe(false);
         });
 
         test("should return false when curve has neither center nor radius", () => {
             const curve = createMockCurve();
-            expect(CurveUtils.isCircle(curve)).toBeFalsy();
+            expect(CurveUtils.isCircle(curve)).toBe(false);
         });
     });
 
     describe("isLine", () => {
         test("should return true when curve has direction", () => {
-            const line = createMockCurve({ direction: XYZ.unitX });
-            expect(CurveUtils.isLine(line)).toBeTruthy();
+            const line = createMockCurve({ overrides: { direction: XYZ.unitX } });
+            expect(CurveUtils.isLine(line)).toBe(true);
         });
 
         test("should return false when curve has no direction", () => {
             const curve = createMockCurve();
-            expect(CurveUtils.isLine(curve)).toBeFalsy();
+            expect(CurveUtils.isLine(curve)).toBe(false);
         });
 
         test("should return false when direction is undefined", () => {
-            const curve = createMockCurve({ direction: undefined });
-            expect(CurveUtils.isLine(curve)).toBeFalsy();
+            const curve = createMockCurve({ overrides: { direction: undefined } });
+            expect(CurveUtils.isLine(curve)).toBe(false);
         });
     });
 
     describe("isTrimmed", () => {
         test("should return true when curve has basisCurve", () => {
             const trimmed = createMockCurve({
-                curveType: "trimmedCurve",
-                basisCurve: createMockCurve(),
+                overrides: {
+                    curveType: "trimmedCurve",
+                    basisCurve: createMockCurve(),
+                },
             });
-            expect(CurveUtils.isTrimmed(trimmed)).toBeTruthy();
+            expect(CurveUtils.isTrimmed(trimmed)).toBe(true);
         });
 
         test("should return false when curve has no basisCurve", () => {
-            const curve = createMockCurve();
-            expect(CurveUtils.isTrimmed(curve)).toBeFalsy();
+            // shared mock has a default basisCurve, so explicitly clear it
+            const curve = createMockCurve({ overrides: { basisCurve: undefined } });
+            expect(CurveUtils.isTrimmed(curve)).toBe(false);
         });
 
         test("should return false when basisCurve is undefined", () => {
-            const curve = createMockCurve({ basisCurve: undefined });
-            expect(CurveUtils.isTrimmed(curve)).toBeFalsy();
+            const curve = createMockCurve({ overrides: { basisCurve: undefined } });
+            expect(CurveUtils.isTrimmed(curve)).toBe(false);
         });
     });
 
@@ -146,7 +116,7 @@ describe("CurveUtils", () => {
                 expect(tp.distanceTo(circle.center)).toBeCloseTo(1, 5);
             }
 
-            expect(result[0].isEqualTo(result[1])).toBeFalsy();
+            expect(result[0].isEqualTo(result[1])).toBe(false);
         });
 
         test("should return correct tangent points for symmetric case", () => {

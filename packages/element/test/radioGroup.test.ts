@@ -2,7 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import { SelectableItems } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
 import { RadioGroup } from "../src/radioGroup";
 import style from "../src/radioGroup.module.css";
 
@@ -12,6 +12,10 @@ describe("RadioGroup", () => {
     beforeEach(() => {
         container = document.createElement("div");
         document.body.appendChild(container);
+    });
+
+    afterEach(() => {
+        container.remove();
     });
 
     test("should render radio buttons for each item", () => {

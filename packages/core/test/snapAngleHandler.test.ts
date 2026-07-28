@@ -5,7 +5,7 @@ import { AsyncController, XYZ } from "../src";
 import { Plane } from "../src/math";
 import { AngleSnapEventHandler } from "../src/snap/handlers/angleSnapEventHandler";
 import type { PointSnapData } from "../src/snap/handlers/pointSnapEventHandler";
-import { createHandlerMockView, createPointerEvent, TestDocument } from "./mocks";
+import { createHandlerMockView, createPointerEvent, TestDocument } from "../test-utils";
 
 // ============================================================================
 // AngleSnapEventHandler
@@ -33,7 +33,7 @@ describe("AngleSnapEventHandler", () => {
         };
 
         const handler = new AngleSnapEventHandler(document, controller, center, p1, snapPointData);
-        expect(handler).toBeDefined();
+        expect(handler).not.toBeNull();
     });
 
     test("should throw if plane is not provided", () => {
@@ -94,7 +94,7 @@ describe("AngleSnapEventHandler", () => {
         const handler = new AngleSnapEventHandler(document, controller, center, p1, snapPointData);
         // Prime the snapped state so the test can actually verify it was cleared
         (handler as unknown as { _snaped: unknown })._snaped = { point: XYZ.zero };
-        expect(handler.snaped).toBeDefined();
+        expect(handler.snaped).not.toBeNull();
 
         handler.pointerOut(view, createPointerEvent());
 
@@ -139,7 +139,7 @@ describe("AngleSnapEventHandler — getPointFromInput", () => {
         const handler = new AngleSnapEventHandler(document, controller, center, p1, snapPointData);
         const view = createHandlerMockView();
         const result = handler["getPointFromInput"](view, "90");
-        expect(result.point).toBeDefined();
+        expect(result.point).not.toBeNull();
         // At 90 degrees, x should be ~0, y should be ~1 (rotated from X unit vector)
         expect(result.point!.x).toBeCloseTo(0, 5);
         expect(result.point!.y).toBeCloseTo(1, 5);
@@ -152,7 +152,7 @@ describe("AngleSnapEventHandler — getPointFromInput", () => {
         const handler = new AngleSnapEventHandler(document, controller, center, p1, snapPointData);
         const view = createHandlerMockView();
         const result = handler["getPointFromInput"](view, "180");
-        expect(result.point).toBeDefined();
+        expect(result.point).not.toBeNull();
         expect(result.point!.x).toBeCloseTo(-1, 5);
         expect(result.point!.y).toBeCloseTo(0, 5);
     });
@@ -164,7 +164,7 @@ describe("AngleSnapEventHandler — getPointFromInput", () => {
         const handler = new AngleSnapEventHandler(document, controller, center, p1, snapPointData);
         const view = createHandlerMockView();
         const result = handler["getPointFromInput"](view, "0");
-        expect(result.point).toBeDefined();
+        expect(result.point).not.toBeNull();
         expect(result.point!.x).toBeCloseTo(1, 5);
         expect(result.point!.y).toBeCloseTo(0, 5);
     });

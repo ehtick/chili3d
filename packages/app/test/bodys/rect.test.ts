@@ -1,11 +1,11 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { IDocument } from "@chili3d/core";
+import type { IDocument, XYZLike } from "@chili3d/core";
 import { Plane, Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { RectNode } from "../../src/bodys/rect";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, createMockWireShape, setupShapeFactoryMock } from "./_utils";
 
 describe("RectNode", () => {
@@ -105,10 +105,10 @@ describe("RectNode", () => {
                 wire: () => Result.ok(createMockShape()),
             });
             const node = new RectNode({ document: doc, plane, dx: 10, dy: 20 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.dx = 99;
-            expect(events).toContain("dx");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("dx");
         });
 
         test("should emit on dy change", () => {
@@ -117,10 +117,10 @@ describe("RectNode", () => {
                 wire: () => Result.ok(createMockShape()),
             });
             const node = new RectNode({ document: doc, plane, dx: 10, dy: 20 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.dy = 77;
-            expect(events).toContain("dy");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("dy");
         });
 
         test("should emit on plane change", () => {
@@ -129,14 +129,14 @@ describe("RectNode", () => {
                 wire: () => Result.ok(createMockShape()),
             });
             const node = new RectNode({ document: doc, plane, dx: 10, dy: 20 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.plane = new Plane({
                 origin: new XYZ({ x: 1, y: 1, z: 0 }),
                 normal: XYZ.unitZ,
                 xvec: XYZ.unitX,
             });
-            expect(events).toContain("plane");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("plane");
         });
 
         test("should emit on isFace change", () => {
@@ -144,10 +144,10 @@ describe("RectNode", () => {
                 polygon: () => Result.ok(createMockWireShape()),
             });
             const node = new RectNode({ document: doc, plane, dx: 10, dy: 20 });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.isFace = true;
-            expect(events).toContain("isFace");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("isFace");
         });
     });
 
@@ -162,16 +162,12 @@ describe("RectNode", () => {
 
     describe("generateShape", () => {
         test("should call shapeFactory.polygon with computed points", () => {
-            let calledPoints: any[] = [];
-            setupShapeFactoryMock({
-                polygon: (pts: any[]) => {
-                    calledPoints = pts;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const polygon = rs.fn((_points: XYZLike[]) => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ polygon });
             const node = new RectNode({ document: doc, plane, dx: 10, dy: 20 });
             node.generateShape();
-            expect(calledPoints.length).toBe(5);
+            expect(polygon).toHaveBeenCalledTimes(1);
+            expect(polygon.mock.calls[0][0].length).toBe(5);
         });
 
         test("should return Result.err when shapeFactory.polygon fails", () => {

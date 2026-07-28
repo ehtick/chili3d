@@ -18,11 +18,21 @@ function makePushButton(overrides: Partial<PushButton> & { command: CommandKeys 
 
 describe("getItemData", () => {
     describe("with string key (CommandKeys)", () => {
+        class SaveCommand {
+            async execute() {}
+        }
+
+        afterEach(() => {
+            CommandStore.unregisterCommand("doc.save");
+        });
+
         test("should return command data from CommandStore when available", () => {
+            CommandStore.registerCommand(SaveCommand, { key: "doc.save", icon: "icon-save" });
+
             const result = getItemData("doc.save");
             expect(result.command).toBe("doc.save");
-            expect(result.icon).toBeDefined();
-            expect(result.display).toBeDefined();
+            expect(result.icon).toBe("icon-save");
+            expect(result.display).toBe("command.doc.save");
             expect(typeof result.onClick).toBe("function");
         });
 
@@ -230,12 +240,16 @@ describe("DropdownController", () => {
             anchor.remove();
         });
 
-        test("should be idempotent — closing twice does not throw", () => {
+        test("should be idempotent — closing twice keeps the closed state", () => {
             const anchor = document.createElement("div");
             document.body.appendChild(anchor);
             controller.open(anchor, () => {});
             controller.close();
-            expect(() => controller.close()).not.toThrow();
+            expect(controller.isOpened).toBe(false);
+
+            controller.close();
+            expect(controller.isOpened).toBe(false);
+            expect(document.body.querySelector(".test-dropdown")).toBeNull();
             anchor.remove();
         });
     });

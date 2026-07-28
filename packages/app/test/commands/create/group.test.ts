@@ -14,9 +14,9 @@ import {
     type VisualNode,
     XYZ,
 } from "@chili3d/core";
+import { TestNode } from "@chili3d/core/test-utils";
 import { describe, expect, rs, test } from "@rstest/core";
 import { GroupCommand } from "../../../src/commands/create/group";
-import { TestNode } from "../../_helpers";
 import {
     makeParent,
     nodeStepResult,
@@ -28,7 +28,7 @@ import {
 describe("GroupCommand", () => {
     test("should have command metadata", () => {
         const data = (GroupCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.group");
         expect(data.icon).toBe("icon-group");
     });

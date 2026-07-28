@@ -8,12 +8,17 @@ import { StringConverter } from "../src/converters/stringConverter";
 import { XYZConverter } from "../src/converters/xyzConverter";
 
 describe("converter test", () => {
-    test("test type", () => {
-        const converters = [new XYZConverter(), new NumberConverter()];
-        expect(converters.every((x) => (x as IConverter).convert !== undefined)).toBeTruthy();
+    test.each([
+        { name: "XYZConverter", converter: new XYZConverter() },
+        { name: "NumberConverter", converter: new NumberConverter() },
+        { name: "StringConverter", converter: new StringConverter() },
+        { name: "ColorConverter", converter: new ColorConverter() },
+    ])("$name should expose callable convert and convertBack methods", ({ converter }) => {
+        expect(typeof (converter as IConverter).convert).toBe("function");
+        expect(typeof (converter as IConverter).convertBack).toBe("function");
     });
 
-    test("test XYZConverter", () => {
+    test("should convert XYZ values both ways", () => {
         const converter = new XYZConverter();
         const xyz = XYZ.unitX;
         const c = converter.convert(xyz);
@@ -24,7 +29,7 @@ describe("converter test", () => {
         expect(converter.convertBack("1, 1, 1").value).toStrictEqual(new XYZ({ x: 1, y: 1, z: 1 }));
     });
 
-    test("test NumberConverter", () => {
+    test("should convert numbers to strings and back", () => {
         const converter = new NumberConverter();
         expect(converter.convert(Number.NaN).isOk).toBe(false);
         expect(converter.convert(-20).value).toBe("-20");
@@ -36,13 +41,13 @@ describe("converter test", () => {
         expect(converter.convertBack("-3").value).toBe(-3);
     });
 
-    test("test StringConverter", () => {
+    test("should pass strings through unchanged", () => {
         const converter = new StringConverter();
         expect(converter.convert("").value).toBe("");
         expect(converter.convertBack("").value).toBe("");
     });
 
-    test("test ColorConverter", () => {
+    test("should convert colors between numbers and hex strings", () => {
         const converter = new ColorConverter();
 
         // Test normal number conversion

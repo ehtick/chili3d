@@ -57,7 +57,7 @@ describe("getReactData", () => {
 describe("Rect", () => {
     test("should have command metadata", () => {
         const data = (Rect as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.rect");
         expect(data.icon).toBe("icon-rect");
     });

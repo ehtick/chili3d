@@ -2,14 +2,17 @@
 // See LICENSE file in the project root for full license information.
 
 import { type IFace, type IShape, type IWire, Line, Plane, ShapeTypes, XYZ } from "@chili3d/core";
-import { ShapeFactory } from "../src/factory";
-import type { OccEdge } from "../src/shape";
+import { MockShape } from "@chili3d/core/test-utils";
+import type { ShapeFactory } from "../src/factory";
+import type { OccEdge, OccFace, OccSolid } from "../src/shape";
+import { OccCylindricalSurface, OccPlane } from "../src/surface";
+import { createTestFactory, surfaceOfFace, unwrapOk } from "./helpers";
 import "./setup";
 
 let factory: ShapeFactory;
 
 beforeEach(() => {
-    factory = new ShapeFactory();
+    factory = createTestFactory();
 });
 
 const plane = Plane.XY;
@@ -201,6 +204,75 @@ describe("ShapeFactory — faces, shells & solids", () => {
         });
     });
 
+    describe("faceFromSurface", () => {
+        const sourceRect = () => unwrapOk(factory.rect(plane, 10, 20)) as OccFace;
+
+        test("should create a face on the source plane surface", () => {
+            const wire = unwrapOk(
+                factory.polygon([
+                    XYZ.zero,
+                    new XYZ({ x: 4, y: 0, z: 0 }),
+                    new XYZ({ x: 4, y: 5, z: 0 }),
+                    new XYZ({ x: 0, y: 5, z: 0 }),
+                ]),
+            );
+            const result = factory.faceFromSurface([wire], sourceRect());
+            expect(result.isOk).toBe(true);
+            const face = result.value as OccFace;
+            expect(face.shapeType).toBe(ShapeTypes.face);
+            expect(face.area()).toBeCloseTo(20, 6);
+            const [, normal] = face.normal(0.5, 0.5);
+            expect(normal.z).toBeCloseTo(1, 6);
+            expect(surfaceOfFace(face) instanceof OccPlane).toBe(true);
+        });
+
+        test("should create a face with a hole from outer and inner wires", () => {
+            const outer = unwrapOk(
+                factory.polygon([
+                    XYZ.zero,
+                    new XYZ({ x: 4, y: 0, z: 0 }),
+                    new XYZ({ x: 4, y: 5, z: 0 }),
+                    new XYZ({ x: 0, y: 5, z: 0 }),
+                ]),
+            );
+            const inner = unwrapOk(
+                factory.polygon([
+                    new XYZ({ x: 1, y: 1, z: 0 }),
+                    new XYZ({ x: 2, y: 1, z: 0 }),
+                    new XYZ({ x: 2, y: 3, z: 0 }),
+                    new XYZ({ x: 1, y: 3, z: 0 }),
+                ]),
+            );
+            const result = factory.faceFromSurface([outer, inner], sourceRect());
+            expect(result.isOk).toBe(true);
+            const face = result.value as OccFace;
+            // 4*5 outer minus 1*2 hole
+            expect(face.area()).toBeCloseTo(16, 6);
+            expect(face.findSubShapes(ShapeTypes.wire).length).toBe(2);
+        });
+
+        test("should return error when wires are empty", () => {
+            const result = factory.faceFromSurface([], sourceRect());
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("The wire is empty.");
+        });
+
+        test("should throw when the source face is not an OccShape", () => {
+            const wire = unwrapOk(
+                factory.polygon([
+                    XYZ.zero,
+                    new XYZ({ x: 4, y: 0, z: 0 }),
+                    new XYZ({ x: 4, y: 5, z: 0 }),
+                    new XYZ({ x: 0, y: 5, z: 0 }),
+                ]),
+            );
+            const fakeFace = new MockShape({ shapeType: ShapeTypes.face }) as unknown as IFace;
+            expect(() => factory.faceFromSurface([wire], fakeFace)).toThrow(
+                "OCC kernel only supports OCC geometries",
+            );
+        });
+    });
+
     describe("shell", () => {
         test("should create a shell from faces", () => {
             // Create 6 faces of a cube
@@ -214,9 +286,9 @@ describe("ShapeFactory — faces, shells & solids", () => {
                 10,
                 10,
             ).value;
-            // shell creation from non-sealed faces may or may not succeed — just verify no crash
+            // Shell from the top and bottom faces of a cube builds successfully
             const result = factory.shell([bottom, top]);
-            expect(result.isOk).toBeTruthy();
+            expect(result.isOk).toBe(true);
         });
     });
 
@@ -259,9 +331,9 @@ describe("ShapeFactory — operations", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const faces = box.findSubShapes(ShapeTypes.face);
             expect(faces.length).toBeGreaterThanOrEqual(6);
-            // May fail on certain faces — just verify it doesn't crash
+            // Push/pull on a box face succeeds
             const pushPullResult = factory.pushPull(box, faces[0], new XYZ({ x: 0, y: 0, z: 5 }));
-            expect(pushPullResult.isOk).toBeTruthy();
+            expect(pushPullResult.isOk).toBe(true);
         });
 
         test("should return error when vector length is zero", () => {
@@ -292,11 +364,52 @@ describe("ShapeFactory — operations", () => {
 
     describe("sweep", () => {
         test("should return error for non-OccShape profile", () => {
-            const fakeShape = { shapeType: "edge" } as unknown as IShape;
+            const fakeShape = new MockShape({ shapeType: ShapeTypes.edge }) as unknown as IShape;
             const pathEdge = factory.line(XYZ.zero, new XYZ({ x: 0, y: 0, z: 10 })).value;
             const pathWire = factory.wire([pathEdge]).value;
             // ensureOccShape throws — verify we get an error
             expect(() => factory.sweep([fakeShape], pathWire, false)).toThrow();
+        });
+
+        test.each([
+            false,
+            true,
+        ])("should sweep a circular profile along a straight path (isRound=%s)", (isRound) => {
+            const profile = unwrapOk(factory.wire([unwrapOk(factory.circle(XYZ.unitZ, XYZ.zero, 2))]));
+            const path = unwrapOk(
+                factory.wire([unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 0, y: 0, z: 10 })))]),
+            );
+            const result = factory.sweep([profile], path, isRound);
+            expect(result.isOk).toBe(true);
+            const shape = result.value;
+            expect(shape.shapeType).toBe(ShapeTypes.solid);
+            expect(shape.findSubShapes(ShapeTypes.face).length).toBe(3);
+            const solid = shape.findSubShapes(ShapeTypes.solid)[0] as unknown as OccSolid;
+            // A radius-2 circle swept 10 along its normal is a cylinder
+            expect(solid.volume()).toBeCloseTo(Math.PI * 2 * 2 * 10, 6);
+        });
+
+        test.each([
+            { isRound: false, faces: 4, volume: Math.PI * 20 },
+            { isRound: true, faces: 5, volume: 62.5457 },
+        ])("should sweep a profile along an L-shaped path (isRound=$isRound)", ({
+            isRound,
+            faces,
+            volume,
+        }) => {
+            const profile = unwrapOk(factory.wire([unwrapOk(factory.circle(XYZ.unitZ, XYZ.zero, 1))]));
+            const path = unwrapOk(
+                factory.wire([
+                    unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 0, y: 0, z: 10 }))),
+                    unwrapOk(factory.line(new XYZ({ x: 0, y: 0, z: 10 }), new XYZ({ x: 10, y: 0, z: 10 }))),
+                ]),
+            );
+            const result = factory.sweep([profile], path, isRound);
+            expect(result.isOk).toBe(true);
+            const shape = result.value;
+            expect(shape.findSubShapes(ShapeTypes.face).length).toBe(faces);
+            const solid = shape.findSubShapes(ShapeTypes.solid)[0] as unknown as OccSolid;
+            expect(solid.volume()).toBeCloseTo(volume, 3);
         });
     });
 
@@ -314,6 +427,19 @@ describe("ShapeFactory — operations", () => {
             const c2 = factory.circle(XYZ.unitZ, new XYZ({ x: 5, y: 5, z: 15 }), 3).value;
             const result = factory.loft([c1, c2], true, true, "c0");
             expect(result.isOk).toBe(true);
+        });
+
+        test("should return error when sections are empty", () => {
+            const result = factory.loft([], true, false, "c0");
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Failed to loft: at least 2 sections are required");
+        });
+
+        test("should throw when a section is not an OccShape", () => {
+            const fakeSection = new MockShape({ shapeType: ShapeTypes.wire }) as unknown as IWire;
+            expect(() => factory.loft([fakeSection], true, false, "c0")).toThrow(
+                "The OCC kernel only supports OCC geometries.",
+            );
         });
     });
 
@@ -388,7 +514,7 @@ describe("ShapeFactory — feature operations", () => {
         });
 
         test("should return error when shape is not OccShape", () => {
-            const fakeShape = { shapeType: "edge" } as unknown as IShape;
+            const fakeShape = new MockShape({ shapeType: ShapeTypes.edge }) as unknown as IShape;
             const result = factory.fillet(fakeShape, [0], 5);
             expect(result.isOk).toBe(false);
             expect(result.error).toBe("Not OccShape");
@@ -424,7 +550,7 @@ describe("ShapeFactory — feature operations", () => {
         });
 
         test("should return error when shape is not OccShape", () => {
-            const fakeShape = { shapeType: "solid" } as unknown as IShape;
+            const fakeShape = new MockShape({ shapeType: ShapeTypes.solid }) as unknown as IShape;
             const result = factory.chamfer(fakeShape, [0], 5);
             expect(result.isOk).toBe(false);
             expect(result.error).toBe("Not OccShape");
@@ -440,10 +566,34 @@ describe("ShapeFactory — feature operations", () => {
 
     describe("removeFillet", () => {
         test("should return error when shape is not OccShape", () => {
-            const fakeShape = { shapeType: "solid" } as unknown as IShape;
+            const fakeShape = new MockShape({ shapeType: ShapeTypes.solid }) as unknown as IShape;
             const result = factory.removeFillet(fakeShape, []);
             expect(result.isOk).toBe(false);
             expect(result.error).toBe("Not OccShape");
+        });
+
+        test("should remove fillet faces and restore the original box", () => {
+            const box = unwrapOk(factory.box(plane, 10, 10, 10));
+            const boxVolume = (box.findSubShapes(ShapeTypes.solid)[0] as unknown as OccSolid).volume();
+            expect(boxVolume).toBeCloseTo(1000, 6);
+
+            const filleted = unwrapOk(factory.fillet(box, [0, 1, 2, 3], 1));
+            const filletedVolume = (
+                filleted.findSubShapes(ShapeTypes.solid)[0] as unknown as OccSolid
+            ).volume();
+            expect(filletedVolume).toBeLessThan(boxVolume);
+
+            const filletFaces = filleted
+                .findSubShapes(ShapeTypes.face)
+                .map((f) => f as OccFace)
+                .filter((f) => surfaceOfFace(f) instanceof OccCylindricalSurface);
+            expect(filletFaces.length).toBe(4);
+
+            const { shape, newEdges } = unwrapOk(factory.removeFillet(filleted, filletFaces));
+            const restoredVolume = (shape.findSubShapes(ShapeTypes.solid)[0] as unknown as OccSolid).volume();
+            expect(restoredVolume).toBeCloseTo(boxVolume, 6);
+            expect(shape.findSubShapes(ShapeTypes.face).length).toBe(6);
+            expect(newEdges.length).toBe(16);
         });
     });
 
@@ -452,7 +602,7 @@ describe("ShapeFactory — feature operations", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const edges = box.findSubShapes(ShapeTypes.edge);
             expect(edges.length).toBeGreaterThan(0);
-            // May or may not succeed depending on topology — just verify no crash
+            // Removing one edge of a box succeeds
             const removeSubResult = factory.removeSubShape(box, [edges[0]]);
             expect(removeSubResult.isOk).toBe(true);
         });
@@ -462,7 +612,7 @@ describe("ShapeFactory — feature operations", () => {
         test("should replace a sub-shape", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const edges = box.findSubShapes(ShapeTypes.edge);
-            // Replace may not always make sense — check no crash
+            // Replacing one edge of a box with another succeeds
             const replaceResult = factory.replaceSubShapes(box, [edges[0]], [edges[1]]);
             expect(replaceResult.isOk).toBe(true);
         });
@@ -495,7 +645,7 @@ describe("ShapeFactory — advanced operations", () => {
 
     describe("sewing", () => {
         test("should handle sewing two shapes", () => {
-            // Sewing is complex — just check the method exists and doesn't crash
+            // Sewing two boxes succeeds
             const box1 = factory.box(plane, 10, 10, 10).value;
             const box2 = factory.box(shiftedPlane, 10, 10, 10).value;
             const sewResult = factory.sewing([box1, box2]);
@@ -515,7 +665,7 @@ describe("ShapeFactory — advanced operations", () => {
         test("should create a thick solid with closing faces", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const faces = box.findSubShapes(ShapeTypes.face);
-            // May succeed or fail — just verify no crash
+            // Thickening a box by joining on one face succeeds
             const thickJoinResult = factory.makeThickSolidByJoin(box, [faces[0] as IFace], 0.5);
             expect(thickJoinResult.isOk).toBe(true);
         });
@@ -526,7 +676,7 @@ describe("ShapeFactory — advanced operations", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const topFace = box.findSubShapes(ShapeTypes.face)[4]; // typically top face
             const curve = factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 })).value;
-            // Projection may succeed or fail — just verify no crash
+            // Projecting a line onto a box face along Z succeeds
             const projResult = factory.curveProjection(curve, topFace as IFace, XYZ.unitZ);
             expect(projResult.isOk).toBe(true);
         });
@@ -561,14 +711,14 @@ describe("ShapeFactory — convertShapeResult error catching", () => {
     });
 
     test("should throw error on removeSubShape with non-OccShape", () => {
-        const fakeShape = { shapeType: "solid" } as unknown as IShape;
+        const fakeShape = new MockShape({ shapeType: ShapeTypes.solid }) as unknown as IShape;
         expect(() => factory.removeSubShape(fakeShape, [])).toThrow(
             "OCC kernel only supports OCC geometries",
         );
     });
 
     test("should throw error on ensureOccShape with single non-OccShape", () => {
-        const fakeShape = { shapeType: "solid" } as unknown as IShape;
+        const fakeShape = new MockShape({ shapeType: ShapeTypes.solid }) as unknown as IShape;
         expect(() => factory.prism(fakeShape, new XYZ({ x: 1, y: 0, z: 0 }))).toThrow(
             "OCC kernel only supports OCC geometries",
         );
@@ -600,10 +750,41 @@ describe("ShapeFactory — edge from curve", () => {
 
 describe("ShapeFactory — removeFeature", () => {
     test("should return error when shape is not OccShape", () => {
-        const fakeShape = { shapeType: "solid" } as unknown as IShape;
+        const fakeShape = new MockShape({ shapeType: ShapeTypes.solid }) as unknown as IShape;
         const result = factory.removeFeature(fakeShape, []);
         expect(result.isOk).toBe(false);
         expect(result.error).toBe("Not OccShape");
+    });
+
+    test("should remove a fused boss and restore the base box", () => {
+        const base = unwrapOk(factory.box(plane, 20, 20, 10));
+        const boss = unwrapOk(
+            factory.box(
+                new Plane({
+                    origin: new XYZ({ x: 5, y: 5, z: 10 }),
+                    normal: XYZ.unitZ,
+                    xvec: XYZ.unitX,
+                }),
+                5,
+                5,
+                5,
+            ),
+        );
+        const fused = unwrapOk(factory.booleanFuse([base], [boss], true));
+        const fusedSolid = fused.findSubShapes(ShapeTypes.solid)[0] as unknown as OccSolid;
+        expect(fusedSolid.volume()).toBeCloseTo(4125, 6);
+
+        // The boss contributes 5 faces of area 25 (4 sides + top)
+        const bossFaces = fusedSolid
+            .findSubShapes(ShapeTypes.face)
+            .map((f) => f as OccFace)
+            .filter((f) => Math.abs(f.area() - 25) < 1e-6);
+        expect(bossFaces.length).toBe(5);
+
+        const restored = unwrapOk(factory.removeFeature(fusedSolid, bossFaces));
+        const restoredSolid = restored.findSubShapes(ShapeTypes.solid)[0] as unknown as OccSolid;
+        expect(restoredSolid.volume()).toBeCloseTo(4000, 6);
+        expect(restored.findSubShapes(ShapeTypes.face).length).toBe(6);
     });
 });
 
@@ -614,9 +795,10 @@ describe("ShapeFactory — removeFeature", () => {
 describe("ShapeFactory — removeFillet additional", () => {
     test("should handle removeFillet on box with zero edges", () => {
         const box = factory.box(plane, 10, 10, 10).value;
-        // Empty faces array — returns error result, WASM may also abort
+        // A box has no fillets — nothing can be removed, so this returns an error
         const result = factory.removeFillet(box, []);
-        expect(result).toBeDefined();
+        expect(result.isOk).toBe(false);
+        expect(result.error).toBe("Failed to remove fillet");
     });
 });
 

@@ -1,26 +1,8 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { FolderNode, type IDocument, type INode } from "../src";
-import { Id } from "../src/foundation";
-import { TestDocument } from "./mocks";
-
-function createMockNode(name: string, id?: string): INode {
-    return {
-        id: id ?? Id.generate(),
-        name,
-        visible: true,
-        parentVisible: true,
-        parent: undefined,
-        previousSibling: undefined,
-        nextSibling: undefined,
-        onPropertyChanged: () => {},
-        clearPropertyChanged() {},
-        removePropertyChanged: () => {},
-        clone: () => ({}) as any,
-        dispose() {},
-    };
-}
+import { FolderNode, type IDocument } from "../src";
+import { createPlainNode, TestDocument } from "../test-utils";
 
 describe("FolderNode", () => {
     let doc: IDocument;
@@ -41,7 +23,7 @@ describe("FolderNode", () => {
 
         test("should generate id when not provided", () => {
             const node = new FolderNode({ document: doc, name: "folder1" });
-            expect(node.id).toBeDefined();
+            expect(node.id).not.toBeNull();
         });
 
         test("should use provided id", () => {
@@ -53,7 +35,7 @@ describe("FolderNode", () => {
     describe("add", () => {
         test("should add single child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
 
             parent.add(child);
 
@@ -68,9 +50,9 @@ describe("FolderNode", () => {
 
         test("should add multiple children", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
-            const child2 = createMockNode("child2");
-            const child3 = createMockNode("child3");
+            const child1 = createPlainNode("child1");
+            const child2 = createPlainNode("child2");
+            const child3 = createPlainNode("child3");
 
             parent.add(child1, child2, child3);
 
@@ -86,7 +68,7 @@ describe("FolderNode", () => {
 
         test("should set parentVisible on children", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
 
             parent.add(child);
 
@@ -96,7 +78,7 @@ describe("FolderNode", () => {
         test("should inherit parent visibility", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
             parent.visible = false;
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
 
             parent.add(child);
 
@@ -107,8 +89,8 @@ describe("FolderNode", () => {
     describe("children", () => {
         test("should return all children in order", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
-            const child2 = createMockNode("child2");
+            const child1 = createPlainNode("child1");
+            const child2 = createPlainNode("child2");
             parent.add(child1, child2);
 
             const result = parent.children();
@@ -127,8 +109,8 @@ describe("FolderNode", () => {
     describe("remove", () => {
         test("should remove child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
-            const child2 = createMockNode("child2");
+            const child1 = createPlainNode("child1");
+            const child2 = createPlainNode("child2");
             parent.add(child1, child2);
 
             parent.remove(child1);
@@ -142,8 +124,8 @@ describe("FolderNode", () => {
 
         test("should remove last child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
-            const child2 = createMockNode("child2");
+            const child1 = createPlainNode("child1");
+            const child2 = createPlainNode("child2");
             parent.add(child1, child2);
 
             parent.remove(child2);
@@ -156,9 +138,9 @@ describe("FolderNode", () => {
 
         test("should remove middle child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
-            const child2 = createMockNode("child2");
-            const child3 = createMockNode("child3");
+            const child1 = createPlainNode("child1");
+            const child2 = createPlainNode("child2");
+            const child3 = createPlainNode("child3");
             parent.add(child1, child2, child3);
 
             parent.remove(child2);
@@ -172,7 +154,7 @@ describe("FolderNode", () => {
 
         test("should remove only child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
             parent.add(child);
 
             parent.remove(child);
@@ -185,8 +167,8 @@ describe("FolderNode", () => {
         test("should only remove children that belong to this parent", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
             const other = new FolderNode({ document: doc, name: "other" });
-            const child1 = createMockNode("child1");
-            const child2 = createMockNode("child2");
+            const child1 = createPlainNode("child1");
+            const child2 = createPlainNode("child2");
             parent.add(child1);
             other.add(child2);
 
@@ -200,7 +182,7 @@ describe("FolderNode", () => {
     describe("transfer", () => {
         test("should transfer child out", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
             parent.add(child);
 
             parent.transfer(child);
@@ -214,9 +196,9 @@ describe("FolderNode", () => {
     describe("insertBefore", () => {
         test("should insert before first child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
+            const child1 = createPlainNode("child1");
             parent.add(child1);
-            const child0 = createMockNode("child0");
+            const child0 = createPlainNode("child0");
 
             parent.insertBefore(child1, child0);
 
@@ -228,10 +210,10 @@ describe("FolderNode", () => {
 
         test("should insert before middle child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
-            const child2 = createMockNode("child2");
+            const child1 = createPlainNode("child1");
+            const child2 = createPlainNode("child2");
             parent.add(child1, child2);
-            const childMid = createMockNode("childMid");
+            const childMid = createPlainNode("childMid");
 
             parent.insertBefore(child2, childMid);
 
@@ -244,9 +226,9 @@ describe("FolderNode", () => {
 
         test("should insert with undefined target (insert as first)", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
+            const child1 = createPlainNode("child1");
             parent.add(child1);
-            const child0 = createMockNode("child0");
+            const child0 = createPlainNode("child0");
 
             parent.insertBefore(undefined, child0);
 
@@ -255,8 +237,8 @@ describe("FolderNode", () => {
 
         test("should not insert if target is not a child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const otherNode = createMockNode("other");
-            const newNode = createMockNode("new");
+            const otherNode = createPlainNode("other");
+            const newNode = createPlainNode("new");
 
             parent.insertBefore(otherNode, newNode);
 
@@ -267,9 +249,9 @@ describe("FolderNode", () => {
     describe("insertAfter", () => {
         test("should insert after last child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
+            const child1 = createPlainNode("child1");
             parent.add(child1);
-            const child2 = createMockNode("child2");
+            const child2 = createPlainNode("child2");
 
             parent.insertAfter(child1, child2);
 
@@ -281,10 +263,10 @@ describe("FolderNode", () => {
 
         test("should insert after middle child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
-            const child3 = createMockNode("child3");
+            const child1 = createPlainNode("child1");
+            const child3 = createPlainNode("child3");
             parent.add(child1, child3);
-            const child2 = createMockNode("child2");
+            const child2 = createPlainNode("child2");
 
             parent.insertAfter(child1, child2);
 
@@ -296,9 +278,9 @@ describe("FolderNode", () => {
 
         test("should insert with undefined target (insert as first)", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child1 = createMockNode("child1");
+            const child1 = createPlainNode("child1");
             parent.add(child1);
-            const child0 = createMockNode("child0");
+            const child0 = createPlainNode("child0");
 
             parent.insertAfter(undefined, child0);
 
@@ -307,8 +289,8 @@ describe("FolderNode", () => {
 
         test("should not insert if target is not a child", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const otherNode = createMockNode("other");
-            const newNode = createMockNode("new");
+            const otherNode = createPlainNode("other");
+            const newNode = createPlainNode("new");
 
             parent.insertAfter(otherNode, newNode);
 
@@ -320,7 +302,7 @@ describe("FolderNode", () => {
         test("should move child between folders", () => {
             const folder1 = new FolderNode({ document: doc, name: "folder1" });
             const folder2 = new FolderNode({ document: doc, name: "folder2" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
             folder1.add(child);
 
             folder1.move(child, folder2);
@@ -334,8 +316,8 @@ describe("FolderNode", () => {
         test("should move child with previous sibling", () => {
             const folder1 = new FolderNode({ document: doc, name: "folder1" });
             const folder2 = new FolderNode({ document: doc, name: "folder2" });
-            const existingChild = createMockNode("existing");
-            const child = createMockNode("child1");
+            const existingChild = createPlainNode("existing");
+            const child = createPlainNode("child1");
             folder1.add(child);
             folder2.add(existingChild);
 
@@ -350,8 +332,8 @@ describe("FolderNode", () => {
             const folder1 = new FolderNode({ document: doc, name: "folder1" });
             const folder2 = new FolderNode({ document: doc, name: "folder2" });
             const folder3 = new FolderNode({ document: doc, name: "folder3" });
-            const child = createMockNode("child1");
-            const wrongSibling = createMockNode("wrong");
+            const child = createPlainNode("child1");
+            const wrongSibling = createPlainNode("wrong");
             folder1.add(child);
             folder3.add(wrongSibling);
 
@@ -366,7 +348,7 @@ describe("FolderNode", () => {
     describe("visibility propagation", () => {
         test("should propagate parentVisible to children when parent visibility changes", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
             parent.add(child);
             expect(child.parentVisible).toBe(true);
 
@@ -380,7 +362,7 @@ describe("FolderNode", () => {
         test("should propagate parentVisible when parentVisible changes", () => {
             const grandparent = new FolderNode({ document: doc, name: "grandparent" });
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
             grandparent.add(parent);
             parent.add(child);
 
@@ -394,7 +376,7 @@ describe("FolderNode", () => {
     describe("dispose", () => {
         test("should dispose with children", () => {
             const parent = new FolderNode({ document: doc, name: "parent" });
-            const child = createMockNode("child1");
+            const child = createPlainNode("child1");
             parent.add(child);
 
             // Should not throw

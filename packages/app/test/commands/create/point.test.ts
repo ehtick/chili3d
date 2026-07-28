@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Point", () => {
     test("should have command metadata", () => {
         const data = (Point as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.point");
         expect(data.icon).toBe("icon-point");
     });

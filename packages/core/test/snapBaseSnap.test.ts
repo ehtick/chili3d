@@ -7,7 +7,7 @@ import type { MouseAndDetected, SnapResult } from "../src/snap/snap";
 import { BaseSnap } from "../src/snap/snaps/baseSnap";
 import type { IView, VisualShapeData } from "../src/visual";
 import { VisualStates } from "../src/visual";
-import { createMockHighlighter, createMockView, createMouseAndDetected } from "./mocks";
+import { createMockHighlighter, createMockView, createMouseAndDetected } from "../test-utils";
 
 // ============================================================================
 // Concrete BaseSnap subclass for testing

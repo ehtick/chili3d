@@ -4,84 +4,19 @@
 import type { Property } from "@chili3d/core";
 import { describe, expect, test } from "@rstest/core";
 
-// Mock CSS modules before importing modules under test
-rs.mock("../src/property/common.module.css", () => ({
-    panel: "cm-panel",
-    propertyName: "cm-property-name",
-}));
+// test-utils must load BEFORE the core-mock helper so the real core module is
+// fully cached by the time `rs.mock("@chili3d/core")` registers.
+import { createMockDocument, expectEmptyObjectsThrow } from "./_helpers/propertyTestHelpers";
 
-rs.mock("../src/property/propertyBase.module.css", () => ({
-    panel: "pb-panel",
-}));
-
-// Mock element helpers — return simple DOM elements
-// biome-ignore lint/suspicious/noExplicitAny: test mock for DOM element factory
-rs.mock("@chili3d/element", () => ({
-    div: (props: any, ...children: any[]) => {
-        const el = document.createElement("div");
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props.className) el.className = props.className;
-            if (props.textContent) el.textContent = String(props.textContent);
-        }
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-            else if (typeof c === "string") el.appendChild(document.createTextNode(c));
-        }
-        return el;
-    },
-    span: (props: any) => {
-        const el = document.createElement("span");
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props.className) el.className = props.className;
-            if (props.textContent && typeof props.textContent !== "object") {
-                el.textContent = String(props.textContent);
-            }
-        }
-        return el;
-    },
-    input: (props: any) => {
-        const el = document.createElement("input");
-        if (props && typeof props === "object") {
-            if (props.type) el.type = props.type;
-            if (props.checked !== undefined) (el as any)._checked = props.checked;
-            if (props.onclick) (el as any)._onclick = props.onclick;
-        }
-        return el;
-    },
-}));
-
-// Mock core services
-rs.mock("@chili3d/core", () => {
-    const actual = rs.hoisted(() => require("@chili3d/core"));
-    return {
-        ...actual,
-        Localize: class {
-            private key: unknown;
-            constructor(key: unknown) {
-                this.key = key;
-            }
-            toString() {
-                return String(this.key);
-            }
-        },
-        Binding: class {
-            constructor(_value: unknown, _prop?: string) {}
-        },
-        Transaction: {
-            execute: (_doc: unknown, _desc: string, fn: () => void) => fn(),
-        },
-    };
-});
+// Shared mocks: CSS modules, element helpers, core services
+import "./_helpers/cssMocks";
+import "./_helpers/mockElement";
+import "./_helpers/mockCoreProperty";
 
 import { CheckProperty } from "../src/property/check";
+import { mustQuery } from "./_helpers/domHelpers";
 
 describe("CheckProperty", () => {
-    function createMockDocument() {
-        return {
-            visual: { update: () => {} },
-        } as any;
-    }
-
     const propConfig: Property = {
         name: "enabled",
         type: "boolean",
@@ -90,8 +25,7 @@ describe("CheckProperty", () => {
 
     describe("constructor", () => {
         test("should throw when objects array is empty", () => {
-            const doc = createMockDocument();
-            expect(() => new CheckProperty(doc, [], propConfig)).toThrow("there are no objects");
+            expectEmptyObjectsThrow(() => new CheckProperty(createMockDocument(), [], propConfig));
         });
 
         test("should create DOM structure with panel div", () => {
@@ -147,8 +81,8 @@ describe("CheckProperty", () => {
             const obj = { enabled: true };
             const prop = new CheckProperty(doc, [obj], propConfig);
 
-            const checkbox = prop.querySelector("input[type='checkbox']") as HTMLInputElement;
-            expect(checkbox).not.toBeNull();
+            const checkbox = mustQuery<HTMLInputElement>(prop, "input[type='checkbox']");
+            expect((checkbox as any)._onclick).toBeDefined();
         });
 
         test("should use first object's property for Binding checked", () => {
@@ -165,7 +99,7 @@ describe("CheckProperty", () => {
             const prop = new CheckProperty(doc, [obj], propConfig);
 
             // Simulate clicking the checkbox: toggle enabled from true → false
-            const input = prop.querySelector("input[type='checkbox']") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input[type='checkbox']");
             const onclickHandler = (input as any)._onclick as (() => void) | undefined;
             expect(onclickHandler).toBeDefined();
 
@@ -183,7 +117,7 @@ describe("CheckProperty", () => {
             const obj2 = { enabled: true };
             const prop = new CheckProperty(doc, [obj1, obj2], propConfig);
 
-            const input = prop.querySelector("input[type='checkbox']") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input[type='checkbox']");
             const onclickHandler = (input as any)._onclick as (() => void) | undefined;
 
             onclickHandler!();
@@ -194,17 +128,14 @@ describe("CheckProperty", () => {
 
         test("should update document.visual when checkbox is toggled", () => {
             let visualUpdated = false;
-            const doc = {
-                visual: {
-                    update: () => {
-                        visualUpdated = true;
-                    },
-                },
-            } as any;
+            const doc = createMockDocument();
+            doc.visual.update = () => {
+                visualUpdated = true;
+            };
             const obj = { enabled: true };
             const prop = new CheckProperty(doc, [obj], propConfig);
 
-            const input = prop.querySelector("input[type='checkbox']") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input[type='checkbox']");
             const onclickHandler = (input as any)._onclick as (() => void) | undefined;
 
             onclickHandler!();
@@ -216,7 +147,7 @@ describe("CheckProperty", () => {
             const obj = { enabled: false };
             const prop = new CheckProperty(doc, [obj], propConfig);
 
-            const input = prop.querySelector("input[type='checkbox']") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input[type='checkbox']");
             const onclickHandler = (input as any)._onclick as (() => void) | undefined;
 
             onclickHandler!();

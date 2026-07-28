@@ -3,9 +3,9 @@
 
 import type { CommandKeys, IApplication, IView } from "@chili3d/core";
 import { PubSub } from "@chili3d/core";
+import { createMockApplication } from "@chili3d/core/test-utils";
 import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
-import { HotkeyService } from "../../src/services/hotkeyService";
-import { createMockApplication } from "../_helpers";
+import { type HotkeyMap, HotkeyService } from "../../src/services/hotkeyService";
 
 describe("HotkeyService", () => {
     let service: HotkeyService;
@@ -107,25 +107,30 @@ describe("HotkeyService", () => {
             expect(result).toBe("create.box");
         });
 
-        test("should match ctrl+key combinations", () => {
-            service.addMap({ "ctrl+f21": "doc.save" as CommandKeys });
+        test.each([
+            {
+                modifier: "ctrl",
+                mapping: { "ctrl+f21": "doc.save" } as HotkeyMap,
+                event: { key: "f21", ctrlKey: true },
+                expected: "doc.save",
+            },
+            {
+                modifier: "shift",
+                mapping: { "shift+f20": "create.arc" } as HotkeyMap,
+                event: { key: "f20", shiftKey: true },
+                expected: "create.arc",
+            },
+            {
+                modifier: "alt",
+                mapping: { "alt+f19": "create.rect" } as HotkeyMap,
+                event: { key: "f19", altKey: true },
+                expected: "create.rect",
+            },
+        ])("should match $modifier+key combinations", ({ mapping, event, expected }) => {
+            service.addMap(mapping);
 
-            const result = service.getCommand({ key: "f21", ctrlKey: true });
-            expect(result).toBe("doc.save");
-        });
-
-        test("should match shift+key combinations", () => {
-            service.addMap({ "shift+f20": "create.arc" as CommandKeys });
-
-            const result = service.getCommand({ key: "f20", shiftKey: true });
-            expect(result).toBe("create.arc");
-        });
-
-        test("should match alt+key combinations", () => {
-            service.addMap({ "alt+f19": "create.rect" as CommandKeys });
-
-            const result = service.getCommand({ key: "f19", altKey: true });
-            expect(result).toBe("create.rect");
+            const result = service.getCommand(event);
+            expect(result).toBe(expected);
         });
 
         test("should match multi-key sequences", () => {

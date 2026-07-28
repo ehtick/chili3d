@@ -25,7 +25,7 @@ import {
 describe("Pipe", () => {
     test("should have command metadata", () => {
         const data = (Pipe as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.pipe");
         expect(data.icon).toBe("icon-pipe");
     });
@@ -69,7 +69,7 @@ describe("Pipe", () => {
             ]);
 
             const data = (cmd as any).getNextData() as PointSnapData;
-            expect(data.dimension).toBeDefined();
+            expect(data.dimension).not.toBeNull();
             expect(typeof data.preview).toBe("function");
             expect(typeof data.refPoint).toBe("function");
         });
@@ -103,7 +103,7 @@ describe("Pipe", () => {
             ]);
 
             const data = (cmd as any).getNextData() as PointSnapData;
-            expect(data.featurePoints).toBeDefined();
+            expect(data.featurePoints).not.toBeNull();
             expect(data.featurePoints!.length).toBeGreaterThanOrEqual(1);
             expect(data.featurePoints![0].point).toBe(firstPoint);
         });

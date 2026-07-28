@@ -46,6 +46,11 @@ describe("LanguageSelector", () => {
         expect(el.className).toBe("custom-class");
         expect(el.id).toBe("lang-picker");
     });
+
+    test("should have onchange handler", () => {
+        const el = LanguageSelector({}) as HTMLSelectElement;
+        expect(typeof el.onchange).toBe("function");
+    });
 });
 
 describe("ThemeSelector", () => {

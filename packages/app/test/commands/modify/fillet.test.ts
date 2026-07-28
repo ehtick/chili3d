@@ -64,7 +64,7 @@ describe("FilletCommand", () => {
 
     test("should have command metadata", () => {
         const data = (FilletCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.fillet");
         expect(data.icon).toBe("icon-fillet");
     });

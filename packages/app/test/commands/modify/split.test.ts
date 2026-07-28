@@ -95,7 +95,7 @@ describe("Split", () => {
 
     test("should have command metadata", () => {
         const data = (Split as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.split");
         expect(data.icon).toBe("icon-split");
     });

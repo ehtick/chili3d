@@ -3,9 +3,9 @@
 
 import type { IDocument } from "@chili3d/core";
 import { Result, XYZ } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockDocument } from "@chili3d/core/test-utils";
+import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { PointNode } from "../../src/bodys/point";
-import { createMockDocument } from "../_helpers";
 import { createMockShape, setupShapeFactoryMock } from "./_utils";
 
 describe("PointNode", () => {
@@ -56,25 +56,20 @@ describe("PointNode", () => {
         test("should emit on position change", () => {
             setupShapeFactoryMock({ point: () => Result.ok(createMockShape()) });
             const node = new PointNode({ document: doc, position });
-            const events: string[] = [];
-            node.onPropertyChanged((prop: string) => events.push(prop));
+            const handler = rs.fn((_property: string) => {});
+            node.onPropertyChanged(handler);
             node.position = new XYZ({ x: 1, y: 1, z: 1 });
-            expect(events).toContain("position");
+            expect(handler.mock.calls.map((c) => c[0])).toContain("position");
         });
     });
 
     describe("generateShape", () => {
         test("should call shapeFactory.point", () => {
-            let calledWith: any[] = [];
-            setupShapeFactoryMock({
-                point: (...args: any[]) => {
-                    calledWith = args;
-                    return Result.ok(createMockShape());
-                },
-            });
+            const point = rs.fn(() => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ point });
             const node = new PointNode({ document: doc, position });
             node.generateShape();
-            expect(calledWith[0]).toBe(position);
+            expect(point).toHaveBeenCalledWith(position);
         });
 
         test("should return Result.err when shapeFactory.point fails", () => {

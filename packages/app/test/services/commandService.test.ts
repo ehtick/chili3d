@@ -3,16 +3,33 @@
 
 import type { CommandData, CommandKeys, IApplication, ICommand, IDocument, IView } from "@chili3d/core";
 import { CommandStore, PubSub } from "@chili3d/core";
-import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
+import { createMockApplication, createMockDocument } from "@chili3d/core/test-utils";
+import { afterEach, beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { CommandService } from "../../src/services/commandService";
-import { createMockApplication, createMockDocument } from "../_helpers";
 
 // ── test command stubs ────────────────────────────────────────────────
 
 class TestCommand implements ICommand {
+    private static _waiters: Array<() => void> = [];
+
+    /** Resolves the next time any TestCommand instance finishes execute(). */
+    static nextExecuted(): Promise<void> {
+        return new Promise<void>((resolve) => {
+            TestCommand._waiters.push(resolve);
+        });
+    }
+
+    static reset(): void {
+        TestCommand._waiters = [];
+    }
+
     executeCalls: IApplication[] = [];
+
     async execute(application: IApplication): Promise<void> {
         this.executeCalls.push(application);
+        for (const resolve of TestCommand._waiters.splice(0)) {
+            resolve();
+        }
     }
 }
 
@@ -24,9 +41,18 @@ class ThrowingCommand implements ICommand {
 
 class TestCancelableCommand implements ICommand {
     cancelCalls = 0;
+
+    private _resolveCancelled!: () => void;
+    /** Resolves the first time cancel() is called on this instance. */
+    readonly cancelled: Promise<void> = new Promise<void>((resolve) => {
+        this._resolveCancelled = resolve;
+    });
+
     async execute(_application: IApplication): Promise<void> {}
+
     async cancel(): Promise<void> {
         this.cancelCalls++;
+        this._resolveCancelled();
     }
 }
 
@@ -44,6 +70,22 @@ function unregisterCommand(key: string) {
     CommandStore.unregisterCommand(key);
 }
 
+/**
+ * Wait until the full async command chain (executeCommand → canExecute → executeAsync
+ * → command.execute → finally) has completed for `key`.
+ *
+ * CommandService exposes no completion event; `lastCommand` is assigned in
+ * executeAsync's finally block, so it is the only observable signal that the whole
+ * chain has finished (including that `executingCommand` was cleared). Keep this
+ * polling in a single place: if the service ever emits a completion event, only
+ * this helper needs to change.
+ */
+async function waitForCommandCompleted(app: IApplication, key: string): Promise<void> {
+    await rs.waitFor(() => {
+        expect(app.lastCommand).toBe(key);
+    });
+}
+
 // ── tests ─────────────────────────────────────────────────────────────
 
 describe("CommandService", () => {
@@ -59,6 +101,8 @@ describe("CommandService", () => {
 
         app = createMockApplication();
         app.activeView = view;
+
+        TestCommand.reset();
     });
 
     afterEach(() => {
@@ -75,25 +119,51 @@ describe("CommandService", () => {
     // ── lifecycle ──────────────────────────────────────────────────
 
     describe("register", () => {
-        test("should set the application instance", () => {
+        test("should wire the application so published commands execute against it", async () => {
+            registerCommand("test.box");
             service.register(app);
-            // start should work without error after register
-            expect(() => service.start()).not.toThrow();
+            service.start();
+
+            PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
+
+            // Execution only works when register() stored the app instance
+            await waitForCommandCompleted(app, "test.box");
         });
     });
 
     describe("start", () => {
-        test("should subscribe to PubSub events without error", () => {
+        test("should subscribe to executeCommand and activeViewChanged", async () => {
+            registerCommand("test.box");
             service.register(app);
-            expect(() => service.start()).not.toThrow();
+            service.start();
+
+            // executeCommand subscription is live: the published command runs to completion
+            PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
+            await waitForCommandCompleted(app, "test.box");
+
+            // activeViewChanged subscription is live: the executing cancelable command is cancelled
+            const cancelableCmd = new TestCancelableCommand();
+            app.executingCommand = cancelableCmd;
+            PubSub.default.pub("activeViewChanged", view);
+            await cancelableCmd.cancelled;
+            expect(cancelableCmd.cancelCalls).toBe(1);
         });
     });
 
     describe("stop", () => {
-        test("should unsubscribe without error", () => {
+        test("should unsubscribe so published commands are no longer executed", async () => {
+            registerCommand("test.box");
             service.register(app);
             service.start();
-            expect(() => service.stop()).not.toThrow();
+            service.stop();
+
+            PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
+
+            // No handler is subscribed anymore, so nothing can be triggered
+            await Promise.resolve();
+
+            expect(app.executingCommand).toBeUndefined();
+            expect(app.lastCommand).toBeUndefined();
         });
     });
 
@@ -110,10 +180,7 @@ describe("CommandService", () => {
 
             PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
 
-            // Wait for async execution chain (executeCommand → canExecute → executeAsync)
-            await new Promise((r) => setTimeout(r, 100));
-
-            expect(app.lastCommand).toBe("test.box");
+            await waitForCommandCompleted(app, "test.box");
         });
 
         test("should clear executingCommand after execution", async () => {
@@ -121,8 +188,10 @@ describe("CommandService", () => {
             service.start();
 
             PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 100));
 
+            // waitForCommandCompleted returns after the finally block ran, so
+            // executingCommand must already be cleared.
+            await waitForCommandCompleted(app, "test.box");
             expect(app.executingCommand).toBeUndefined();
         });
 
@@ -131,11 +200,12 @@ describe("CommandService", () => {
             app.lastCommand = "test.box" as CommandKeys;
             service.start();
 
+            const executed = TestCommand.nextExecuted();
             PubSub.default.pub("executeCommand", "special.last" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 100));
 
-            // Verify it executed (lastCommand stays the same after execution)
-            expect(app.lastCommand).toBe("test.box");
+            // The registered command really ran, and lastCommand stays the same
+            await executed;
+            await waitForCommandCompleted(app, "test.box");
         });
 
         test("should skip execution when commandName is falsy", async () => {
@@ -144,7 +214,8 @@ describe("CommandService", () => {
 
             PubSub.default.pub("executeCommand", undefined as unknown as CommandKeys);
 
-            await new Promise((r) => setTimeout(r, 50));
+            // Give the (skipped) async chain a chance to run before asserting nothing happened
+            await Promise.resolve();
 
             expect(app.executingCommand).toBeUndefined();
             expect(app.lastCommand).toBeUndefined();
@@ -164,7 +235,9 @@ describe("CommandService", () => {
             app.activeView = undefined;
 
             PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 100));
+
+            // canExecute rejects the command synchronously; a microtask flush is enough
+            await Promise.resolve();
 
             expect(app.lastCommand).toBeUndefined();
         });
@@ -174,9 +247,7 @@ describe("CommandService", () => {
             app.activeView = undefined;
 
             PubSub.default.pub("executeCommand", "test.appCmd" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 100));
-
-            expect(app.lastCommand).toBe("test.appCmd");
+            await waitForCommandCompleted(app, "test.appCmd");
         });
 
         test("should cancel existing cancelable command before executing new one", async () => {
@@ -187,8 +258,7 @@ describe("CommandService", () => {
             app.executingCommand = cancelableCmd;
 
             PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 100));
-
+            await cancelableCmd.cancelled;
             expect(cancelableCmd.cancelCalls).toBe(1);
         });
 
@@ -196,9 +266,7 @@ describe("CommandService", () => {
             registerCommand("test.box");
 
             PubSub.default.pub("executeCommand", "test.box" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 100));
-
-            expect(app.lastCommand).toBe("test.box");
+            await waitForCommandCompleted(app, "test.box");
         });
     });
 
@@ -214,8 +282,10 @@ describe("CommandService", () => {
             registerCommand("test.error", ThrowingCommand);
 
             PubSub.default.pub("executeCommand", "test.error" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 150));
 
+            // waitForCommandCompleted returns after the finally block ran even when
+            // execute throws, so executingCommand must already be cleared.
+            await waitForCommandCompleted(app, "test.error");
             expect(app.executingCommand).toBeUndefined();
         });
 
@@ -223,9 +293,9 @@ describe("CommandService", () => {
             registerCommand("test.error2", ThrowingCommand);
 
             PubSub.default.pub("executeCommand", "test.error2" as CommandKeys);
-            await new Promise((r) => setTimeout(r, 150));
 
-            // lastCommand is set in finally block, so it's still set
+            await waitForCommandCompleted(app, "test.error2");
+            // executeAsync's finally block assigns lastCommand even when execute throws
             expect(app.lastCommand).toBe("test.error2");
         });
     });
@@ -244,7 +314,7 @@ describe("CommandService", () => {
 
             PubSub.default.pub("activeViewChanged", { id: "new" } as unknown as IView);
 
-            await new Promise((r) => setTimeout(r, 50));
+            await cancelableCmd.cancelled;
             expect(cancelableCmd.cancelCalls).toBe(1);
         });
 

@@ -2,14 +2,14 @@
 // See LICENSE file in the project root for full license information.
 
 import { FolderNode } from "@chili3d/core";
+import { createMockApplication, createMockDocument } from "@chili3d/core/test-utils";
 import { describe, expect, test } from "@rstest/core";
 import { NewFolder } from "../../src/commands/folder";
-import { createMockApplication, createMockDocument } from "../_helpers";
 
 describe("NewFolder", () => {
     test("should have command metadata", () => {
         const data = (NewFolder as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.folder");
         expect(data.icon).toBe("icon-folder-plus");
     });

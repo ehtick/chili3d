@@ -1,7 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { Continuities, ShapeTypes } from "@chili3d/core";
+import { Continuities, PubSub, ShapeTypes } from "@chili3d/core";
 import { afterAll, beforeAll, describe, expect, test } from "@rstest/core";
 import { LoftCommand } from "../../../src/commands/create/loft";
 import { ensureGlobalStubApp, mockShape, wireCommand } from "../commandTestUtils";
@@ -15,7 +15,7 @@ afterAll(() => restoreApp());
 describe("LoftCommand", () => {
     test("should have command metadata", () => {
         const data = (LoftCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.loft");
         expect(data.icon).toBe("icon-loft");
     });
@@ -123,7 +123,6 @@ describe("LoftCommand", () => {
             };
 
             const published: unknown[] = [];
-            const { PubSub } = require("@chili3d/core");
             const orig = PubSub.default.pub;
             PubSub.default.pub = (...args: unknown[]) => published.push(args);
 

@@ -7,7 +7,7 @@ import { CurveProjectionCommand } from "../../../src/commands/create/curveProjec
 describe("CurveProjectionCommand", () => {
     test("should have command metadata", () => {
         const data = (CurveProjectionCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("convert.curveProjection");
         expect(data.icon).toBe("icon-curveProject");
     });

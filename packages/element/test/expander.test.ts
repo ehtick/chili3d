@@ -2,7 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import type { I18nKeys } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
 import { Expander } from "../src/expander";
 import style from "../src/expander/expander.module.css";
 
@@ -14,6 +14,16 @@ describe("Expander", () => {
         document.body.appendChild(container);
     });
 
+    afterEach(() => {
+        container.remove();
+    });
+
+    const getExpanderIcon = (expander: Expander): HTMLElement => {
+        const icon = expander.querySelector<HTMLElement>(`.${style.expanderIcon}`);
+        expect(icon).not.toBeNull();
+        return icon!;
+    };
+
     describe("constructor", () => {
         test("should create expander with header", () => {
             const expander = new Expander("test.header" as I18nKeys);
@@ -21,7 +31,7 @@ describe("Expander", () => {
             container.appendChild(expander);
 
             const headerText = expander.querySelector(`.${style.headerText}`);
-            expect(headerText).toBeDefined();
+            expect(headerText).not.toBeNull();
         });
 
         test("should create expander with expander icon", () => {
@@ -30,8 +40,8 @@ describe("Expander", () => {
             container.appendChild(expander);
 
             const icon = expander.querySelector(`.${style.expanderIcon}`);
-            expect(icon).toBeDefined();
-            expect(icon?.tagName).toBe("svg");
+            expect(icon).not.toBeNull();
+            expect(icon!.tagName).toBe("svg");
         });
 
         test("should create expander with content panel", () => {
@@ -69,69 +79,36 @@ describe("Expander", () => {
 
             expect(expander.contenxtPanel.classList.contains(style.hidden)).toBe(false);
         });
-
-        test("should have header panel with correct class", () => {
-            const expander = new Expander("test.header" as I18nKeys);
-
-            container.appendChild(expander);
-
-            const headerPanel = expander.querySelector(`.${style.headerPanel}`);
-            expect(headerPanel).toBeDefined();
-        });
     });
 
     describe("expand/collapse toggle", () => {
-        test("should collapse when expander icon is clicked", () => {
+        test.each([
+            { clicks: 1, expectedHref: "#icon-angle-right", expectedHidden: true },
+            { clicks: 2, expectedHref: "#icon-angle-down", expectedHidden: false },
+        ])("after $clicks click(s) the icon should be $expectedHref and the panel hidden=$expectedHidden", ({
+            clicks,
+            expectedHref,
+            expectedHidden,
+        }) => {
             const expander = new Expander("test.header" as I18nKeys);
             container.appendChild(expander);
 
-            const icon = expander.querySelector(`.${style.expanderIcon}`) as HTMLElement;
-            icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            const icon = getExpanderIcon(expander);
+            for (let i = 0; i < clicks; i++) {
+                icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            }
 
             const useElement = icon.firstChild as SVGUseElement;
             const href = useElement.getAttributeNS("http://www.w3.org/1999/xlink", "href");
-            expect(href).toBe("#icon-angle-right");
-        });
-
-        test("should hide content panel when collapsed", () => {
-            const expander = new Expander("test.header" as I18nKeys);
-            container.appendChild(expander);
-
-            const icon = expander.querySelector(`.${style.expanderIcon}`) as HTMLElement;
-            icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-            expect(expander.contenxtPanel.classList.contains(style.hidden)).toBe(true);
-        });
-
-        test("should expand when collapsed icon is clicked again", () => {
-            const expander = new Expander("test.header" as I18nKeys);
-            container.appendChild(expander);
-
-            const icon = expander.querySelector(`.${style.expanderIcon}`) as HTMLElement;
-            icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-            const useElement = icon.firstChild as SVGUseElement;
-            const href = useElement.getAttributeNS("http://www.w3.org/1999/xlink", "href");
-            expect(href).toBe("#icon-angle-down");
-        });
-
-        test("should show content panel when expanded again", () => {
-            const expander = new Expander("test.header" as I18nKeys);
-            container.appendChild(expander);
-
-            const icon = expander.querySelector(`.${style.expanderIcon}`) as HTMLElement;
-            icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-            expect(expander.contenxtPanel.classList.contains(style.hidden)).toBe(false);
+            expect(href).toBe(expectedHref);
+            expect(expander.contenxtPanel.classList.contains(style.hidden)).toBe(expectedHidden);
         });
 
         test("should toggle multiple times correctly", () => {
             const expander = new Expander("test.header" as I18nKeys);
             container.appendChild(expander);
 
-            const icon = expander.querySelector(`.${style.expanderIcon}`) as HTMLElement;
+            const icon = getExpanderIcon(expander);
 
             icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
             expect(expander.contenxtPanel.classList.contains(style.hidden)).toBe(true);
@@ -152,7 +129,7 @@ describe("Expander", () => {
                 propagationStopped = true;
             });
 
-            const icon = expander.querySelector(`.${style.expanderIcon}`) as HTMLElement;
+            const icon = getExpanderIcon(expander);
             icon.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
             expect(propagationStopped).toBe(false);
@@ -308,7 +285,7 @@ describe("Expander", () => {
             container.appendChild(expander);
 
             const headerPanel = expander.querySelector(`.${style.headerPanel}`);
-            expect(headerPanel).toBeDefined();
+            expect(headerPanel).not.toBeNull();
         });
 
         test("should have context panel with correct class", () => {
@@ -316,7 +293,7 @@ describe("Expander", () => {
             container.appendChild(expander);
 
             const contextPanel = expander.querySelector(`.${style.contextPanel}`);
-            expect(contextPanel).toBeDefined();
+            expect(contextPanel).not.toBeNull();
         });
 
         test("should have header panel containing icon and text", () => {
@@ -327,8 +304,8 @@ describe("Expander", () => {
             const icon = headerPanel?.querySelector(`.${style.expanderIcon}`);
             const text = headerPanel?.querySelector(`.${style.headerText}`);
 
-            expect(icon).toBeDefined();
-            expect(text).toBeDefined();
+            expect(icon).not.toBeNull();
+            expect(text).not.toBeNull();
         });
 
         test("should have correct expander icon class", () => {

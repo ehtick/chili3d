@@ -1,10 +1,10 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { type INode, XY, XYZ } from "../src";
+import { XYZ } from "../src";
 import { Act } from "../src/visual/act";
 import type { ICameraController } from "../src/visual/cameraController";
-import type { IView } from "../src/visual/view";
+import { createMockView } from "../test-utils";
 
 describe("Act class tests", () => {
     describe("Constructor and basic properties", () => {
@@ -103,68 +103,20 @@ describe("Act class tests", () => {
 
     describe("Static method fromView", () => {
         test("should create Act from view properties", () => {
-            const mockCameraController: ICameraController = {
-                cameraPosition: new XYZ({ x: 1, y: 2, z: 3 }),
-                cameraTarget: new XYZ({ x: 4, y: 5, z: 6 }),
-                cameraUp: new XYZ({ x: 0, y: 1, z: 0 }),
-                cameraType: "perspective",
-                fitContent: () => {},
-                lookAt: () => {},
-                pan: () => {},
-                startRotate: () => {},
-                rotate: () => {},
-                zoom: () => {},
-                updateCameraPosionTarget: () => {},
-                onPropertyChanged: () => {},
-                removePropertyChanged: () => {},
-                clearPropertyChanged: () => {},
-                dispose: () => {},
-            };
-
-            const mockView: IView = {
-                document: {} as any,
-                cameraController: mockCameraController,
-                isClosed: false,
-                width: 800,
-                height: 600,
-                dom: undefined,
-                mode: 0 as any,
-                name: "Test View",
-                workplane: {} as any,
-                update: () => {},
-                up: () => XYZ.unitY,
-                toImage: () => "",
-                direction: () => XYZ.unitZ,
-                rayAt: () => ({}) as any,
-                screenToWorld: () => XYZ.zero,
-                worldToScreen: () => new XY({ x: 0, y: 0 }),
-                resize: () => {},
-                setDom: () => {},
-                htmlText: () => ({ dispose: () => {} }),
-                close: () => {},
-                detectVisual: () => [],
-                detectVisualRect: () => [],
-                detectShapes: () => [],
-                detectShapesRect: () => [],
-                onPropertyChanged: () => {},
-                removePropertyChanged: () => {},
-                clearPropertyChanged: () => {},
-                dispose: () => {},
-                isolate: (nodes: INode[]): void => {
-                    throw new Error("Function not implemented.");
-                },
-                unisolate: (): void => {
-                    throw new Error("Function not implemented.");
-                },
-            };
+            const cameraPosition = new XYZ({ x: 1, y: 2, z: 3 });
+            const cameraTarget = new XYZ({ x: 4, y: 5, z: 6 });
+            const cameraUp = new XYZ({ x: 0, y: 1, z: 0 });
+            const mockView = createMockView({
+                cameraController: { cameraPosition, cameraTarget, cameraUp } as ICameraController,
+            });
 
             const actName = "View Act";
             const act = Act.fromView(mockView, actName);
 
             expect(act.name).toBe(actName);
-            expect(act.cameraPosition).toEqual(mockCameraController.cameraPosition);
-            expect(act.cameraTarget).toEqual(mockCameraController.cameraTarget);
-            expect(act.cameraUp).toEqual(mockCameraController.cameraUp);
+            expect(act.cameraPosition).toEqual(cameraPosition);
+            expect(act.cameraTarget).toEqual(cameraTarget);
+            expect(act.cameraUp).toEqual(cameraUp);
         });
     });
 

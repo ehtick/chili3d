@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Cylinder", () => {
     test("should have command metadata", () => {
         const data = (Cylinder as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.cylinder");
         expect(data.icon).toBe("icon-cylinder");
     });

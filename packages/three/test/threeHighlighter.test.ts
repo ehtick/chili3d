@@ -4,10 +4,11 @@
 import type { EdgeMeshData, FaceMeshData } from "@chili3d/core";
 import { ShapeTypes, VisualStates } from "@chili3d/core";
 import type { IHighlightable } from "../src/highlightable";
+import { defaultEdgeMaterial, hilightEdgeMaterial, selectedEdgeMaterial } from "../src/materials";
 import { ThreeGeometry } from "../src/threeGeometry";
 import { ThreeHighlighter } from "../src/threeHighlighter";
 import type { ThreeVisualObject } from "../src/threeVisualObject";
-import { createMockVisualContext, createTestGeometryNode } from "./mocks";
+import { createTestGeometryNode, createThreeMockVisualContext } from "./mocks";
 
 function createHighlightable(): IHighlightable & { highlighted: boolean } {
     return {
@@ -31,7 +32,7 @@ describe("ThreeHighlighter", () => {
 
     describe("initialization", () => {
         test("adds container named 'highlighter' to scene", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
 
             expect(highlighter.container.name).toBe("highlighter");
@@ -41,7 +42,7 @@ describe("ThreeHighlighter", () => {
 
     describe("addState / getState with highlightable objects", () => {
         test("getState returns undefined when no state has been added", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -50,7 +51,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("addState triggers highlight on IHighlightable", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -64,7 +65,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("removeState returns to normal triggers unhighlight", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -84,7 +85,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("adding and removing the same state multiple times", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -113,7 +114,7 @@ describe("ThreeHighlighter", () => {
 
     describe("resetState and clear", () => {
         test("resetState removes state and unhighlights", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -131,16 +132,18 @@ describe("ThreeHighlighter", () => {
             ).toBeUndefined();
         });
 
-        test("resetState on unknown object is a no-op", () => {
-            const context = createMockVisualContext();
+        test("resetState on unknown object leaves its highlight untouched", () => {
+            const context = createThreeMockVisualContext();
             const h = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
-            expect(() => h.resetState(hl as unknown as ThreeVisualObject)).not.toThrow();
+            h.resetState(hl as unknown as ThreeVisualObject);
+            expect(hl.highlighted).toBe(false);
+            expect(h.getState(hl as unknown as ThreeVisualObject, ShapeTypes.shape)).toBeUndefined();
         });
 
         test("clear resets all states", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl1 = createHighlightable();
             const hl2 = createHighlightable();
@@ -167,7 +170,7 @@ describe("ThreeHighlighter", () => {
 
     describe("highlightMesh / removeHighlightMesh", () => {
         test("highlightMesh with face data adds group to container", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
 
             const data: FaceMeshData = {
@@ -189,7 +192,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("removeHighlightMesh removes from container", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
 
             const data: FaceMeshData = {
@@ -210,15 +213,16 @@ describe("ThreeHighlighter", () => {
             expect(highlighter.container.children.length).toBe(beforeCount);
         });
 
-        test("removeHighlightMesh with invalid id is a no-op", () => {
-            const context = createMockVisualContext();
+        test("removeHighlightMesh with invalid id leaves the container unchanged", () => {
+            const context = createThreeMockVisualContext();
             const h = new ThreeHighlighter(context);
 
-            expect(() => h.removeHighlightMesh(99999)).not.toThrow();
+            h.removeHighlightMesh(99999);
+            expect(h.container.children.length).toBe(0);
         });
 
         test("highlightMesh handles edge mesh data", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
 
             const data: EdgeMeshData = {
@@ -236,7 +240,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("highlightMesh with vertex mesh data", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
 
             const data = {
@@ -256,7 +260,7 @@ describe("ThreeHighlighter", () => {
 
     describe("addState / removeState with indexes", () => {
         test("addState with empty indexes triggers whole-state highlight", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -270,11 +274,13 @@ describe("ThreeHighlighter", () => {
         });
 
         test("addState then removeState with multiple indexed states", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
-            // Add state with index (sub-geometry state)
+            // Indexed states go through setSubGeometryState -> addSubEdgeState, which
+            // needs a ThreeGeometry to clone sub-edge geometry. A plain highlightable
+            // stores no state and gets no visual change.
             highlighter.addState(
                 hl as unknown as ThreeVisualObject,
                 VisualStates.edgeHighlight,
@@ -282,17 +288,27 @@ describe("ThreeHighlighter", () => {
                 0,
                 1,
             );
+            expect(hl.highlighted).toBe(false);
+            expect(
+                highlighter.getState(hl as unknown as ThreeVisualObject, ShapeTypes.edge, 0),
+            ).toBeUndefined();
 
-            // This triggers highlight because ShapeType is edge with index, but it goes to setSubGeometryState
-            // For a highlightable, setSubGeometryState for edge state uses isFaceState check
-            // which returns false for edge + edgeHighlight -> addSubEdgeState path...
-            // Actually it goes through setSubGeometryState -> isFaceState returns false -> addSubEdgeState
-            // which needs a ThreeGeometry. Since our mock is not ThreeGeometry, it won't do anything visual
-            // But the state should still be added to the internal map
+            // Removing the same indexed states is a safe no-op
+            highlighter.removeState(
+                hl as unknown as ThreeVisualObject,
+                VisualStates.edgeHighlight,
+                ShapeTypes.edge,
+                0,
+                1,
+            );
+            expect(hl.highlighted).toBe(false);
+            expect(
+                highlighter.getState(hl as unknown as ThreeVisualObject, ShapeTypes.edge, 0),
+            ).toBeUndefined();
         });
 
         test("removeState with indexes", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -314,7 +330,7 @@ describe("ThreeHighlighter", () => {
 
     describe("addState with different visual states", () => {
         test("faceHighlight triggers highlight", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -334,7 +350,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("edgeSelected triggers highlight", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -347,7 +363,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("faceSelected triggers highlight", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -360,7 +376,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("removeState for non-existent state returns normal state", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -377,7 +393,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("getState after addState returns the state", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -390,16 +406,13 @@ describe("ThreeHighlighter", () => {
             const state = highlighter.getState(hl as unknown as ThreeVisualObject, ShapeTypes.shape);
             expect(state).toBeDefined();
             // Should have the highlight bit set
-            expect(state).not.toBeUndefined();
-            if (state !== undefined) {
-                expect(state & VisualStates.edgeHighlight).toBe(VisualStates.edgeHighlight);
-            }
+            expect(state! & VisualStates.edgeHighlight).toBe(VisualStates.edgeHighlight);
         });
     });
 
     describe("getOrInitState reuses existing state", () => {
         test("consecutive addStates reuse the same GeometryState", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl = createHighlightable();
 
@@ -419,7 +432,7 @@ describe("ThreeHighlighter", () => {
         });
 
         test("separate objects have independent states", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
             const hl1 = createHighlightable();
             const hl2 = createHighlightable();
@@ -439,7 +452,7 @@ describe("ThreeHighlighter", () => {
 
     describe("highlightMesh returns unique ids", () => {
         test("two highlightMesh calls return different ids", () => {
-            const context = createMockVisualContext();
+            const context = createThreeMockVisualContext();
             highlighter = new ThreeHighlighter(context);
 
             const data: FaceMeshData = {
@@ -467,12 +480,12 @@ describe("ThreeHighlighter", () => {
 // ============================================================================
 
 describe("GeometryState with ThreeGeometry", () => {
-    let context: ReturnType<typeof createMockVisualContext>;
+    let context: ReturnType<typeof createThreeMockVisualContext>;
     let highlighter: ThreeHighlighter;
     let geo: ThreeGeometry;
 
     beforeEach(() => {
-        context = createMockVisualContext();
+        context = createThreeMockVisualContext();
         highlighter = new ThreeHighlighter(context);
         const node = createTestGeometryNode();
         geo = new ThreeGeometry(node, context);
@@ -486,6 +499,7 @@ describe("GeometryState with ThreeGeometry", () => {
         highlighter.addState(geo, VisualStates.edgeHighlight, ShapeTypes.shape);
         const newEdgeMat = geo.edges()?.material;
         // Edge material should have been changed to highlight
+        expect(newEdgeMat).toBe(hilightEdgeMaterial);
         expect(newEdgeMat).not.toBe(originalEdgeMat);
     });
 
@@ -496,11 +510,11 @@ describe("GeometryState with ThreeGeometry", () => {
         expect(newFaceMat).not.toBe(originalFaceMat);
     });
 
-    test("addState edgeSelected changes edge material", () => {
+    test("addState edgeSelected changes edge material to the selected material", () => {
+        const originalEdgeMat = geo.edges()?.material;
         highlighter.addState(geo, VisualStates.edgeSelected, ShapeTypes.shape);
-        // Material should be replaced (not default edge material)
-        const mat = geo.edges()?.material;
-        expect(mat).toBeDefined();
+        expect(geo.edges()?.material).toBe(selectedEdgeMaterial);
+        expect(geo.edges()?.material).not.toBe(originalEdgeMat);
     });
 
     test("removeState after edgeHighlight restores default materials", () => {
@@ -511,8 +525,8 @@ describe("GeometryState with ThreeGeometry", () => {
 
         highlighter.removeState(geo, VisualStates.edgeHighlight, ShapeTypes.shape);
         // After removeState, materials should be restored (removeTemperaryMaterial called)
-        const restoredMat = geo.edges()?.material;
-        expect(restoredMat).toBeDefined();
+        expect(geo.edges()?.material).toBe(defaultEdgeMaterial);
+        expect(geo.edges()?.material).toBe(originalEdgeMat);
     });
 
     test("resetState clears all states and restores materials", () => {
@@ -522,19 +536,21 @@ describe("GeometryState with ThreeGeometry", () => {
         highlighter.resetState(geo);
         // Both states should be cleared
         expect(highlighter.getState(geo, ShapeTypes.shape)).toBeUndefined();
+        expect(geo.edges()?.material).toBe(defaultEdgeMaterial);
     });
 
     test("getState returns the correct combined state", () => {
         highlighter.addState(geo, VisualStates.edgeHighlight, ShapeTypes.shape);
         const s = highlighter.getState(geo, ShapeTypes.shape);
         expect(s).toBeDefined();
-        if (s !== undefined) {
-            expect(s & VisualStates.edgeHighlight).toBe(VisualStates.edgeHighlight);
-        }
+        expect(s! & VisualStates.edgeHighlight).toBe(VisualStates.edgeHighlight);
     });
 
-    test("addState with sub-geometry index does not throw", () => {
-        // Adding state with specific index should trigger setSubGeometryState path
-        expect(() => highlighter.addState(geo, VisualStates.edgeHighlight, ShapeTypes.edge, 0)).not.toThrow();
+    test("addState with sub-geometry index clones the sub-edge into the container", () => {
+        const beforeCount = highlighter.container.children.length;
+        highlighter.addState(geo, VisualStates.edgeHighlight, ShapeTypes.edge, 0);
+
+        expect(highlighter.container.children.length).toBe(beforeCount + 1);
+        expect(highlighter.getState(geo, ShapeTypes.edge, 0)).toBe(VisualStates.edgeHighlight);
     });
 });

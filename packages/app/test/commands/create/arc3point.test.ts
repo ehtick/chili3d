@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Arc3Point", () => {
     test("should have command metadata", () => {
         const data = (Arc3Point as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.arc3point");
         expect(data.icon).toBe("icon-arc3point");
     });

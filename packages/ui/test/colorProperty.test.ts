@@ -2,119 +2,29 @@
 // See LICENSE file in the project root for full license information.
 
 import type { Property } from "@chili3d/core";
-import { describe, expect, test } from "@rstest/core";
+import { describe, expect, rs, test } from "@rstest/core";
+
+// test-utils must load BEFORE the core-mock helper so the real core module is
+// fully cached by the time `rs.mock("@chili3d/core")` registers — otherwise the
+// mock factory feeds test-utils a half-initialized core namespace.
+import { createMockDocument, expectEmptyObjectsThrow } from "./_helpers/propertyTestHelpers";
 
 // Mock CSS modules before importing modules under test
-rs.mock("../src/property/common.module.css", () => ({
-    panel: "cm-panel",
-    propertyName: "cm-property-name",
-}));
+import "./_helpers/cssMocks";
 
 rs.mock("../src/property/colorPorperty.module.css", () => ({
     color: "cp-color",
 }));
 
-rs.mock("../src/property/propertyBase.module.css", () => ({
-    panel: "pb-panel",
-}));
-
-// Track event listeners for verification
-const eventListeners: Map<string, Set<(...args: unknown[]) => unknown>> = new Map();
-
 // Mock element helpers
-// biome-ignore lint/suspicious/noExplicitAny: test mock for DOM element factory
-rs.mock("@chili3d/element", () => {
-    function createEl(tag: string, props: any, ...children: any[]): HTMLElement {
-        const el = document.createElement(tag);
-        if (props && typeof props === "object" && !(props instanceof Node)) {
-            if (props.className) el.className = props.className;
-            if (props.type) (el as HTMLInputElement).type = props.type;
-            if (props.textContent && typeof props.textContent !== "object") {
-                el.textContent = String(props.textContent);
-            }
-            if (props.onchange) {
-                (el as any)._onchange = props.onchange;
-                const key = `change:${tag}`;
-                if (!eventListeners.has(key)) eventListeners.set(key, new Set());
-                eventListeners.get(key)!.add(props.onchange);
-            }
-            if (props.onclick) {
-                (el as any)._onclick = props.onclick;
-            }
-            if (props.value && typeof props.value !== "object") {
-                (el as HTMLInputElement).value = props.value;
-            }
-        }
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-            else if (typeof c === "string") el.appendChild(document.createTextNode(c));
-        }
-        return el;
-    }
-
-    return {
-        div: (props: any, ...children: any[]) => createEl("div", props, ...children),
-        span: (props: any) => createEl("span", props),
-        label: (props: any) => createEl("label", props),
-        input: (props: any) => createEl("input", props),
-        button: (props: any) => createEl("button", props),
-        ColorConverter: class {
-            convert(v: string) {
-                return { isOk: true, value: v };
-            }
-            convertBack(v: string) {
-                return { isOk: true, value: v };
-            }
-        },
-    };
-});
-
-// Mock core services
-const mockPubSubHandlers: Map<string, (...args: unknown[]) => unknown> = new Map();
-
-rs.mock("@chili3d/core", () => {
-    const actual = rs.hoisted(() => require("@chili3d/core"));
-    return {
-        ...actual,
-        Localize: class {
-            private key: unknown;
-            constructor(key: unknown) {
-                this.key = key;
-            }
-            toString() {
-                return String(this.key);
-            }
-        },
-        Binding: class {
-            constructor(_value: unknown, _prop?: string, _converter?: unknown) {}
-        },
-        Transaction: {
-            execute: (_doc: unknown, _desc: string, fn: () => void) => fn(),
-        },
-        PubSub: {
-            default: {
-                pub: (_topic: string, ..._args: unknown[]) => {
-                    // Store pub calls for verification
-                },
-                sub: (topic: string, handler: (...args: unknown[]) => unknown) => {
-                    mockPubSubHandlers.set(topic, handler);
-                },
-            },
-        },
-        // Re-export actual enums and constants that might be needed
-        Result: actual.Result,
-    };
-});
+import "./_helpers/mockElement";
 
 import { ColorProperty } from "../src/property/colorProperty";
+import { mustQuery } from "./_helpers/domHelpers";
+// Mock core services — PubSub sub handlers are recorded in pubSubHandlers
+import { pubSubHandlers } from "./_helpers/mockCorePubSub";
 
 describe("ColorProperty", () => {
-    function createMockDocument() {
-        return {
-            visual: { update: () => {} },
-        } as any;
-    }
-
     const propConfig: Property = {
         name: "color",
         type: "color",
@@ -122,14 +32,12 @@ describe("ColorProperty", () => {
     } as unknown as Property;
 
     beforeEach(() => {
-        eventListeners.clear();
-        mockPubSubHandlers.clear();
+        pubSubHandlers.clear();
     });
 
     describe("constructor", () => {
         test("should throw when objects array is empty", () => {
-            const doc = createMockDocument();
-            expect(() => new ColorProperty(doc, [], propConfig)).toThrow("there are no objects");
+            expectEmptyObjectsThrow(() => new ColorProperty(createMockDocument(), [], propConfig));
         });
 
         test("should create DOM structure with panel div", () => {
@@ -156,7 +64,6 @@ describe("ColorProperty", () => {
             const obj = { color: "#ff0000" };
             const prop = new ColorProperty(doc, [obj], propConfig);
 
-            expect(prop.input).toBeDefined();
             expect(prop.input).toBeInstanceOf(HTMLInputElement);
         });
 
@@ -174,7 +81,8 @@ describe("ColorProperty", () => {
             const obj = { color: "#ff0000" };
             const prop = new ColorProperty(doc, [obj], propConfig);
 
-            expect(prop.converter).toBeDefined();
+            expect(typeof prop.converter.convert).toBe("function");
+            expect(typeof prop.converter.convertBack).toBe("function");
         });
 
         test("should set PropertyBase className", () => {
@@ -209,7 +117,7 @@ describe("ColorProperty", () => {
             const prop = new ColorProperty(doc, [obj1, obj2], setColorPropConfig);
 
             const newColor = "#0000ff";
-            const input = prop.querySelector("input") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input");
             input.value = newColor;
 
             const event = new Event("change");
@@ -219,7 +127,7 @@ describe("ColorProperty", () => {
             });
             input.dispatchEvent(event);
 
-            expect((prop.querySelector("input") as HTMLInputElement).value).toBe(newColor);
+            expect(input.value).toBe(newColor);
         });
 
         test("should set color property on all objects when convertBack succeeds", () => {
@@ -234,13 +142,12 @@ describe("ColorProperty", () => {
                 convertBack: (_v: string) => ({ isOk: true, value: testValue }),
             };
 
-            const input = prop.querySelector("input") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input");
             input.value = "#0000ff";
             // Call the onchange handler directly
             const handler = (input as any)._onchange as ((e: Event) => void) | undefined;
-            if (handler) {
-                handler({ target: input } as unknown as Event);
-            }
+            expect(handler).toBeDefined();
+            handler!({ target: input } as unknown as Event);
 
             expect(obj1.color).toEqual(testValue);
             expect(obj2.color).toEqual(testValue);
@@ -257,12 +164,11 @@ describe("ColorProperty", () => {
                 convertBack: (_v: string) => ({ isOk: true, value: undefined }),
             };
 
-            const input = prop.querySelector("input") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input");
             input.value = "invalid";
             const handler = (input as any)._onchange as ((e: Event) => void) | undefined;
-            if (handler) {
-                handler({ target: input } as unknown as Event);
-            }
+            expect(handler).toBeDefined();
+            handler!({ target: input } as unknown as Event);
 
             expect(obj.color).toBe(originalColor);
         });
@@ -278,24 +184,26 @@ describe("ColorProperty", () => {
                 convertBack: (_v: string) => ({ isOk: false, value: undefined }),
             };
 
-            const input = prop.querySelector("input") as HTMLInputElement;
+            const input = mustQuery<HTMLInputElement>(prop, "input");
             input.value = "bad-color";
             const handler = (input as any)._onchange as ((e: Event) => void) | undefined;
-            if (handler) {
-                handler({ target: input } as unknown as Event);
-            }
+            expect(handler).toBeDefined();
+            handler!({ target: input } as unknown as Event);
 
             expect(obj.color).toBe(originalColor);
         });
     });
 
     describe("disconnectedCallback", () => {
-        test("should not throw when disconnected", () => {
+        test("should remove the change listener when disconnected", () => {
             const doc = createMockDocument();
             const obj = { color: "#ff0000" };
             const prop = new ColorProperty(doc, [obj], propConfig);
 
-            expect(() => prop.disconnectedCallback()).not.toThrow();
+            const spy = rs.spyOn(prop.input, "removeEventListener");
+            prop.disconnectedCallback();
+
+            expect(spy).toHaveBeenCalledWith("onchange", (prop as any).setColor);
         });
 
         test("should tolerate multiple disconnect calls", () => {
@@ -303,10 +211,11 @@ describe("ColorProperty", () => {
             const obj = { color: "#ff0000" };
             const prop = new ColorProperty(doc, [obj], propConfig);
 
-            expect(() => {
-                prop.disconnectedCallback();
-                prop.disconnectedCallback();
-            }).not.toThrow();
+            const spy = rs.spyOn(prop.input, "removeEventListener");
+            prop.disconnectedCallback();
+            prop.disconnectedCallback();
+
+            expect(spy).toHaveBeenCalledTimes(2);
         });
     });
 });

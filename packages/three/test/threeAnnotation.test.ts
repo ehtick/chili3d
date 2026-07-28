@@ -2,9 +2,10 @@
 // See LICENSE file in the project root for full license information.
 
 import type { RefSegmentAnnotation } from "@chili3d/core";
-import { XYZ } from "@chili3d/core";
+import { Matrix4, XYZ } from "@chili3d/core";
+import type { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { ThreeRefSegmentAnnotation } from "../src/threeAnnotation";
-import { createMockVisualContext } from "./mocks";
+import { createThreeMockVisualContext } from "./mocks";
 
 function createAnnotation(): RefSegmentAnnotation {
     return {
@@ -15,17 +16,16 @@ function createAnnotation(): RefSegmentAnnotation {
 
 describe("ThreeRefSegmentAnnotation", () => {
     test("creates annotation object", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
-        expect(annotation).toBeDefined();
         expect(annotation.annotation.startPoint.x).toBe(0);
         expect(annotation.annotation.endPoint.x).toBe(10);
         expect(annotation.locked).toBe(false);
     });
 
     test("creates LineSegments2 mesh internally", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
         const meshes = annotation.wholeVisual();
@@ -33,65 +33,80 @@ describe("ThreeRefSegmentAnnotation", () => {
     });
 
     test("wholeVisual returns line mesh array", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
         const visuals = annotation.wholeVisual();
         expect(Array.isArray(visuals)).toBe(true);
     });
 
-    test("highlight changes material to highlightMaterial", () => {
-        const context = createMockVisualContext();
+    test("highlight changes the line material", () => {
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
-        expect(() => annotation.highlight()).not.toThrow();
+        const mesh = annotation.wholeVisual()[0] as LineSegments2;
+        const originalMaterial = mesh.material;
+        annotation.highlight();
+        expect(mesh.material).not.toBe(originalMaterial);
     });
 
-    test("unhighlight restores normal material", () => {
-        const context = createMockVisualContext();
+    test("unhighlight restores the original material", () => {
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
+        const mesh = annotation.wholeVisual()[0] as LineSegments2;
+        const originalMaterial = mesh.material;
         annotation.highlight();
-        expect(() => annotation.unhighlight()).not.toThrow();
+        expect(mesh.material).not.toBe(originalMaterial);
+
+        annotation.unhighlight();
+        expect(mesh.material).toBe(originalMaterial);
     });
 
     test("worldTransform returns identity matrix", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
         const transform = annotation.worldTransform();
-        expect(transform).toBeDefined();
-        expect(transform.toArray).toBeDefined();
+        expect(transform.equals(Matrix4.identity())).toBe(true);
     });
 
-    test("dispose cleans up geometry", () => {
-        const context = createMockVisualContext();
+    test("dispose disposes the line geometry", () => {
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
-        expect(() => annotation.dispose()).not.toThrow();
+        const mesh = annotation.wholeVisual()[0] as LineSegments2;
+        let geometryDisposed = false;
+        mesh.geometry.addEventListener("dispose", () => {
+            geometryDisposed = true;
+        });
+        annotation.dispose();
+        expect(geometryDisposed).toBe(true);
     });
 
-    test("transform property is defined by default", () => {
-        const context = createMockVisualContext();
+    test("transform defaults to identity matrix", () => {
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
-        expect(annotation.transform).toBeDefined();
-        expect(annotation.transform.toArray).toBeDefined();
+        expect(annotation.transform.equals(Matrix4.identity())).toBe(true);
     });
 
     test("boundingBox returns bounding box of the line", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
         const box = annotation.boundingBox();
-        if (box) {
-            expect(typeof box.min.x).toBe("number");
-            expect(typeof box.max.x).toBe("number");
-        }
+        expect(box).toBeDefined();
+        expect(box!.min.x).toBe(0);
+        expect(box!.min.y).toBe(0);
+        expect(box!.min.z).toBe(0);
+        expect(box!.max.x).toBe(10);
+        expect(box!.max.y).toBe(10);
+        expect(box!.max.z).toBe(10);
     });
 
     test("locked is false by default", () => {
-        const context = createMockVisualContext();
+        const context = createThreeMockVisualContext();
         const annotation = new ThreeRefSegmentAnnotation(context, createAnnotation());
 
         expect(annotation.locked).toBe(false);

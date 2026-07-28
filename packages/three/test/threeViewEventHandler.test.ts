@@ -1,10 +1,15 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type { ICameraController, IView } from "@chili3d/core";
-import { Config } from "@chili3d/core";
+import type { ICameraController } from "@chili3d/core";
+import { Config, type Navigation3DType } from "@chili3d/core";
+import { createHandlerMockView, createPointerEvent } from "@chili3d/core/test-utils";
 import { ThreeViewHandler } from "../src/threeViewEventHandler";
 
+/**
+ * Core test-utils has no camera controller mock; the view comes from
+ * createHandlerMockView and only its cameraController is overridden here.
+ */
 function createMockCameraController(): ICameraController {
     return {
         zoom(_x: number, _y: number, _delta: number) {},
@@ -31,50 +36,16 @@ function createMockCameraController(): ICameraController {
     } as unknown as ICameraController;
 }
 
-function createMockView(cameraController?: ICameraController): IView {
-    const cc = cameraController ?? createMockCameraController();
-    return {
-        cameraController: cc,
-        update() {},
-        get name() {
-            return "test";
-        },
-        get dom() {
-            return undefined;
-        },
-        get mode() {
-            return "solidAndWireframe" as const;
-        },
-        get document() {
-            return {
-                selection: { getSelectedNodes: () => [] },
-                visual: { context: { visualShapes: { children: [] } } },
-            };
-        },
-    } as unknown as IView;
-}
-
-/** Create a PointerEvent with offsetX/offsetY (not in official PointerEventInit types). */
-function makePointerEvent(
-    type: string,
-    opts: {
-        pointerType?: string;
-        pointerId?: number;
-        buttons?: number;
-        offsetX?: number;
-        offsetY?: number;
-        isPrimary?: boolean;
-    },
-) {
-    return new PointerEvent(type, opts as PointerEventInit);
-}
-
 // helper to access protected members
 function mapsOf(h: ThreeViewHandler) {
     return h as any as {
         lastPointerEventMap: Map<number, PointerEvent>;
         currentPointerEventMap: Map<number, PointerEvent>;
     };
+}
+
+function offsetPointOf(h: ThreeViewHandler): { x: number; y: number } | undefined {
+    return (h as any)._offsetPoint;
 }
 
 // ============================================================================
@@ -88,10 +59,16 @@ describe("ThreeViewHandler — lifecycle", () => {
         expect(handler.isEnabled).toBe(true);
     });
 
-    test("dispose clears internal state", () => {
+    test("dispose clears internal pointer state", () => {
         const handler = new ThreeViewHandler();
+        const view = createHandlerMockView();
+
+        handler.pointerDown(view, createPointerEvent({ pointerType: "touch", pointerId: 1 }));
+        expect(mapsOf(handler).lastPointerEventMap.size).toBe(1);
+
         handler.dispose();
-        expect(() => handler.dispose()).not.toThrow();
+        expect(mapsOf(handler).lastPointerEventMap.size).toBe(0);
+        expect(mapsOf(handler).currentPointerEventMap.size).toBe(0);
     });
 
     test("canRotate flag can be toggled", () => {
@@ -114,36 +91,40 @@ describe("ThreeViewHandler — lifecycle", () => {
 // ============================================================================
 
 describe("ThreeViewHandler — mouseWheel", () => {
-    test("mouseWheel triggers zoom on cameraController", () => {
+    test("mouseWheel triggers zoom with the raw deltaY by default", () => {
         const handler = new ThreeViewHandler();
-        let zoomCalled = false;
-        const cc = createMockCameraController();
-        cc.zoom = () => {
-            zoomCalled = true;
-        };
-        const view = createMockView(cc);
-
-        handler.mouseWheel(view, new WheelEvent("wheel", { deltaY: 120 }));
-        expect(zoomCalled).toBe(true);
-    });
-
-    test("mouseWheel with Solidworks navigation inverts deltaY sign", () => {
-        const handler = new ThreeViewHandler();
-        let receivedDelta = 0;
+        let receivedDelta: number | undefined;
         const cc = createMockCameraController();
         cc.zoom = (_x, _y, delta) => {
             receivedDelta = delta;
         };
-        const view = createMockView(cc);
-
-        const origNav = Config.instance.navigation3D;
-        (Config.instance as any)._navigation3D = "Solidworks";
+        const view = createHandlerMockView({ cameraController: cc });
 
         handler.mouseWheel(view, new WheelEvent("wheel", { deltaY: 120 }));
+        expect(receivedDelta).toBe(120);
+    });
 
-        (Config.instance as any)._navigation3D = origNav;
-        // Solidworks navigation inverts the wheel delta sign
-        expect(receivedDelta).toBeLessThan(0);
+    test.each([
+        "Solidworks",
+        "Creo",
+    ] as Navigation3DType[])("mouseWheel with %s navigation inverts deltaY sign", (navigation) => {
+        const handler = new ThreeViewHandler();
+        let receivedDelta: number | undefined;
+        const cc = createMockCameraController();
+        cc.zoom = (_x, _y, delta) => {
+            receivedDelta = delta;
+        };
+        const view = createHandlerMockView({ cameraController: cc });
+
+        const origNav = Config.instance.navigation3D;
+        (Config.instance as any)._navigation3D = navigation;
+
+        try {
+            handler.mouseWheel(view, new WheelEvent("wheel", { deltaY: 120 }));
+        } finally {
+            (Config.instance as any)._navigation3D = origNav;
+        }
+        expect(receivedDelta).toBe(-120);
     });
 });
 
@@ -152,22 +133,140 @@ describe("ThreeViewHandler — mouseWheel", () => {
 // ============================================================================
 
 describe("ThreeViewHandler — pointerMove (mouse)", () => {
-    test("pointerMove with no buttons pressed does nothing", () => {
+    test("pointerMove with no buttons pressed triggers no navigation", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        let gestureCalled = false;
+        const cc = createMockCameraController();
+        cc.pan = () => {
+            gestureCalled = true;
+        };
+        cc.rotate = () => {
+            gestureCalled = true;
+        };
+        cc.zoom = () => {
+            gestureCalled = true;
+        };
+        const view = createHandlerMockView({ cameraController: cc });
 
-        expect(() =>
-            handler.pointerMove(view, makePointerEvent("pointermove", { pointerType: "mouse", buttons: 0 })),
-        ).not.toThrow();
+        handler.pointerMove(view, createPointerEvent({ pointerType: "mouse", buttons: 0 }));
+        expect(gestureCalled).toBe(false);
     });
 
-    test("pointerMove with middle button but no offset point does nothing", () => {
+    test("pointerMove with middle button but no prior pointerDown pans with zero delta", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        const panArgs: number[][] = [];
+        let rotateCalled = false;
+        const cc = createMockCameraController();
+        cc.pan = (dx, dy) => {
+            panArgs.push([dx, dy]);
+        };
+        cc.rotate = () => {
+            rotateCalled = true;
+        };
+        const view = createHandlerMockView({ cameraController: cc });
 
-        expect(() =>
-            handler.pointerMove(view, makePointerEvent("pointermove", { pointerType: "mouse", buttons: 4 })),
-        ).not.toThrow();
+        handler.pointerMove(
+            view,
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 10, offsetY: 10 }),
+        );
+        expect(panArgs).toEqual([[0, 0]]);
+        expect(rotateCalled).toBe(false);
+    });
+
+    test("middle-button drag pans with the movement delta (default navigation)", () => {
+        const handler = new ThreeViewHandler();
+        const panArgs: number[][] = [];
+        let rotateCalled = false;
+        const cc = createMockCameraController();
+        cc.pan = (dx, dy) => {
+            panArgs.push([dx, dy]);
+        };
+        cc.rotate = () => {
+            rotateCalled = true;
+        };
+        const view = createHandlerMockView({ cameraController: cc });
+
+        handler.pointerDown(
+            view,
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
+        );
+        handler.pointerMove(
+            view,
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 110, offsetY: 210 }),
+        );
+        expect(panArgs).toEqual([[10, 10]]);
+        expect(rotateCalled).toBe(false);
+
+        // The offset point advances, so the next delta is relative to the previous event
+        handler.pointerMove(
+            view,
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 115, offsetY: 215 }),
+        );
+        expect(panArgs).toEqual([
+            [10, 10],
+            [5, 5],
+        ]);
+    });
+
+    test("shift + middle-button drag rotates instead of panning (default navigation)", () => {
+        const handler = new ThreeViewHandler();
+        const rotateArgs: number[][] = [];
+        let panCalled = false;
+        const cc = createMockCameraController();
+        cc.pan = () => {
+            panCalled = true;
+        };
+        cc.rotate = (dx, dy) => {
+            rotateArgs.push([dx, dy]);
+        };
+        const view = createHandlerMockView({ cameraController: cc });
+
+        handler.pointerDown(
+            view,
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
+        );
+        handler.pointerMove(
+            view,
+            createPointerEvent({
+                pointerType: "mouse",
+                buttons: 4,
+                shiftKey: true,
+                offsetX: 110,
+                offsetY: 210,
+            }),
+        );
+        expect(rotateArgs).toEqual([[10, 10]]);
+        expect(panCalled).toBe(false);
+    });
+
+    test("shift + middle-button drag does not rotate when canRotate is false", () => {
+        const handler = new ThreeViewHandler();
+        handler.canRotate = false;
+        let gestureCalled = false;
+        const cc = createMockCameraController();
+        cc.pan = () => {
+            gestureCalled = true;
+        };
+        cc.rotate = () => {
+            gestureCalled = true;
+        };
+        const view = createHandlerMockView({ cameraController: cc });
+
+        handler.pointerDown(
+            view,
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
+        );
+        handler.pointerMove(
+            view,
+            createPointerEvent({
+                pointerType: "mouse",
+                buttons: 4,
+                shiftKey: true,
+                offsetX: 110,
+                offsetY: 210,
+            }),
+        );
+        expect(gestureCalled).toBe(false);
     });
 });
 
@@ -178,33 +277,29 @@ describe("ThreeViewHandler — pointerMove (mouse)", () => {
 describe("ThreeViewHandler — pointerDown", () => {
     test("pointerDown with touch type adds to pointer event map", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        const view = createHandlerMockView();
 
-        handler.pointerDown(view, makePointerEvent("pointerdown", { pointerType: "touch", pointerId: 1 }));
+        handler.pointerDown(view, createPointerEvent({ pointerType: "touch", pointerId: 1 }));
 
         expect(mapsOf(handler).lastPointerEventMap.size).toBe(1);
     });
 
-    test("pointerDown with mouse middle button starts rotate", () => {
+    test("pointerDown with mouse middle button starts rotate at the event offset", () => {
         const handler = new ThreeViewHandler();
-        let startRotateCalled = false;
+        const startRotateArgs: number[][] = [];
         const cc = createMockCameraController();
-        cc.startRotate = () => {
-            startRotateCalled = true;
+        cc.startRotate = (x, y) => {
+            startRotateArgs.push([x, y]);
         };
-        const view = createMockView(cc);
+        const view = createHandlerMockView({ cameraController: cc });
 
         handler.pointerDown(
             view,
-            makePointerEvent("pointerdown", {
-                pointerType: "mouse",
-                buttons: 4,
-                offsetX: 100,
-                offsetY: 200,
-            }),
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
         );
 
-        expect(startRotateCalled).toBe(true);
+        expect(startRotateArgs).toEqual([[100, 200]]);
+        expect(offsetPointOf(handler)).toEqual({ x: 100, y: 200 });
     });
 
     test("double-click middle button triggers fitContent", () => {
@@ -214,26 +309,15 @@ describe("ThreeViewHandler — pointerDown", () => {
         cc.fitContent = () => {
             fitContentCalled = true;
         };
-        const view = createMockView(cc);
+        const view = createHandlerMockView({ cameraController: cc });
 
         handler.pointerDown(
             view,
-            makePointerEvent("pointerdown", {
-                pointerType: "mouse",
-                buttons: 4,
-                offsetX: 100,
-                offsetY: 200,
-            }),
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
         );
-
         handler.pointerDown(
             view,
-            makePointerEvent("pointerdown", {
-                pointerType: "mouse",
-                buttons: 4,
-                offsetX: 100,
-                offsetY: 200,
-            }),
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
         );
 
         expect(fitContentCalled).toBe(true);
@@ -247,53 +331,45 @@ describe("ThreeViewHandler — pointerDown", () => {
 describe("ThreeViewHandler — pointerUp / pointerOut", () => {
     test("pointerUp clears last pointer events", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        const view = createHandlerMockView();
 
-        handler.pointerDown(view, makePointerEvent("pointerdown", { pointerType: "touch", pointerId: 1 }));
+        handler.pointerDown(view, createPointerEvent({ pointerType: "touch", pointerId: 1 }));
         expect(mapsOf(handler).lastPointerEventMap.size).toBe(1);
 
-        handler.pointerUp(view, makePointerEvent("pointerup", { pointerType: "touch", pointerId: 1 }));
+        handler.pointerUp(view, createPointerEvent({ pointerType: "touch", pointerId: 1 }));
 
         expect(mapsOf(handler).lastPointerEventMap.has(1)).toBe(false);
     });
 
     test("pointerOut clears pointer data", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        const view = createHandlerMockView();
 
-        handler.pointerDown(view, makePointerEvent("pointerdown", { pointerType: "touch", pointerId: 1 }));
+        handler.pointerDown(view, createPointerEvent({ pointerType: "touch", pointerId: 1 }));
 
-        handler.pointerOut(view, makePointerEvent("pointerout", { pointerType: "touch", pointerId: 1 }));
+        handler.pointerOut(view, createPointerEvent({ pointerType: "touch", pointerId: 1 }));
 
         expect(mapsOf(handler).lastPointerEventMap.has(1)).toBe(false);
         expect(mapsOf(handler).currentPointerEventMap.has(1)).toBe(false);
     });
 
-    test("pointerUp with middle button sets timeout to clear lastDown", () => {
+    test("pointerUp with middle button clears the pan offset point", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        const view = createHandlerMockView({ cameraController: createMockCameraController() });
 
         handler.pointerDown(
             view,
-            makePointerEvent("pointerdown", {
-                pointerType: "mouse",
-                buttons: 4,
-                offsetX: 100,
-                offsetY: 200,
-            }),
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
         );
+        expect(offsetPointOf(handler)).toEqual({ x: 100, y: 200 });
 
         handler.pointerUp(
             view,
-            makePointerEvent("pointerup", {
-                pointerType: "mouse",
-                buttons: 4,
-                offsetX: 100,
-                offsetY: 200,
-            }),
+            createPointerEvent({ pointerType: "mouse", buttons: 4, offsetX: 100, offsetY: 200 }),
         );
+        expect(offsetPointOf(handler)).toBeUndefined();
 
-        expect(() => handler.dispose()).not.toThrow();
+        handler.dispose();
     });
 });
 
@@ -302,46 +378,45 @@ describe("ThreeViewHandler — pointerUp / pointerOut", () => {
 // ============================================================================
 
 describe("ThreeViewHandler — touch handling", () => {
-    test("pointerMove with new touch adds to map", () => {
+    test("pointerMove with new touch registers in currentPointerEventMap", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        const view = createHandlerMockView();
 
         handler.pointerDown(
             view,
-            makePointerEvent("pointerdown", {
-                pointerType: "touch",
-                pointerId: 1,
-                offsetX: 0,
-                offsetY: 0,
-            }),
+            createPointerEvent({ pointerType: "touch", pointerId: 1, offsetX: 0, offsetY: 0 }),
         );
         handler.pointerDown(
             view,
-            makePointerEvent("pointerdown", {
-                pointerType: "touch",
-                pointerId: 2,
-                offsetX: 10,
-                offsetY: 10,
-            }),
+            createPointerEvent({ pointerType: "touch", pointerId: 2, offsetX: 10, offsetY: 10 }),
         );
 
-        expect(() =>
-            handler.pointerMove(
-                view,
-                makePointerEvent("pointermove", {
-                    pointerType: "touch",
-                    pointerId: 1,
-                    offsetX: 5,
-                    offsetY: 5,
-                }),
-            ),
-        ).not.toThrow();
+        handler.pointerMove(
+            view,
+            createPointerEvent({ pointerType: "touch", pointerId: 1, offsetX: 5, offsetY: 5 }),
+        );
+
+        expect(mapsOf(handler).currentPointerEventMap.size).toBe(1);
+        expect(mapsOf(handler).currentPointerEventMap.has(1)).toBe(true);
     });
 
-    test("keyDown no-op", () => {
+    test("keyDown triggers no navigation", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
-        expect(() => handler.keyDown(view, new KeyboardEvent("keydown", { key: "a" }))).not.toThrow();
+        let gestureCalled = false;
+        const cc = createMockCameraController();
+        cc.pan = () => {
+            gestureCalled = true;
+        };
+        cc.rotate = () => {
+            gestureCalled = true;
+        };
+        cc.zoom = () => {
+            gestureCalled = true;
+        };
+        const view = createHandlerMockView({ cameraController: cc });
+
+        handler.keyDown(view, new KeyboardEvent("keydown", { key: "a" }));
+        expect(gestureCalled).toBe(false);
     });
 });
 
@@ -350,41 +425,70 @@ describe("ThreeViewHandler — touch handling", () => {
 // ============================================================================
 
 describe("ThreeViewHandler — touch multi-finger gestures", () => {
-    function makeTouchEvent(
-        type: string,
-        opts: {
-            pointerType?: string;
-            pointerId?: number;
-            buttons?: number;
-            offsetX?: number;
-            offsetY?: number;
-            isPrimary?: boolean;
-        },
-    ) {
-        return makePointerEvent(type, opts as any);
-    }
-
     test("first pointerMove for a new touch registers in currentPointerEventMap", () => {
         const handler = new ThreeViewHandler();
-        const view = createMockView();
+        const view = createHandlerMockView();
 
         handler.pointerDown(
             view,
-            makeTouchEvent("pointerdown", { pointerType: "touch", pointerId: 1, offsetX: 0, offsetY: 0 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 1, offsetX: 0, offsetY: 0 }),
         );
         expect(mapsOf(handler).currentPointerEventMap.size).toBe(0);
 
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", { pointerType: "touch", pointerId: 1, offsetX: 5, offsetY: 5 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 1, offsetX: 5, offsetY: 5 }),
         );
         expect(mapsOf(handler).currentPointerEventMap.size).toBe(1);
     });
 
-    test("two successive pointerMoves for same touch triggers pan or zoom", () => {
+    test("two-finger move with dominating center shift pans, never zooms", () => {
         const handler = new ThreeViewHandler();
+        const panArgs: number[][] = [];
         let zoomCalled = false;
+        const cc = createMockCameraController();
+        cc.zoom = () => {
+            zoomCalled = true;
+        };
+        cc.pan = (dx, dy) => {
+            panArgs.push([dx, dy]);
+        };
+        const view = createHandlerMockView({ cameraController: cc });
+
+        handler.pointerDown(
+            view,
+            createPointerEvent({ pointerType: "touch", pointerId: 10, offsetX: 0, offsetY: 0 }),
+        );
+        handler.pointerDown(
+            view,
+            createPointerEvent({ pointerType: "touch", pointerId: 20, offsetX: 10, offsetY: 10 }),
+        );
+
+        handler.pointerMove(
+            view,
+            createPointerEvent({ pointerType: "touch", pointerId: 10, offsetX: 1, offsetY: 1 }),
+        );
+        handler.pointerMove(
+            view,
+            createPointerEvent({ pointerType: "touch", pointerId: 20, offsetX: 11, offsetY: 11 }),
+        );
+
+        handler.pointerMove(
+            view,
+            createPointerEvent({ pointerType: "touch", pointerId: 10, offsetX: 5, offsetY: 5 }),
+        );
+
+        // Center moved from (5, 5) to (6, 6) while the pinch distance stayed the same
+        expect(panArgs).toEqual([[1, 1]]);
+        expect(zoomCalled).toBe(false);
+
+        handler.dispose();
+    });
+
+    test("two-finger pinch with dominating distance change zooms, never pans", () => {
+        const handler = new ThreeViewHandler();
         let panCalled = false;
+        let zoomCalled = false;
         const cc = createMockCameraController();
         cc.zoom = () => {
             zoomCalled = true;
@@ -392,31 +496,34 @@ describe("ThreeViewHandler — touch multi-finger gestures", () => {
         cc.pan = () => {
             panCalled = true;
         };
-        const view = createMockView(cc);
+        const view = createHandlerMockView({ cameraController: cc });
 
         handler.pointerDown(
             view,
-            makeTouchEvent("pointerdown", { pointerType: "touch", pointerId: 10, offsetX: 0, offsetY: 0 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 10, offsetX: 0, offsetY: 0 }),
         );
         handler.pointerDown(
             view,
-            makeTouchEvent("pointerdown", { pointerType: "touch", pointerId: 20, offsetX: 10, offsetY: 10 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 20, offsetX: 10, offsetY: 0 }),
         );
 
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", { pointerType: "touch", pointerId: 10, offsetX: 1, offsetY: 1 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 10, offsetX: 0, offsetY: 0 }),
         );
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", { pointerType: "touch", pointerId: 20, offsetX: 11, offsetY: 11 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 20, offsetX: 30, offsetY: 0 }),
         );
 
+        // Distance grew 10 -> 30 while the center stayed on the same point
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", { pointerType: "touch", pointerId: 10, offsetX: 5, offsetY: 5 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 10, offsetX: 0, offsetY: 0 }),
         );
-        expect(zoomCalled || panCalled).toBe(true);
+
+        expect(zoomCalled).toBe(true);
+        expect(panCalled).toBe(false);
 
         handler.dispose();
     });
@@ -428,11 +535,11 @@ describe("ThreeViewHandler — touch multi-finger gestures", () => {
         cc.rotate = () => {
             rotateCalled = true;
         };
-        const view = createMockView(cc);
+        const view = createHandlerMockView({ cameraController: cc });
 
         handler.pointerDown(
             view,
-            makeTouchEvent("pointerdown", {
+            createPointerEvent({
                 pointerType: "touch",
                 pointerId: 100,
                 offsetX: 0,
@@ -442,16 +549,28 @@ describe("ThreeViewHandler — touch multi-finger gestures", () => {
         );
         handler.pointerDown(
             view,
-            makeTouchEvent("pointerdown", { pointerType: "touch", pointerId: 200, offsetX: 10, offsetY: 0 }),
+            createPointerEvent({
+                pointerType: "touch",
+                pointerId: 200,
+                offsetX: 10,
+                offsetY: 0,
+                isPrimary: false,
+            }),
         );
         handler.pointerDown(
             view,
-            makeTouchEvent("pointerdown", { pointerType: "touch", pointerId: 300, offsetX: 5, offsetY: 10 }),
+            createPointerEvent({
+                pointerType: "touch",
+                pointerId: 300,
+                offsetX: 5,
+                offsetY: 10,
+                isPrimary: false,
+            }),
         );
 
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", {
+            createPointerEvent({
                 pointerType: "touch",
                 pointerId: 100,
                 offsetX: 1,
@@ -461,16 +580,28 @@ describe("ThreeViewHandler — touch multi-finger gestures", () => {
         );
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", { pointerType: "touch", pointerId: 200, offsetX: 11, offsetY: 1 }),
+            createPointerEvent({
+                pointerType: "touch",
+                pointerId: 200,
+                offsetX: 11,
+                offsetY: 1,
+                isPrimary: false,
+            }),
         );
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", { pointerType: "touch", pointerId: 300, offsetX: 6, offsetY: 11 }),
+            createPointerEvent({
+                pointerType: "touch",
+                pointerId: 300,
+                offsetX: 6,
+                offsetY: 11,
+                isPrimary: false,
+            }),
         );
 
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", {
+            createPointerEvent({
                 pointerType: "touch",
                 pointerId: 100,
                 offsetX: 3,
@@ -496,35 +627,17 @@ describe("ThreeViewHandler — touch multi-finger gestures", () => {
         cc.rotate = () => {
             gestureCalled = true;
         };
-        const view = createMockView(cc);
+        const view = createHandlerMockView({ cameraController: cc });
 
         handler.pointerDown(
             view,
-            makeTouchEvent("pointerdown", { pointerType: "touch", pointerId: 50, offsetX: 0, offsetY: 0 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 50, offsetX: 0, offsetY: 0 }),
         );
         handler.pointerMove(
             view,
-            makeTouchEvent("pointermove", { pointerType: "touch", pointerId: 50, offsetX: 5, offsetY: 5 }),
+            createPointerEvent({ pointerType: "touch", pointerId: 50, offsetX: 5, offsetY: 5 }),
         );
 
         expect(gestureCalled).toBe(false);
-    });
-
-    test("mouseWheel with Creo navigation inverts deltaY sign", () => {
-        const handler = new ThreeViewHandler();
-        let receivedDelta = 0;
-        const cc = createMockCameraController();
-        cc.zoom = (_x: number, _y: number, delta: number) => {
-            receivedDelta = delta;
-        };
-        const view = createMockView(cc);
-
-        const origNav = Config.instance.navigation3D;
-        (Config.instance as any)._navigation3D = "Creo";
-
-        handler.mouseWheel(view, new WheelEvent("wheel", { deltaY: 120 }));
-
-        (Config.instance as any)._navigation3D = origNav;
-        expect(receivedDelta).toBeLessThan(0);
     });
 });

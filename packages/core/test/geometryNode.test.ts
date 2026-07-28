@@ -6,7 +6,7 @@ import { Id } from "../src/foundation";
 import type { I18nKeys } from "../src/i18n";
 import { FaceMaterialPair, GeometryNode } from "../src/model/geometryNode";
 import type { IShapeMeshData } from "../src/shape";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 // Test subclass to implement the abstract createMesh method
 class TestGeometryNode extends GeometryNode {
@@ -100,7 +100,7 @@ describe("GeometryNode", () => {
         test("should return created mesh", () => {
             const node = new TestGeometryNode({ document: doc, name: "test" });
             const mesh = node.mesh;
-            expect(mesh).toBeDefined();
+            expect(mesh).not.toBeNull();
             expect(mesh.faces?.position).toEqual([0, 0, 0, 1, 0, 0, 0, 1, 0]);
         });
 
@@ -116,7 +116,7 @@ describe("GeometryNode", () => {
         test("should return bounding box from faces", () => {
             const node = new TestGeometryNode({ document: doc, name: "test" });
             const bbox = node.boundingBox();
-            expect(bbox).toBeDefined();
+            expect(bbox).not.toBeNull();
         });
 
         test("should return undefined if no positions", () => {
@@ -132,7 +132,7 @@ describe("GeometryNode", () => {
         test("should clear mesh cache", () => {
             const node = new TestGeometryNode({ document: doc, name: "test" });
             node.mesh; // Access to create mesh
-            expect((node as any)._mesh).toBeDefined();
+            expect((node as any)._mesh).not.toBeNull();
             node.disposeInternal();
             expect((node as any)._mesh).toBeUndefined();
         });

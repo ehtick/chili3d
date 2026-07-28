@@ -81,11 +81,10 @@ describe("DefaultRibbon", () => {
             (item) => typeof item === "object" && "type" in item && item.type === "split",
         );
         expect(splitItems.length).toBeGreaterThan(0);
-        for (const split of splitItems) {
-            if (typeof split === "object" && "type" in split) {
-                expect(split.type).toBe("split");
-                expect(Array.isArray(split.items)).toBe(true);
-            }
+        // The filter above guarantees every entry is a split item.
+        for (const split of splitItems as { type: string; items: unknown[] }[]) {
+            expect(split.type).toBe("split");
+            expect(Array.isArray(split.items)).toBe(true);
         }
     });
 

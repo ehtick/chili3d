@@ -1,19 +1,11 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import type {
-    GroupNode,
-    IShape,
-    ISubShape,
-    Matrix4,
-    MeshNode,
-    ShapeMeshRange,
-    ShapeType,
-    VisualNode,
-} from "@chili3d/core";
-import { Matrix4 as CoreMatrix4, Mesh as CoreMesh } from "@chili3d/core";
+import type { IShape, ISubShape, Matrix4, ShapeMeshRange, ShapeType } from "@chili3d/core";
+import { Matrix4 as CoreMatrix4 } from "@chili3d/core";
 import { Mesh, MeshBasicMaterial, type Points } from "three";
-import type { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
+import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
+import { highlightFaceMaterial, hilightEdgeMaterial, lockFaceMaterial } from "../src/materials";
 import type { ThreeVisualContext } from "../src/threeVisualContext";
 import {
     GroupVisualObject,
@@ -21,7 +13,14 @@ import {
     ThreeMeshObject,
     ThreeVisualObject,
 } from "../src/threeVisualObject";
-import { createMockVisualContext } from "./mocks";
+import {
+    createTestComponentNode,
+    createTestGroupNode,
+    createTestMeshNode,
+    createTestVisualNode,
+    createThreeMockVisualContext,
+    disposeMeshes,
+} from "./mocks";
 
 /**
  * Minimal concrete ThreeVisualObject for testing base class behavior.
@@ -49,169 +48,6 @@ class TestableVisualObject extends ThreeVisualObject {
     }
 }
 
-function createFakeVisualNode(overrides: Record<string, unknown> = {}): VisualNode {
-    const listeners: Array<(prop: string) => void> = [];
-    let transform: Matrix4 = CoreMatrix4.identity();
-
-    return {
-        id: "fake-node",
-        display() {
-            return "body.line";
-        },
-        get transform(): Matrix4 {
-            return transform;
-        },
-        set transform(v: Matrix4) {
-            transform = v;
-        },
-        visible: true,
-        parentVisible: true,
-        parent: null,
-        onPropertyChanged(cb: unknown) {
-            listeners.push(cb as (prop: string) => void);
-        },
-        removePropertyChanged(cb: unknown) {
-            const idx = listeners.indexOf(cb as (prop: string) => void);
-            if (idx >= 0) listeners.splice(idx, 1);
-        },
-        _notify(prop: string) {
-            for (const cb of listeners) cb(prop);
-        },
-        ...overrides,
-    } as unknown as VisualNode;
-}
-
-function createFakeGroupNode(overrides: Record<string, unknown> = {}): GroupNode {
-    return createFakeVisualNode(overrides) as unknown as GroupNode;
-}
-
-function createFakeMeshNode(
-    overrides: {
-        meshType?: "surface" | "linesegments";
-        visible?: boolean;
-        parentVisible?: boolean;
-        materialId?: string | string[];
-    } = {},
-): MeshNode {
-    const meshType = overrides.meshType ?? "surface";
-    const listeners: Array<(prop: string) => void> = [];
-
-    const mesh =
-        meshType === "surface"
-            ? new CoreMesh({
-                  meshType: "surface",
-                  position: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
-                  normal: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-                  uv: new Float32Array([0, 0, 1, 0, 0, 1]),
-                  index: new Uint32Array([0, 1, 2]),
-                  color: 0xff0000,
-              })
-            : new CoreMesh({
-                  meshType: "linesegments",
-                  position: new Float32Array([0, 0, 0, 1, 0, 0]),
-                  color: 0x0000ff,
-              });
-
-    return {
-        id: "fake-mesh-node",
-        display: () => "body.meshNode",
-        transform: CoreMatrix4.identity(),
-        visible: overrides.visible ?? true,
-        parentVisible: overrides.parentVisible ?? true,
-        parent: null,
-        document: {} as never,
-        onPropertyChanged(cb: unknown) {
-            listeners.push(cb as (prop: string) => void);
-        },
-        removePropertyChanged(cb: unknown) {
-            const idx = listeners.indexOf(cb as (prop: string) => void);
-            if (idx >= 0) listeners.splice(idx, 1);
-        },
-        _notify(prop: string) {
-            for (const cb of listeners) cb(prop);
-        },
-        mesh,
-        materialId: overrides.materialId ?? "mat-1",
-        boundingBox: () => undefined,
-        name: "test-mesh",
-    } as unknown as MeshNode;
-}
-
-function createFakeComponentNode(overrides: { visible?: boolean; parentVisible?: boolean } = {}) {
-    const listeners: Array<(prop: string) => void> = [];
-    const component = {
-        boundingBox: { min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 10, z: 10 } },
-        id: "comp-1",
-        nodes: [] as unknown[],
-        mesh: {
-            faceMaterials: ["mat-1"],
-            edge: {
-                lineType: "solid" as const,
-                position: new Float32Array([0, 0, 0, 1, 0, 0]),
-                range: [{ start: 0, count: 2, shape: { id: "e1", shapeType: 1 } }],
-            },
-            face: {
-                position: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0]),
-                normal: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-                uv: new Float32Array([0, 0, 1, 0, 1, 1]),
-                index: new Uint32Array([0, 1, 2]),
-                range: [{ start: 0, count: 3, shape: { id: "f1", shapeType: 2 } }],
-                groups: [],
-                color: 0xff0000,
-            },
-            linesegments: new CoreMesh({
-                meshType: "linesegments",
-                position: new Float32Array([0, 0, 0, 1, 0, 0]),
-                color: 0x0000ff,
-            }),
-            surfaceMaterials: [],
-            surface: new CoreMesh({
-                meshType: "surface",
-                position: new Float32Array([0, 0, 0]),
-                normal: new Float32Array([0, 0, 1]),
-                uv: new Float32Array([0, 0]),
-                index: new Uint32Array([]),
-            }),
-        },
-    };
-
-    return {
-        id: "fake-component-node",
-        display: () => "body.group",
-        transform: CoreMatrix4.identity(),
-        visible: overrides.visible ?? true,
-        parentVisible: overrides.parentVisible ?? true,
-        parent: null,
-        document: {} as never,
-        onPropertyChanged(cb: unknown) {
-            listeners.push(cb as (prop: string) => void);
-        },
-        removePropertyChanged(cb: unknown) {
-            const idx = listeners.indexOf(cb as (prop: string) => void);
-            if (idx >= 0) listeners.splice(idx, 1);
-        },
-        _notify(prop: string) {
-            for (const cb of listeners) cb(prop);
-        },
-        component,
-        componentId: "comp-1",
-        insert: { x: 0, y: 0, z: 0 },
-        name: "test-component",
-        boundingBox: () => component.boundingBox,
-    };
-}
-
-function disposeMeshes(meshes: Mesh[]): void {
-    for (const mesh of meshes) {
-        if (Array.isArray(mesh.material)) {
-            for (const m of mesh.material) m.dispose();
-        } else {
-            mesh.material?.dispose();
-        }
-        mesh.geometry?.dispose();
-    }
-}
-
 // ============================================================================
 // GroupVisualObject
 // ============================================================================
@@ -225,22 +61,22 @@ describe("GroupVisualObject", () => {
     });
 
     test("creates with correct initial transform and visibility", () => {
-        const node = createFakeGroupNode();
+        const node = createTestGroupNode();
         const gvo = new GroupVisualObject(node);
         expect(gvo.visible).toBe(true);
         expect(gvo.locked).toBe(false);
     });
 
     test("hidden node creates GroupVisualObject", () => {
-        const node = createFakeGroupNode({ visible: false });
+        const node = createTestGroupNode({ visible: false });
         const gvo = new GroupVisualObject(node);
-        expect(gvo).toBeDefined();
+        expect(gvo).toBeInstanceOf(GroupVisualObject);
         expect(gvo.visible).toBe(true);
         expect(gvo.locked).toBe(false);
     });
 
     test("transform setter updates matrix elements", () => {
-        const node = createFakeGroupNode();
+        const node = createTestGroupNode();
         const gvo = new GroupVisualObject(node);
 
         const newMatrix = CoreMatrix4.fromArray([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 10, 15, 1]);
@@ -252,25 +88,29 @@ describe("GroupVisualObject", () => {
     });
 
     test("locked triggers material swap on children", () => {
-        const node = createFakeGroupNode();
+        const node = createTestGroupNode();
         const gvo = new GroupVisualObject(node);
 
         const childMesh = new Mesh();
-        childMesh.material = new MeshBasicMaterial();
+        const originalMaterial = new MeshBasicMaterial();
+        childMesh.material = originalMaterial;
         createdMeshes.push(childMesh);
         gvo.add(childMesh);
 
         expect(gvo.locked).toBe(false);
         gvo.locked = true;
         expect(gvo.locked).toBe(true);
-        expect(childMesh.userData["oldMaterial"]).toBeDefined();
+        expect(childMesh.userData["oldMaterial"]).toBe(originalMaterial);
+        expect(childMesh.material).toBe(lockFaceMaterial);
 
         gvo.locked = false;
         expect(gvo.locked).toBe(false);
+        expect(childMesh.material).toBe(originalMaterial);
+        expect(childMesh.userData["oldMaterial"]).toBeUndefined();
     });
 
     test("setting locked to same value is a no-op", () => {
-        const node = createFakeGroupNode();
+        const node = createTestGroupNode();
         const gvo = new GroupVisualObject(node);
 
         expect(gvo.locked).toBe(false);
@@ -283,16 +123,26 @@ describe("GroupVisualObject", () => {
     });
 
     test("dispose unsubscribes from property changes", () => {
-        const node = createFakeGroupNode();
+        const node = createTestGroupNode();
         const gvo = new GroupVisualObject(node);
         gvo.dispose();
-        expect(() =>
-            (node as unknown as { _notify: (p: string) => void })._notify("transform"),
-        ).not.toThrow();
+
+        const newMatrix = CoreMatrix4.fromArray([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 100, 0, 0, 1]);
+        const fakeNode = node as unknown as { transform: Matrix4; _notify: (p: string) => void };
+        Object.defineProperty(fakeNode, "transform", {
+            get() {
+                return newMatrix;
+            },
+            configurable: true,
+        });
+        fakeNode._notify("transform");
+
+        // The handler was removed, so the visual keeps its old transform
+        expect(gvo.transform.toArray()[12]).toBe(0);
     });
 
     test("node transform change is reflected via property observer", () => {
-        const node = createFakeGroupNode();
+        const node = createTestGroupNode();
         const gvo = new GroupVisualObject(node);
 
         const newMatrix = CoreMatrix4.fromArray([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 100, 0, 0, 1]);
@@ -326,7 +176,7 @@ describe("ThreeVisualObject base class", () => {
     });
 
     test("transform getter converts from this.matrix", () => {
-        const node = createFakeVisualNode();
+        const node = createTestVisualNode();
         const obj = new TestableVisualObject(node);
 
         obj.matrix.elements[12] = 42;
@@ -340,7 +190,7 @@ describe("ThreeVisualObject base class", () => {
     });
 
     test("transform setter updates this.matrix", () => {
-        const node = createFakeVisualNode();
+        const node = createTestVisualNode();
         const obj = new TestableVisualObject(node);
 
         const matrix = CoreMatrix4.fromArray([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 10, 0, 0, 1]);
@@ -349,46 +199,59 @@ describe("ThreeVisualObject base class", () => {
     });
 
     test("visible false when node is not visible", () => {
-        const node = createFakeVisualNode({ visible: false });
+        const node = createTestVisualNode({ visible: false });
         expect(new TestableVisualObject(node).visible).toBe(false);
     });
 
     test("visible true when node.visible and node.parentVisible are true", () => {
-        const node = createFakeVisualNode({ visible: true, parentVisible: true });
+        const node = createTestVisualNode({ visible: true, parentVisible: true });
         expect(new TestableVisualObject(node).visible).toBe(true);
     });
 
     test("locked toggles child materials", () => {
-        const node = createFakeVisualNode();
+        const node = createTestVisualNode();
         const obj = new TestableVisualObject(node);
 
         const child = new Mesh();
-        child.material = new MeshBasicMaterial({ color: 0xff0000 });
+        const originalMaterial = new MeshBasicMaterial({ color: 0xff0000 });
+        child.material = originalMaterial;
         createdMeshes.push(child);
         obj.add(child);
 
         obj.locked = true;
         expect(obj.locked).toBe(true);
-        expect(child.userData["oldMaterial"]).toBeDefined();
+        expect(child.userData["oldMaterial"]).toBe(originalMaterial);
+        expect(child.material).toBe(lockFaceMaterial);
 
         obj.locked = false;
         expect(obj.locked).toBe(false);
+        expect(child.material).toBe(originalMaterial);
         expect(child.userData["oldMaterial"]).toBeUndefined();
     });
 
     test("matrixAutoUpdate is false after construction", () => {
-        const node = createFakeVisualNode();
+        const node = createTestVisualNode();
         const obj = new TestableVisualObject(node);
         expect(obj.matrixAutoUpdate).toBe(false);
     });
 
     test("dispose removes property change handler", () => {
-        const node = createFakeVisualNode();
+        const node = createTestVisualNode();
         const obj = new TestableVisualObject(node);
         obj.dispose();
-        expect(() =>
-            (node as unknown as { _notify: (p: string) => void })._notify("transform"),
-        ).not.toThrow();
+
+        const newMatrix = CoreMatrix4.fromArray([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 100, 0, 0, 1]);
+        const fakeNode = node as unknown as { transform: Matrix4; _notify: (p: string) => void };
+        Object.defineProperty(fakeNode, "transform", {
+            get() {
+                return newMatrix;
+            },
+            configurable: true,
+        });
+        fakeNode._notify("transform");
+
+        // The handler was removed, so the visual keeps its old transform
+        expect(obj.transform.toArray()[12]).toBe(0);
     });
 });
 
@@ -400,26 +263,24 @@ describe("ThreeMeshObject", () => {
     let context: ThreeVisualContext;
 
     beforeEach(() => {
-        context = createMockVisualContext();
+        context = createThreeMockVisualContext();
     });
 
     test("creates ThreeMeshObject with surface mesh type", () => {
-        const node = createFakeMeshNode({ meshType: "surface" });
+        const node = createTestMeshNode({ meshType: "surface" });
         const obj = new ThreeMeshObject(context, node);
-        expect(obj).toBeDefined();
-        expect(obj.mesh).toBeDefined();
+        expect(obj.mesh).toBeInstanceOf(Mesh);
         expect(obj.visible).toBe(true);
     });
 
     test("creates ThreeMeshObject with linesegments mesh type", () => {
-        const node = createFakeMeshNode({ meshType: "linesegments" });
+        const node = createTestMeshNode({ meshType: "linesegments" });
         const obj = new ThreeMeshObject(context, node);
-        expect(obj).toBeDefined();
-        expect(obj.mesh).toBeDefined();
+        expect(obj.mesh).toBeInstanceOf(LineSegments2);
     });
 
     test("wholeVisual returns array with the mesh", () => {
-        const node = createFakeMeshNode();
+        const node = createTestMeshNode();
         const obj = new ThreeMeshObject(context, node);
         const visuals = obj.wholeVisual();
         expect(visuals.length).toBe(1);
@@ -427,13 +288,13 @@ describe("ThreeMeshObject", () => {
     });
 
     test("subShapeVisual returns empty array", () => {
-        const node = createFakeMeshNode();
+        const node = createTestMeshNode();
         const obj = new ThreeMeshObject(context, node);
         expect(obj.subShapeVisual(1)).toEqual([]);
     });
 
     test("getSubShapeAndIndex returns empty result", () => {
-        const node = createFakeMeshNode();
+        const node = createTestMeshNode();
         const obj = new ThreeMeshObject(context, node);
         const result = obj.getSubShapeAndIndex("face", 0);
         expect(result.shape).toBeUndefined();
@@ -441,55 +302,93 @@ describe("ThreeMeshObject", () => {
         expect(result.index).toBe(-1);
     });
 
-    test("highlight on surface mesh does not throw", () => {
-        const node = createFakeMeshNode({ meshType: "surface" });
+    test("highlight on surface mesh swaps in the highlight material", () => {
+        const node = createTestMeshNode({ meshType: "surface" });
         const obj = new ThreeMeshObject(context, node);
-        expect(() => obj.highlight()).not.toThrow();
+        const originalMaterial = obj.mesh.material;
+
+        obj.highlight();
+        expect(obj.mesh.material).toBe(highlightFaceMaterial);
+        expect(obj.mesh.material).not.toBe(originalMaterial);
     });
 
     test("unhighlight restores original material on surface mesh", () => {
-        const node = createFakeMeshNode({ meshType: "surface" });
+        const node = createTestMeshNode({ meshType: "surface" });
         const obj = new ThreeMeshObject(context, node);
+        const originalMaterial = obj.mesh.material;
+
         obj.highlight();
-        expect(() => obj.unhighlight()).not.toThrow();
+        expect(obj.mesh.material).toBe(highlightFaceMaterial);
+
+        obj.unhighlight();
+        expect(obj.mesh.material).toBe(originalMaterial);
     });
 
-    test("highlight on linesegments mesh does not throw", () => {
-        const node = createFakeMeshNode({ meshType: "linesegments" });
+    test("highlight on linesegments mesh swaps in the highlight material", () => {
+        const node = createTestMeshNode({ meshType: "linesegments" });
         const obj = new ThreeMeshObject(context, node);
-        expect(() => obj.highlight()).not.toThrow();
-    });
+        const originalMaterial = obj.mesh.material;
 
-    test("unhighlight on linesegments mesh does not throw", () => {
-        const node = createFakeMeshNode({ meshType: "linesegments" });
-        const obj = new ThreeMeshObject(context, node);
         obj.highlight();
-        expect(() => obj.unhighlight()).not.toThrow();
+        expect(obj.mesh.material).toBe(hilightEdgeMaterial);
+        expect(obj.mesh.material).not.toBe(originalMaterial);
     });
 
-    test("mesh property change triggers recreation", () => {
-        const node = createFakeMeshNode({ meshType: "surface" });
-        new ThreeMeshObject(context, node);
-
-        expect(() => (node as unknown as { _notify: (p: string) => void })._notify("mesh")).not.toThrow();
-    });
-
-    test("materialId change does not throw", () => {
-        const node = createFakeMeshNode({ meshType: "surface", materialId: "mat-1" });
-        new ThreeMeshObject(context, node);
-        expect(() =>
-            (node as unknown as { _notify: (p: string) => void })._notify("materialId"),
-        ).not.toThrow();
-    });
-
-    test("dispose cleans up mesh and handlers", () => {
-        const node = createFakeMeshNode();
+    test("unhighlight restores original material on linesegments mesh", () => {
+        const node = createTestMeshNode({ meshType: "linesegments" });
         const obj = new ThreeMeshObject(context, node);
-        expect(() => obj.dispose()).not.toThrow();
+        const originalMaterial = obj.mesh.material;
+
+        obj.highlight();
+        expect(obj.mesh.material).toBe(hilightEdgeMaterial);
+
+        obj.unhighlight();
+        expect(obj.mesh.material).toBe(originalMaterial);
+    });
+
+    test("mesh property change recreates the mesh", () => {
+        const node = createTestMeshNode({ meshType: "surface" });
+        const obj = new ThreeMeshObject(context, node);
+        const oldMesh = obj.mesh;
+
+        (node as unknown as { _notify: (p: string) => void })._notify("mesh");
+
+        expect(obj.mesh).not.toBe(oldMesh);
+        expect(obj.mesh).toBeInstanceOf(Mesh);
+        expect(obj.children).toContain(obj.mesh);
+    });
+
+    test("materialId change replaces the mesh material", () => {
+        const node = createTestMeshNode({ meshType: "surface", materialId: "mat-1" });
+        const obj = new ThreeMeshObject(context, node);
+        const oldMaterial = obj.mesh.material;
+
+        (node as unknown as { _notify: (p: string) => void })._notify("materialId");
+
+        // The mock context returns a new material instance per getMaterial call
+        expect(obj.mesh.material).not.toBe(oldMaterial);
+    });
+
+    test("dispose disposes the mesh geometry and detaches handlers", () => {
+        const node = createTestMeshNode();
+        const obj = new ThreeMeshObject(context, node);
+
+        let geometryDisposed = false;
+        obj.mesh.geometry.addEventListener("dispose", () => {
+            geometryDisposed = true;
+        });
+
+        obj.dispose();
+        expect(geometryDisposed).toBe(true);
+
+        // Property changes after dispose no longer recreate the mesh
+        const meshAfterDispose = obj.mesh;
+        (node as unknown as { _notify: (p: string) => void })._notify("mesh");
+        expect(obj.mesh).toBe(meshAfterDispose);
     });
 
     test("hidden node creates invisible visual", () => {
-        const node = createFakeMeshNode({ visible: false });
+        const node = createTestMeshNode({ visible: false });
         const obj = new ThreeMeshObject(context, node);
         expect(obj.visible).toBe(false);
     });
@@ -503,38 +402,38 @@ describe("ThreeComponentObject", () => {
     let context: ThreeVisualContext;
 
     beforeEach(() => {
-        context = createMockVisualContext();
+        context = createThreeMockVisualContext();
     });
 
     function makeFakeNode() {
-        return createFakeComponentNode() as any;
+        return createTestComponentNode() as any;
     }
 
     test("creates with visible and locked defaults", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(obj).toBeDefined();
+        expect(obj).toBeInstanceOf(ThreeComponentObject);
         expect(obj.visible).toBe(true);
         expect(obj.locked).toBe(false);
     });
 
-    test("edges property is defined", () => {
+    test("edges property is a LineSegments2", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(obj.edges).toBeDefined();
+        expect(obj.edges).toBeInstanceOf(LineSegments2);
     });
 
-    test("faces property is defined", () => {
+    test("faces property is a Mesh", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(obj.faces).toBeDefined();
+        expect(obj.faces).toBeInstanceOf(Mesh);
     });
 
-    test("linesegments property is defined", () => {
+    test("linesegments property is a LineSegments2", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(obj.linesegments).toBeDefined();
+        expect(obj.linesegments).toBeInstanceOf(LineSegments2);
     });
 
-    test("surfaces property is defined", () => {
+    test("surfaces property is a Mesh", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(obj.surfaces).toBeDefined();
+        expect(obj.surfaces).toBeInstanceOf(Mesh);
     });
 
     test("wholeVisual returns non-empty array", () => {
@@ -552,9 +451,9 @@ describe("ThreeComponentObject", () => {
     test("getSubShapeAndIndex finds face by visual index", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
         const result = obj.getSubShapeAndIndex("face", 0);
-        expect(result.shape).toBeDefined();
-        expect(result.subShape).toBeDefined();
-        expect(result.index).toBeGreaterThanOrEqual(0);
+        expect((result.shape as any)?.id).toBe("f1");
+        expect(result.subShape).toBe(result.shape);
+        expect(result.index).toBe(0);
     });
 
     test("getSubShapeAndIndex returns empty for out-of-range visual", () => {
@@ -568,36 +467,63 @@ describe("ThreeComponentObject", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
         const box = obj.boundingBox();
         expect(box).toBeDefined();
-        if (box) {
-            expect(box.min.x).toBe(0);
-            expect(box.max.x).toBe(10);
-        }
+        expect(box!.min.x).toBe(0);
+        expect(box!.max.x).toBe(10);
     });
 
-    test("highlight creates bounding box and shows it", () => {
+    test("highlight creates a visible bounding box helper", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(() => obj.highlight()).not.toThrow();
+        expect((obj as any)._boundbox).toBeUndefined();
+
+        obj.highlight();
+        const boundbox = (obj as any)._boundbox as LineSegments2;
+        expect(boundbox).toBeInstanceOf(LineSegments2);
+        expect(boundbox.visible).toBe(true);
+        expect(obj.children).toContain(boundbox);
     });
 
-    test("double highlight does not throw", () => {
+    test("double highlight reuses the same bounding box helper", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
         obj.highlight();
-        expect(() => obj.highlight()).not.toThrow();
+        const boundbox = (obj as any)._boundbox as LineSegments2;
+        const childCount = obj.children.length;
+
+        obj.highlight();
+        expect((obj as any)._boundbox).toBe(boundbox);
+        expect(obj.children.length).toBe(childCount);
     });
 
-    test("unhighlight when not highlighted does not throw", () => {
+    test("unhighlight when not highlighted creates no bounding box helper", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(() => obj.unhighlight()).not.toThrow();
+        obj.unhighlight();
+        expect((obj as any)._boundbox).toBeUndefined();
     });
 
-    test("unhighlight after highlight does not throw", () => {
+    test("unhighlight after highlight hides the bounding box helper", () => {
         const obj = new ThreeComponentObject(makeFakeNode(), context);
         obj.highlight();
-        expect(() => obj.unhighlight()).not.toThrow();
+        const boundbox = (obj as any)._boundbox as LineSegments2;
+        expect(boundbox.visible).toBe(true);
+
+        obj.unhighlight();
+        expect(boundbox.visible).toBe(false);
     });
 
-    test("dispose cleans up meshes", () => {
-        const obj = new ThreeComponentObject(makeFakeNode(), context);
-        expect(() => obj.dispose()).not.toThrow();
+    test("dispose detaches the node property change handler", () => {
+        const node = makeFakeNode();
+        const obj = new ThreeComponentObject(node, context);
+        obj.dispose();
+
+        const newMatrix = CoreMatrix4.fromArray([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 100, 0, 0, 1]);
+        Object.defineProperty(node, "transform", {
+            get() {
+                return newMatrix;
+            },
+            configurable: true,
+        });
+        (node as { _notify: (p: string) => void })._notify("transform");
+
+        // The handler was removed, so the visual keeps its old transform
+        expect(obj.transform.toArray()[12]).toBe(0);
     });
 });

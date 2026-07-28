@@ -3,39 +3,32 @@
 
 import { AsyncController } from "../src";
 
-test("test cancel", async () => {
-    const controller = new AsyncController();
-    expect(controller.result?.status === "cancel").toBeFalsy();
-    await new Promise((r, s) => {
-        setTimeout(() => {
-            controller.cancel();
-            r("resolved");
-        }, 30);
-    });
-    expect(controller.result?.status === "cancel").toBeTruthy();
-});
+describe("AsyncController", () => {
+    test("should set result to cancel after cancel()", () => {
+        const controller = new AsyncController();
+        expect(controller.result?.status).not.toBe("cancel");
 
-test("test fail", async () => {
-    const controller = new AsyncController();
-    expect(controller.result?.status === "fail").toBeFalsy();
-    await new Promise((r, s) => {
-        setTimeout(() => {
-            controller.fail("fail msg");
-            r("resolved");
-        }, 30);
-    });
-    expect(controller.result?.status === "fail").toBeTruthy();
-    expect(controller.result?.message).toBe("fail msg");
-});
+        controller.cancel();
 
-test("test complete", async () => {
-    const controller = new AsyncController();
-    expect(controller.result?.status === "success").toBeFalsy();
-    await new Promise((r, s) => {
-        setTimeout(() => {
-            controller.success();
-            r("resolved");
-        }, 30);
+        expect(controller.result?.status).toBe("cancel");
     });
-    expect(controller.result?.status === "success").toBeTruthy();
+
+    test("should set result to fail with message after fail()", () => {
+        const controller = new AsyncController();
+        expect(controller.result?.status).not.toBe("fail");
+
+        controller.fail("fail msg");
+
+        expect(controller.result?.status).toBe("fail");
+        expect(controller.result?.message).toBe("fail msg");
+    });
+
+    test("should set result to success after success()", () => {
+        const controller = new AsyncController();
+        expect(controller.result?.status).not.toBe("success");
+
+        controller.success();
+
+        expect(controller.result?.status).toBe("success");
+    });
 });

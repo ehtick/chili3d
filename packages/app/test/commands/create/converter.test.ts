@@ -25,7 +25,7 @@ function stubDocumentSelection(doc: IDocument, nodes: VisualNode[]) {
 describe("ConvertToWire", () => {
     test("should have command metadata", () => {
         const data = (ConvertToWire as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("convert.toWire");
         expect(data.icon).toBe("icon-toPoly");
     });
@@ -110,7 +110,7 @@ describe("ConvertToWire", () => {
 describe("ConvertToFace", () => {
     test("should have command metadata", () => {
         const data = (ConvertToFace as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("convert.toFace");
         expect(data.icon).toBe("icon-toFace");
     });
@@ -126,7 +126,7 @@ describe("ConvertToFace", () => {
 describe("ConvertToShell", () => {
     test("should have command metadata", () => {
         const data = (ConvertToShell as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("convert.toShell");
         expect(data.icon).toBe("icon-toShell");
     });
@@ -143,7 +143,7 @@ describe("ConvertToShell", () => {
 describe("ConvertToSolid", () => {
     test("should have command metadata", () => {
         const data = (ConvertToSolid as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("convert.toSolid");
         expect(data.icon).toBe("icon-toSolid");
     });

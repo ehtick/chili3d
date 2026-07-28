@@ -22,7 +22,7 @@ afterAll(() => restoreApp());
 describe("ExtrudeCommand", () => {
     test("should have command metadata", () => {
         const data = (ExtrudeCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.extrude");
         expect(data.icon).toBe("icon-prism");
     });

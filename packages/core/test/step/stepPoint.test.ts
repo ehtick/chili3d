@@ -11,7 +11,7 @@ import {
     SnapPointPlaneEventHandler,
 } from "../../src/snap";
 import { PointOnAxisStep, PointOnCurveStep, PointOnPlaneStep, PointStep } from "../../src/step";
-import { TestDocument } from "../mocks";
+import { TestDocument } from "../../test-utils";
 
 function tip(): string {
     return "test.tip" as unknown as string;

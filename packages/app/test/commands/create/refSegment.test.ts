@@ -15,7 +15,7 @@ afterAll(() => restoreApp());
 describe("RefSegment", () => {
     test("should have command metadata", () => {
         const data = (RefSegment as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.refSegment");
         expect(data.icon).toBe("icon-line");
     });

@@ -5,7 +5,7 @@ import { AsyncController, ShapeTypes } from "../../src";
 import type { INodeFilter, IShapeFilter } from "../../src/selectionFilter";
 import { GetOrSelectNodeStep, GetOrSelectShapeStep, SelectNodeStep, SelectShapeStep } from "../../src/step";
 import type { IView, VisualShapeData } from "../../src/visual";
-import { createMockPicker, createMockSelection, TestDocument } from "../mocks";
+import { createMockPicker, createMockSelection, TestDocument } from "../../test-utils";
 
 function tip(): string {
     return "test.tip" as unknown as string;

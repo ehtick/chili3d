@@ -2,8 +2,9 @@
 // See LICENSE file in the project root for full license information.
 
 import { Result } from "@chili3d/core";
-import { beforeEach, describe, expect, test } from "@rstest/core";
+import { describe, expect, test } from "@rstest/core";
 import { Input } from "../src/viewport/flyout/input";
+import { mustQuery } from "./_helpers/domHelpers";
 
 describe("Input", () => {
     describe("constructor", () => {
@@ -14,16 +15,15 @@ describe("Input", () => {
 
         test("should create a textbox input child element", () => {
             const input = new Input("test", () => Result.ok("ok"));
-            const textbox = input.querySelector("input");
-            expect(textbox).not.toBeNull();
-            expect((textbox as HTMLInputElement).value).toBe("test");
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
+            expect(textbox.value).toBe("test");
         });
     });
 
     describe("text getter", () => {
         test("should return current textbox value", () => {
             const input = new Input("initial", () => Result.ok("ok"));
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.value = "changed";
             expect(input.text).toBe("changed");
         });
@@ -35,7 +35,7 @@ describe("Input", () => {
             const input = new Input("test", () => Result.ok("ok"));
             input.onCancelled(() => cancelled.push("cancelled"));
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 
             expect(cancelled).toContain("cancelled");
@@ -47,7 +47,7 @@ describe("Input", () => {
             input.onCancelled(() => calls.push(1));
             input.onCancelled(() => calls.push(2));
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 
             expect(calls).toEqual([1, 2]);
@@ -60,7 +60,7 @@ describe("Input", () => {
             const input = new Input("test", () => Result.ok("success"));
             input.onCompleted(() => completed.push("done"));
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 
             expect(completed).toContain("done");
@@ -71,7 +71,7 @@ describe("Input", () => {
             const input = new Input("test", () => Result.err("invalid" as any));
             input.onCompleted(() => completed.push("done"));
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 
             expect(completed).toEqual([]);
@@ -80,7 +80,7 @@ describe("Input", () => {
         test("should show error tip when handler returns error", () => {
             const input = new Input("test", () => Result.err("error.invalid" as any));
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 
             // Should have created a tip child element
@@ -91,12 +91,12 @@ describe("Input", () => {
         test("should make textbox readonly while processing", () => {
             let wasReadOnly = false;
             const input = new Input("test", () => {
-                wasReadOnly = (input.querySelector("input") as HTMLInputElement).readOnly;
+                wasReadOnly = mustQuery<HTMLInputElement>(input, "input").readOnly;
                 return Result.ok("ok");
             });
             input.onCompleted(() => {});
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 
             expect(wasReadOnly).toBe(true);
@@ -105,7 +105,7 @@ describe("Input", () => {
         test("should restore textbox when handler returns error", () => {
             const input = new Input("test", () => Result.err("invalid" as any));
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 
             expect(textbox.readOnly).toBe(false);
@@ -120,7 +120,7 @@ describe("Input", () => {
             input.onCompleted(() => cancelled.push("y"));
             input.dispose();
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             // These should be no-ops after dispose
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
@@ -134,7 +134,7 @@ describe("Input", () => {
         test("should remove error tip when user starts typing again", () => {
             const input = new Input("test", () => Result.err("error" as any));
 
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             // First Enter to show error tip
             textbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
             const childCountBefore = input.children.length;
@@ -146,20 +146,19 @@ describe("Input", () => {
 
         test("should stop propagation of keyboard events", () => {
             const input = new Input("test", () => Result.ok("ok"));
-            let propagated = false;
 
-            input.addEventListener("keydown", (e) => {
-                // This listener is on the input element itself, not the textbox
-                propagated = true;
-            });
-
-            const textbox = input.querySelector("input") as HTMLInputElement;
+            const textbox = mustQuery<HTMLInputElement>(input, "input");
             const event = new KeyboardEvent("keydown", { key: "a", bubbles: true });
-            Object.defineProperty(event, "stopPropagation", { value: () => {} });
+            let stopPropagationCalled = false;
+            Object.defineProperty(event, "stopPropagation", {
+                value: () => {
+                    stopPropagationCalled = true;
+                },
+            });
             textbox.dispatchEvent(event);
 
-            // The event's stopPropagation was called inside handleKeyDown
-            // (tested by verifying no error is thrown)
+            // handleKeyDown must call event.stopPropagation()
+            expect(stopPropagationCalled).toBe(true);
         });
     });
 });

@@ -3,7 +3,7 @@
 
 import { type I18nKeys, Matrix4, VisualNode } from "../src";
 import type { BoundingBox } from "../src/math";
-import { TestDocument } from "./mocks";
+import { TestDocument } from "../test-utils";
 
 // Mock VisualNode implementation for testing
 class TestVisualNode extends VisualNode {
@@ -207,7 +207,7 @@ describe("VisualNode", () => {
 
     describe("integration with base Node class", () => {
         test("should inherit all Node properties and methods", () => {
-            expect(visualNode.id).toBeDefined();
+            expect(visualNode.id).not.toBeNull();
             expect(visualNode.name).toBe("test");
             expect(visualNode.visible).toBe(true);
             expect(visualNode.parentVisible).toBe(true);

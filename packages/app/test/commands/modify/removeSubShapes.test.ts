@@ -82,7 +82,7 @@ function buildStepDatas(opts: { previousSibling?: unknown } = {}) {
 describe("RemoveSubShapesCommand", () => {
     test("should have command metadata", () => {
         const data = (RemoveSubShapesCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.removeShapes");
         expect(data.icon).toBe("icon-removeSubShape");
     });

@@ -5,7 +5,7 @@ import { AsyncController, Config, PubSub, XYZ } from "../src";
 import { Plane } from "../src/math";
 import type { PointSnapData } from "../src/snap";
 import { PointSnapEventHandler } from "../src/snap";
-import { createHandlerMockView, createPointerEvent, TestDocument } from "./mocks";
+import { createHandlerMockView, createPointerEvent, TestDocument } from "../test-utils";
 
 // ============================================================================
 // SnapEventHandler base class logic (tested via PointSnapEventHandler)
@@ -236,7 +236,7 @@ describe("SnapEventHandler — base class behaviour", () => {
             const handler = new PointSnapEventHandler(document, controller, pointData);
             const view = createHandlerMockView();
             handler.pointerMove(view, createPointerEvent());
-            expect(handler.snaped).toBeDefined();
+            expect(handler.snaped).not.toBeNull();
             handler.pointerOut(view, createPointerEvent());
             expect(handler.snaped).toBeUndefined();
         });
@@ -280,7 +280,7 @@ describe("SnapEventHandler — base class behaviour", () => {
             handler.pointerMove(view, createPointerEvent());
 
             const snaped = handler.snaped;
-            expect(snaped).toBeDefined();
+            expect(snaped).not.toBeNull();
             expect(snaped!.info).toBe("selected");
         });
 
@@ -299,7 +299,7 @@ describe("SnapEventHandler — base class behaviour", () => {
             const view = createHandlerMockView();
             handler.pointerMove(view, createPointerEvent());
 
-            expect(handler.snaped).toBeDefined();
+            expect(handler.snaped).not.toBeNull();
             expect(handler.snaped!.info).toBe("included");
         });
     });
@@ -343,10 +343,10 @@ describe("SnapEventHandler — base class behaviour", () => {
                 info: "test info",
             });
 
-            expect(result).toBeDefined();
-            if (result && typeof result === "object" && "msg" in result) {
-                expect(result.msg).toContain("custom prompt");
-            }
+            expect(result).not.toBeNull();
+            expect(typeof result).toBe("object");
+            expect(result).toHaveProperty("msg");
+            expect((result as { msg: string }).msg).toContain("custom prompt");
         });
 
         test("should include distance in prompt when no custom prompt", () => {
@@ -362,10 +362,10 @@ describe("SnapEventHandler — base class behaviour", () => {
                 distance: 42.5,
             });
 
-            expect(result).toBeDefined();
-            if (result && typeof result === "object" && "msg" in result) {
-                expect(result.msg).toContain("42.50");
-            }
+            expect(result).not.toBeNull();
+            expect(typeof result).toBe("object");
+            expect(result).toHaveProperty("msg");
+            expect((result as { msg: string }).msg).toContain("42.50");
         });
     });
 

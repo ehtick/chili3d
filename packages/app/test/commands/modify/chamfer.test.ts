@@ -56,7 +56,7 @@ describe("ChamferCommand", () => {
 
     test("should have command metadata", () => {
         const data = (ChamferCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.chamfer");
         expect(data.icon).toBe("icon-chamfer");
     });

@@ -3,8 +3,8 @@
 
 import { type ShapeType, ShapeTypes, ShapeTypeUtils } from "../src";
 
-describe("test ShapeType", () => {
-    test("test ShapeType values", () => {
+describe("ShapeType", () => {
+    test("should define shape type values", () => {
         expect(ShapeTypes.shape).toBe(0b0);
         expect(ShapeTypes.compound).toBe(0b1);
         expect(ShapeTypes.compoundSolid).toBe(0b10);
@@ -16,18 +16,18 @@ describe("test ShapeType", () => {
         expect(ShapeTypes.vertex).toBe(0b10000000);
     });
 
-    test("test isWhole method", () => {
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.shape)).toBeTruthy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.compound)).toBeTruthy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.compoundSolid)).toBeTruthy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.shell)).toBeFalsy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.face)).toBeFalsy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.wire)).toBeFalsy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.edge)).toBeFalsy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.vertex)).toBeTruthy();
+    test("should identify whole shape types", () => {
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.shape)).toBe(true);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.compound)).toBe(true);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.compoundSolid)).toBe(true);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.shell)).toBe(false);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.face)).toBe(false);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.wire)).toBe(false);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.edge)).toBe(false);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.vertex)).toBe(true);
     });
 
-    test("test stringValue method", () => {
+    test("should convert shape type to string", () => {
         expect(ShapeTypeUtils.stringValue(ShapeTypes.shape)).toBe("Shape");
         expect(ShapeTypeUtils.stringValue(ShapeTypes.compound)).toBe("Compound");
         expect(ShapeTypeUtils.stringValue(ShapeTypes.compoundSolid)).toBe("CompoundSolid");
@@ -40,77 +40,108 @@ describe("test ShapeType", () => {
         expect(ShapeTypeUtils.stringValue(999 as ShapeType)).toBe("Unknown");
     });
 
-    test("test hasCompound method", () => {
-        expect(ShapeTypeUtils.hasCompound(ShapeTypes.compound)).toBeTruthy();
-        expect(ShapeTypeUtils.hasCompound(ShapeTypes.compoundSolid)).toBeFalsy();
-        expect(ShapeTypeUtils.hasCompound(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasCompound(ShapeTypes.solid)).toBeFalsy();
-        expect(ShapeTypeUtils.hasCompound(ShapeTypes.shell)).toBeFalsy();
+    test.each<[string, (type: ShapeType) => boolean, [ShapeType, boolean][]]>([
+        [
+            "compound",
+            ShapeTypeUtils.hasCompound,
+            [
+                [ShapeTypes.compound, true],
+                [ShapeTypes.compoundSolid, false],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.solid, false],
+                [ShapeTypes.shell, false],
+            ],
+        ],
+        [
+            "compound solid",
+            ShapeTypeUtils.hasCompoundSolid,
+            [
+                [ShapeTypes.compoundSolid, true],
+                [ShapeTypes.compound, false],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.solid, false],
+            ],
+        ],
+        [
+            "solid",
+            ShapeTypeUtils.hasSolid,
+            [
+                [ShapeTypes.solid, true],
+                [ShapeTypes.compoundSolid, false],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.compound, false],
+                [ShapeTypes.shell, false],
+            ],
+        ],
+        [
+            "shell",
+            ShapeTypeUtils.hasShell,
+            [
+                [ShapeTypes.shell, true],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.compound, false],
+                [ShapeTypes.solid, false],
+            ],
+        ],
+        [
+            "face",
+            ShapeTypeUtils.hasFace,
+            [
+                [ShapeTypes.face, true],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.shell, false],
+                [ShapeTypes.solid, false],
+            ],
+        ],
+        [
+            "wire",
+            ShapeTypeUtils.hasWire,
+            [
+                [ShapeTypes.wire, true],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.face, false],
+                [ShapeTypes.shell, false],
+            ],
+        ],
+        [
+            "edge",
+            ShapeTypeUtils.hasEdge,
+            [
+                [ShapeTypes.edge, true],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.wire, false],
+                [ShapeTypes.face, false],
+            ],
+        ],
+        [
+            "vertex",
+            ShapeTypeUtils.hasVertex,
+            [
+                [ShapeTypes.vertex, true],
+                [ShapeTypes.shape, false],
+                [ShapeTypes.edge, false],
+                [ShapeTypes.wire, false],
+            ],
+        ],
+    ])("should detect %s in shape type", (_name, hasType, cases) => {
+        for (const [type, expected] of cases) {
+            expect(hasType(type)).toBe(expected);
+        }
     });
 
-    test("test hasCompoundSolid method", () => {
-        expect(ShapeTypeUtils.hasCompoundSolid(ShapeTypes.compoundSolid)).toBeTruthy();
-        expect(ShapeTypeUtils.hasCompoundSolid(ShapeTypes.compound)).toBeFalsy();
-        expect(ShapeTypeUtils.hasCompoundSolid(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasCompoundSolid(ShapeTypes.solid)).toBeFalsy();
-    });
-
-    test("test hasSolid method", () => {
-        expect(ShapeTypeUtils.hasSolid(ShapeTypes.solid)).toBeTruthy();
-        expect(ShapeTypeUtils.hasSolid(ShapeTypes.compoundSolid)).toBeFalsy();
-        expect(ShapeTypeUtils.hasSolid(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasSolid(ShapeTypes.compound)).toBeFalsy();
-        expect(ShapeTypeUtils.hasSolid(ShapeTypes.shell)).toBeFalsy();
-    });
-
-    test("test hasShell method", () => {
-        expect(ShapeTypeUtils.hasShell(ShapeTypes.shell)).toBeTruthy();
-        expect(ShapeTypeUtils.hasShell(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasShell(ShapeTypes.compound)).toBeFalsy();
-        expect(ShapeTypeUtils.hasShell(ShapeTypes.solid)).toBeFalsy();
-    });
-
-    test("test hasFace method", () => {
-        expect(ShapeTypeUtils.hasFace(ShapeTypes.face)).toBeTruthy();
-        expect(ShapeTypeUtils.hasFace(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasFace(ShapeTypes.shell)).toBeFalsy();
-        expect(ShapeTypeUtils.hasFace(ShapeTypes.solid)).toBeFalsy();
-    });
-
-    test("test hasWire method", () => {
-        expect(ShapeTypeUtils.hasWire(ShapeTypes.wire)).toBeTruthy();
-        expect(ShapeTypeUtils.hasWire(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasWire(ShapeTypes.face)).toBeFalsy();
-        expect(ShapeTypeUtils.hasWire(ShapeTypes.shell)).toBeFalsy();
-    });
-
-    test("test hasEdge method", () => {
-        expect(ShapeTypeUtils.hasEdge(ShapeTypes.edge)).toBeTruthy();
-        expect(ShapeTypeUtils.hasEdge(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasEdge(ShapeTypes.wire)).toBeFalsy();
-        expect(ShapeTypeUtils.hasEdge(ShapeTypes.face)).toBeFalsy();
-    });
-
-    test("test hasVertex method", () => {
-        expect(ShapeTypeUtils.hasVertex(ShapeTypes.vertex)).toBeTruthy();
-        expect(ShapeTypeUtils.hasVertex(ShapeTypes.shape)).toBeFalsy();
-        expect(ShapeTypeUtils.hasVertex(ShapeTypes.edge)).toBeFalsy();
-        expect(ShapeTypeUtils.hasVertex(ShapeTypes.wire)).toBeFalsy();
-    });
-
-    test("test bitwise operations with combined types", () => {
+    test("should support bitwise operations with combined types", () => {
         const combinedType = (ShapeTypes.compound | ShapeTypes.solid) as ShapeType;
-        expect(ShapeTypeUtils.hasCompound(combinedType)).toBeTruthy();
-        expect(ShapeTypeUtils.hasSolid(combinedType)).toBeTruthy();
-        expect(ShapeTypeUtils.hasShell(combinedType)).toBeFalsy();
-        expect(ShapeTypeUtils.hasFace(combinedType)).toBeFalsy();
-        expect(ShapeTypeUtils.isWhole(combinedType)).toBeFalsy();
+        expect(ShapeTypeUtils.hasCompound(combinedType)).toBe(true);
+        expect(ShapeTypeUtils.hasSolid(combinedType)).toBe(true);
+        expect(ShapeTypeUtils.hasShell(combinedType)).toBe(false);
+        expect(ShapeTypeUtils.hasFace(combinedType)).toBe(false);
+        expect(ShapeTypeUtils.isWhole(combinedType)).toBe(false);
     });
 
-    test("test CompoundSolid type properties", () => {
-        expect(ShapeTypeUtils.hasCompound(ShapeTypes.compoundSolid)).toBeFalsy();
-        expect(ShapeTypeUtils.hasSolid(ShapeTypes.compoundSolid)).toBeFalsy();
-        expect(ShapeTypeUtils.hasCompoundSolid(ShapeTypes.compoundSolid)).toBeTruthy();
-        expect(ShapeTypeUtils.isWhole(ShapeTypes.compoundSolid)).toBeTruthy();
+    test("should handle CompoundSolid type properties", () => {
+        expect(ShapeTypeUtils.hasCompound(ShapeTypes.compoundSolid)).toBe(false);
+        expect(ShapeTypeUtils.hasSolid(ShapeTypes.compoundSolid)).toBe(false);
+        expect(ShapeTypeUtils.hasCompoundSolid(ShapeTypes.compoundSolid)).toBe(true);
+        expect(ShapeTypeUtils.isWhole(ShapeTypes.compoundSolid)).toBe(true);
     });
 });

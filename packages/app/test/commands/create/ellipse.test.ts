@@ -16,7 +16,7 @@ afterAll(() => restoreApp());
 describe("Ellipse", () => {
     test("should have command metadata", () => {
         const data = (Ellipse as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("create.ellipse");
         expect(data.icon).toBe("icon-ellipse");
     });

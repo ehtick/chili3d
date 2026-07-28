@@ -9,37 +9,12 @@ rs.mock("../src/statusbar/snapConfig.module.css", () => ({
     container: "sc-container",
 }));
 
-// Mock element helpers
-// biome-ignore lint/suspicious/noExplicitAny: test mock for DOM element factory
-rs.mock("@chili3d/element", () => ({
-    div: (...children: any[]) => {
-        const el = document.createElement("div");
-        for (const c of children) {
-            if (c instanceof Node) el.appendChild(c);
-        }
-        return el;
-    },
-    input: (props: any) => {
-        const el = document.createElement("input");
-        if (props && typeof props === "object") {
-            if (props.type) el.type = props.type;
-            if (props.id) el.id = props.id;
-            if (props.checked !== undefined) el.checked = props.checked;
-            if (props.onclick) el.onclick = props.onclick;
-        }
-        return el;
-    },
-    label: (props: any) => {
-        const el = document.createElement("label");
-        if (props && typeof props === "object") {
-            if (props.htmlFor) el.htmlFor = props.htmlFor;
-            if (props.textContent !== undefined) el.textContent = String(props.textContent);
-        }
-        return el;
-    },
-}));
+// Mock element helpers — snap tests trigger handlers via el.click(),
+// so the realEvents variant is needed
+import "./_helpers/mockElementRealEvents";
 
 import { SnapConfig } from "../src/statusbar/snapConfig";
+import { mustQuery } from "./_helpers/domHelpers";
 
 describe("SnapConfig", () => {
     let originalSnapType: ObjectSnapType;
@@ -84,8 +59,7 @@ describe("SnapConfig", () => {
 
         test("should create tracking checkbox", () => {
             const config = new SnapConfig();
-            const trackingCheckbox = config.querySelector("#snap-tracking") as HTMLInputElement;
-            expect(trackingCheckbox).not.toBeNull();
+            const trackingCheckbox = mustQuery<HTMLInputElement>(config, "#snap-tracking");
             expect(trackingCheckbox.checked).toBe(true);
         });
 
@@ -102,8 +76,7 @@ describe("SnapConfig", () => {
             const config = new SnapConfig();
             // SnapTypes[i].type is a numeric enum value, so the id format is snap-{number}
             const endPointId = `snap-${ObjectSnapTypes.endPoint}`;
-            const endPointCheckbox = config.querySelector(`#${endPointId}`) as HTMLInputElement;
-            expect(endPointCheckbox).not.toBeNull();
+            const endPointCheckbox = mustQuery<HTMLInputElement>(config, `#${endPointId}`);
 
             const hadType = ObjectSnapTypeUtils.hasType(Config.instance.snapType, ObjectSnapTypes.endPoint);
 
@@ -123,39 +96,28 @@ describe("SnapConfig", () => {
         test("should toggle enableSnapTracking when tracking checkbox is clicked", () => {
             Config.instance.enableSnapTracking = true;
             const config = new SnapConfig();
-            const trackingCheckbox = config.querySelector("#snap-tracking") as HTMLInputElement;
+            const trackingCheckbox = mustQuery<HTMLInputElement>(config, "#snap-tracking");
             trackingCheckbox.click();
             expect(Config.instance.enableSnapTracking).toBe(false);
         });
     });
 
     describe("config change reactivity", () => {
-        test("should re-render when snapType config changes", () => {
+        test.each([
+            { prop: "snapType" },
+            { prop: "enableSnap" },
+            { prop: "enableSnapTracking" },
+        ])("should re-render when $prop config changes", ({ prop }) => {
             const config = new SnapConfig();
-            const oldType = Config.instance.snapType;
-            Config.instance.snapType = ObjectSnapTypeUtils.addType(
-                oldType,
-                ObjectSnapTypes.center as ObjectSnapType,
-            );
+            const firstCheckboxBefore = mustQuery(config, 'input[type="checkbox"]');
+
             // Manually trigger the property changed callback
-            (config as unknown as { snapTypeChanged: (prop: string) => void }).snapTypeChanged("snapType");
+            (config as unknown as { snapTypeChanged: (p: string) => void }).snapTypeChanged(prop);
 
-            // Content should be regenerated
-            expect(config.querySelectorAll('input[type="checkbox"]').length).toBe(9);
-        });
-
-        test("should re-render when enableSnap config changes", () => {
-            const config = new SnapConfig();
-            (config as unknown as { snapTypeChanged: (prop: string) => void }).snapTypeChanged("enableSnap");
-            expect(config.querySelectorAll('input[type="checkbox"]').length).toBe(9);
-        });
-
-        test("should re-render when enableSnapTracking config changes", () => {
-            const config = new SnapConfig();
-            (config as unknown as { snapTypeChanged: (prop: string) => void }).snapTypeChanged(
-                "enableSnapTracking",
-            );
-            expect(config.querySelectorAll('input[type="checkbox"]').length).toBe(9);
+            // Content should be regenerated: same count, new element instances
+            const checkboxes = config.querySelectorAll('input[type="checkbox"]');
+            expect(checkboxes.length).toBe(9);
+            expect(checkboxes[0]).not.toBe(firstCheckboxBefore);
         });
 
         test("should NOT clear checkboxes for unrelated config changes", () => {

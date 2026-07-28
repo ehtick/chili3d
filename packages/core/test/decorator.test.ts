@@ -2,10 +2,7 @@
 // See LICENSE file in the project root for full license information.
 
 import { CommandStore, command, type IApplication, type ICommand } from "../src";
-
-class MockCommand implements ICommand {
-    async execute(application: IApplication): Promise<void> {}
-}
+import { createMockCommand } from "../test-utils";
 
 @command({
     key: "test.command" as any,
@@ -29,13 +26,13 @@ describe("command decorator", () => {
     describe("@command decorator", () => {
         test("should register command in registry", () => {
             const ctor = CommandStore.getCommand("test.command");
-            expect(ctor).toBeDefined();
+            expect(ctor).not.toBeNull();
             expect(ctor).toBe(TestCommand);
         });
 
         test("should attach metadata to prototype", () => {
             const data = CommandStore.getComandData(TestCommand);
-            expect(data).toBeDefined();
+            expect(data).not.toBeNull();
             expect(data?.key).toBe("test.command");
             expect(data?.icon).toBe("test-icon");
         });
@@ -50,20 +47,20 @@ describe("command decorator", () => {
     describe("CommandUtils.getComandData", () => {
         test("should get data from string key", () => {
             const data = CommandStore.getComandData("test.command");
-            expect(data).toBeDefined();
+            expect(data).not.toBeNull();
             expect(data?.key).toBe("test.command");
         });
 
         test("should get data from constructor", () => {
             const data = CommandStore.getComandData(TestCommand);
-            expect(data).toBeDefined();
+            expect(data).not.toBeNull();
             expect(data?.key).toBe("test.command");
         });
 
         test("should get data from instance", () => {
             const instance = new TestCommand();
             const data = CommandStore.getComandData(instance);
-            expect(data).toBeDefined();
+            expect(data).not.toBeNull();
             expect(data?.key).toBe("test.command");
         });
 
@@ -73,7 +70,7 @@ describe("command decorator", () => {
         });
 
         test("should return undefined for undecorated command", () => {
-            const data = CommandStore.getComandData(MockCommand);
+            const data = CommandStore.getComandData(createMockCommand());
             expect(data).toBeUndefined();
         });
     });

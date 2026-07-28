@@ -9,6 +9,7 @@ import {
     Logger,
     type Plugin,
     type PluginManifest,
+    PubSub,
 } from "@chili3d/core";
 import { rs } from "@rstest/core";
 import { PluginManager } from "../src/pluginManager";
@@ -575,23 +576,71 @@ describe("PluginManager", () => {
             loadRemoteSpy.mockRestore();
         });
 
-        test("should skip untrusted domain that was already declined", async () => {
+        test("should show a confirmation dialog for an unknown host instead of fetching", async () => {
             const { manager } = createManager();
-            // Access the module-level untrustedDomains array — it's private so access via workaround
-            // Trusted domain already added in previous test — just test that unknown host goes to dialog
-
-            const alertSpy = rs.fn();
-            globalThis.alert = alertSpy;
-            globalThis.fetch = rs.fn();
+            const fetchSpy = rs.fn();
+            globalThis.fetch = fetchSpy;
             Object.defineProperty(window, "location", {
                 value: { host: "localhost", href: "https://localhost/" },
                 configurable: true,
             });
 
-            await manager.loadFromUrl("https://untrusted-site.com/plugin");
+            // Use a unique host: untrustedDomains is module-level state that
+            // cannot be cleared from tests, so hosts must not overlap.
+            let dialogArgs: unknown[] | undefined;
+            PubSub.default.sub("showDialog", (...args: unknown[]) => {
+                dialogArgs = args;
+            });
 
-            // Should NOT have called fetch (went to dialog path)
-            expect(globalThis.fetch).not.toHaveBeenCalled();
+            try {
+                await manager.loadFromUrl("https://untrusted-site-edge.com/plugin");
+
+                // Should NOT have called fetch (went to dialog path)
+                expect(fetchSpy).not.toHaveBeenCalled();
+                // A warning dialog with trust/dontTrust buttons is shown
+                expect(dialogArgs).not.toBeUndefined();
+                expect(dialogArgs![0]).toBe("common.warning");
+                const buttons = dialogArgs![2] as { content: string; onclick: () => void }[];
+                expect(buttons.map((b) => b.content)).toEqual(["common.dontTrust", "common.trust"]);
+            } finally {
+                PubSub.default.removeAll("showDialog");
+            }
+        });
+
+        test("should skip an untrusted domain after the user declined it", async () => {
+            const { manager } = createManager();
+            const fetchSpy = rs.fn();
+            globalThis.fetch = fetchSpy;
+            Object.defineProperty(window, "location", {
+                value: { host: "localhost", href: "https://localhost/" },
+                configurable: true,
+            });
+
+            const host = "declined-site-edge.com";
+            let dialogArgs: unknown[] | undefined;
+            PubSub.default.sub("showDialog", (...args: unknown[]) => {
+                dialogArgs = args;
+            });
+
+            try {
+                // First visit: the confirmation dialog is shown
+                await manager.loadFromUrl(`https://${host}/plugin`);
+                expect(dialogArgs).not.toBeUndefined();
+                const buttons = dialogArgs![2] as { content: string; onclick: () => void }[];
+                const dontTrust = buttons.find((b) => b.content === "common.dontTrust");
+                expect(dontTrust).not.toBeUndefined();
+
+                // User declines the domain
+                dontTrust!.onclick();
+                dialogArgs = undefined;
+
+                // Second visit: early return — no dialog, no fetch
+                await manager.loadFromUrl(`https://${host}/plugin`);
+                expect(dialogArgs).toBeUndefined();
+                expect(fetchSpy).not.toHaveBeenCalled();
+            } finally {
+                PubSub.default.removeAll("showDialog");
+            }
         });
     });
 
@@ -604,11 +653,13 @@ describe("PluginManager", () => {
             (manager as any).plugins.set("b", {});
 
             manager.unloadAll();
-            // Wait for promises to settle
-            await new Promise((r) => setTimeout(r, 10));
+
+            // Wait until the rejected unload promises have been handled
+            await rs.waitFor(() => {
+                expect(errorSpy).toHaveBeenCalled();
+            });
 
             expect(unloadSpy).toHaveBeenCalled();
-            // Logger.error should have been called for the failure
             errorSpy.mockRestore();
             unloadSpy.mockRestore();
         });

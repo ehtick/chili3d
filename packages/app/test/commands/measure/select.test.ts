@@ -26,7 +26,7 @@ import { ensureGlobalStubApp, mockShape, wireCommand } from "../../commands/comm
 describe("SelectMeasure", () => {
     test("should have command metadata", () => {
         const data = (SelectMeasure as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("measure.select");
         expect(data.icon).toBe("icon-measureSelect");
     });
@@ -228,8 +228,20 @@ describe("SelectMeasure", () => {
     describe("createMeasure", () => {
         test("should do nothing when shape is undefined", () => {
             const cmd = new SelectMeasure();
+            const edgeSpy = rs.spyOn(cmd as any, "edgeMeasure");
+            const faceSpy = rs.spyOn(cmd as any, "faceMeasure");
+            const solidSpy = rs.spyOn(cmd as any, "solidMeasure");
+
             (cmd as any).createMeasure(undefined);
-            // No error thrown
+
+            // No measure is created when there is no shape
+            expect(edgeSpy).not.toHaveBeenCalled();
+            expect(faceSpy).not.toHaveBeenCalled();
+            expect(solidSpy).not.toHaveBeenCalled();
+
+            edgeSpy.mockRestore();
+            faceSpy.mockRestore();
+            solidSpy.mockRestore();
         });
 
         test("should call edgeMeasure when category is length", () => {
@@ -264,7 +276,20 @@ describe("SelectMeasure", () => {
                 owner: { node: {}, getNode: () => ({}) },
             } as unknown as VisualShapeData;
 
-            expect(() => (cmd as any).createMeasure(shapeData)).not.toThrow();
+            const edgeSpy = rs.spyOn(cmd as any, "edgeMeasure");
+            const faceSpy = rs.spyOn(cmd as any, "faceMeasure");
+            const solidSpy = rs.spyOn(cmd as any, "solidMeasure");
+            try {
+                (cmd as any).createMeasure(shapeData);
+
+                expect(edgeSpy).toHaveBeenCalledWith(fakeEdge, shapeData.transform);
+                expect(faceSpy).not.toHaveBeenCalled();
+                expect(solidSpy).not.toHaveBeenCalled();
+            } finally {
+                edgeSpy.mockRestore();
+                faceSpy.mockRestore();
+                solidSpy.mockRestore();
+            }
         });
 
         test("should call faceMeasure when category is area", () => {
@@ -300,7 +325,20 @@ describe("SelectMeasure", () => {
                 owner: { node: {}, getNode: () => ({}) },
             } as unknown as VisualShapeData;
 
-            expect(() => (cmd as any).createMeasure(shapeData)).not.toThrow();
+            const edgeSpy = rs.spyOn(cmd as any, "edgeMeasure");
+            const faceSpy = rs.spyOn(cmd as any, "faceMeasure");
+            const solidSpy = rs.spyOn(cmd as any, "solidMeasure");
+            try {
+                (cmd as any).createMeasure(shapeData);
+
+                expect(faceSpy).toHaveBeenCalledWith(fakeFace, shapeData.transform);
+                expect(edgeSpy).not.toHaveBeenCalled();
+                expect(solidSpy).not.toHaveBeenCalled();
+            } finally {
+                edgeSpy.mockRestore();
+                faceSpy.mockRestore();
+                solidSpy.mockRestore();
+            }
         });
 
         test("should call solidMeasure when category is volume", () => {
@@ -337,7 +375,22 @@ describe("SelectMeasure", () => {
                 owner: { node: {}, getNode: () => ({}) },
             } as unknown as VisualShapeData;
 
-            expect(() => (cmd as any).createMeasure(shapeData)).not.toThrow();
+            const edgeSpy = rs.spyOn(cmd as any, "edgeMeasure");
+            const faceSpy = rs.spyOn(cmd as any, "faceMeasure");
+            const solidSpy = rs.spyOn(cmd as any, "solidMeasure");
+            try {
+                (cmd as any).createMeasure(shapeData);
+
+                expect(solidSpy).toHaveBeenCalledTimes(1);
+                expect(solidSpy.mock.calls[0][0]).toBe(fakeSolid);
+                expect(solidSpy.mock.calls[0][1]).toBe(shapeData.transform);
+                expect(edgeSpy).not.toHaveBeenCalled();
+                expect(faceSpy).not.toHaveBeenCalled();
+            } finally {
+                edgeSpy.mockRestore();
+                faceSpy.mockRestore();
+                solidSpy.mockRestore();
+            }
         });
     });
 
@@ -345,11 +398,14 @@ describe("SelectMeasure", () => {
         test("should compute length and add sum item", () => {
             const cmd = new SelectMeasure();
             const { doc } = wireCommand(cmd);
+            const htmlText = rs.fn((_text: string, _point: XYZ, _options?: unknown) => ({
+                dispose: () => {},
+            }));
             (cmd as any)._application = {
                 activeView: {
                     document: doc,
                     workplane: Plane.XY,
-                    htmlText: () => ({ dispose: () => {} }),
+                    htmlText,
                 },
             };
 
@@ -372,8 +428,10 @@ describe("SelectMeasure", () => {
 
             (cmd as any).edgeMeasure(fakeEdge, Matrix4.identity());
 
-            // Check that the dispose set was populated
-            expect(cmd).toBeDefined();
+            // The edge mesh is highlighted and the measured length is displayed
+            expect(doc.visual.context.displayMesh).toHaveBeenCalledWith([fakeEdge.mesh.edges]);
+            expect(htmlText).toHaveBeenCalledTimes(1);
+            expect(htmlText.mock.calls[0][0]).toBe("3.00");
         });
     });
 
@@ -381,11 +439,14 @@ describe("SelectMeasure", () => {
         test("should compute area and add sum item", () => {
             const cmd = new SelectMeasure();
             const { doc } = wireCommand(cmd);
+            const htmlText = rs.fn((_text: string, _point: XYZ, _options?: unknown) => ({
+                dispose: () => {},
+            }));
             (cmd as any)._application = {
                 activeView: {
                     document: doc,
                     workplane: Plane.XY,
-                    htmlText: () => ({ dispose: () => {} }),
+                    htmlText,
                 },
             };
 
@@ -410,7 +471,10 @@ describe("SelectMeasure", () => {
 
             (cmd as any).faceMeasure(fakeFace, Matrix4.identity());
 
-            expect(cmd).toBeDefined();
+            // The outer-wire mesh is highlighted and the measured area is displayed
+            expect(doc.visual.context.displayMesh).toHaveBeenCalledWith([fakeOuterWire.mesh.edges]);
+            expect(htmlText).toHaveBeenCalledTimes(1);
+            expect(htmlText.mock.calls[0][0]).toBe("4.00");
         });
     });
 
@@ -418,11 +482,14 @@ describe("SelectMeasure", () => {
         test("should compute volume and add sum item", () => {
             const cmd = new SelectMeasure();
             const { doc } = wireCommand(cmd);
+            const htmlText = rs.fn((_text: string, _point: XYZ, _options?: unknown) => ({
+                dispose: () => {},
+            }));
             (cmd as any)._application = {
                 activeView: {
                     document: doc,
                     workplane: Plane.XY,
-                    htmlText: () => ({ dispose: () => {} }),
+                    htmlText,
                 },
             };
 
@@ -440,7 +507,10 @@ describe("SelectMeasure", () => {
 
             (cmd as any).solidMeasure(fakeSolid, Matrix4.identity(), XYZ.zero);
 
-            expect(cmd).toBeDefined();
+            // The solid edge mesh is highlighted and the measured volume is displayed
+            expect(doc.visual.context.displayMesh).toHaveBeenCalledWith([fakeSolid.mesh.edges]);
+            expect(htmlText).toHaveBeenCalledTimes(1);
+            expect(htmlText.mock.calls[0][0]).toBe("8.00");
         });
     });
 });

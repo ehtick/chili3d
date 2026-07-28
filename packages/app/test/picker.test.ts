@@ -3,9 +3,12 @@
 
 import type { I18nKeys, IDocument, IEventHandler, IPicker, IVisual } from "@chili3d/core";
 import { AsyncController, PubSub } from "@chili3d/core";
+import {
+    createMockDocument,
+    createMockVisualWithDocument as createMockVisual,
+} from "@chili3d/core/test-utils";
 import { afterEach, beforeEach, describe, expect, test } from "@rstest/core";
 import { Picker } from "../src/picker";
-import { createMockDocument, createMockVisual } from "./_helpers";
 
 function createMockHandler(): IEventHandler {
     return {
@@ -139,7 +142,7 @@ describe("Picker", () => {
             expect(cursorEvents.length).toBeGreaterThanOrEqual(1);
             // The first viewCursor should have the custom cursor type
             const firstCursorEvent = cursorEvents.find((e) => e.args[0] !== "default");
-            expect(firstCursorEvent).toBeDefined();
+            expect(firstCursorEvent).not.toBeNull();
             expect(firstCursorEvent!.args[0]).toBe("select.default");
         });
 

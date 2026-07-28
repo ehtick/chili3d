@@ -49,7 +49,7 @@ function trackingNode(parent?: any) {
 describe("Mirror", () => {
     test("should have command metadata", () => {
         const data = (Mirror as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.mirror");
         expect(data.icon).toBe("icon-mirror");
     });
@@ -130,8 +130,8 @@ describe("Mirror", () => {
             expect(preview).toHaveLength(3);
             // [0] vertex at p1
             expect(Array.from(preview[0].position)).toEqual([0, 0, 0]);
-            // [1] transformed preview shape (mirrored positions)
-            expect(preview[1]).toBeDefined();
+            // [1] transformed preview shape (mirrored positions, default edge color)
+            expect(preview[1].color).toBe(VisualConfig.defaultEdgeColor);
             // [2] mirror line through p1 along the mirror direction (temp edge color)
             expect(preview[2].color).toBe(VisualConfig.temporaryEdgeColor);
             // line endpoints: p1 - offset and end + offset, where offset = unit(1,0,0)*1e6

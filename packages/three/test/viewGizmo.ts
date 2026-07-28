@@ -9,4 +9,10 @@ export class ViewGizmo extends HTMLElement implements IViewGizmo {
     setDom(dom: HTMLElement) {}
 }
 
-customElements.define("view-gizmo", ViewGizmo);
+// The real `src/viewGizmo` module also registers the "view-gizmo" tag. Depending on the
+// test-file evaluation order in a worker, either module may run first, so guard the
+// registration and fall back to a distinct tag to keep this stub class constructable.
+const tag = customElements.get("view-gizmo") ? "view-gizmo-stub" : "view-gizmo";
+if (!customElements.get(tag)) {
+    customElements.define(tag, ViewGizmo);
+}

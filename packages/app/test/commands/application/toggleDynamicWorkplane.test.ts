@@ -2,14 +2,14 @@
 // See LICENSE file in the project root for full license information.
 
 import { Config } from "@chili3d/core";
+import { createMockApplication } from "@chili3d/core/test-utils";
 import { describe, expect, test } from "@rstest/core";
 import { ToggleDynamicWorkplaneCommand } from "../../../src/commands/application/toggleDynamicWorkplane";
-import { createMockApplication } from "../../_helpers";
 
 describe("ToggleDynamicWorkplaneCommand", () => {
     test("should have command metadata", () => {
         const data = (ToggleDynamicWorkplaneCommand as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("workingPlane.toggleDynamic");
         expect(data.icon).toBe("icon-dynamicPlane");
     });

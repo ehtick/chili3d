@@ -20,7 +20,12 @@ describe("MeshUtils", () => {
             const matrix = Matrix4.identity();
             const offset = { facePosition: 0, faceIndex: 0 };
 
-            expect(() => MeshUtils.setFaceMeshData(data, undefined, matrix, offset)).not.toThrow();
+            MeshUtils.setFaceMeshData(data, undefined, matrix, offset);
+
+            // Early return: data and offset must stay untouched
+            expect(data.range).toHaveLength(0);
+            expect(Array.from(data.position)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            expect(offset).toEqual({ facePosition: 0, faceIndex: 0 });
         });
 
         test("should set face mesh data correctly", () => {
@@ -90,7 +95,11 @@ describe("MeshUtils", () => {
                 groups: [],
             };
 
-            expect(() => MeshUtils.combineFaceMeshData(data, undefined, Matrix4.identity())).not.toThrow();
+            MeshUtils.combineFaceMeshData(data, undefined, Matrix4.identity());
+
+            // Early return: data must stay untouched
+            expect(data.range).toHaveLength(0);
+            expect(Array.from(data.position)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0]);
         });
 
         test("should combine face mesh data correctly", () => {
@@ -163,7 +172,11 @@ describe("MeshUtils", () => {
                 lineType: "solid",
             };
 
-            expect(() => MeshUtils.setEdgeMeshData(data, undefined, Matrix4.identity(), 0)).not.toThrow();
+            MeshUtils.setEdgeMeshData(data, undefined, Matrix4.identity(), 0);
+
+            // Early return: data must stay untouched
+            expect(data.range).toHaveLength(0);
+            expect(Array.from(data.position)).toEqual([0, 0, 0, 0, 0, 0]);
         });
 
         test("should set edge mesh data correctly", () => {
@@ -201,7 +214,11 @@ describe("MeshUtils", () => {
                 lineType: "solid",
             };
 
-            expect(() => MeshUtils.combineEdgeMeshData(data, undefined, Matrix4.identity())).not.toThrow();
+            MeshUtils.combineEdgeMeshData(data, undefined, Matrix4.identity());
+
+            // Early return: data must stay untouched
+            expect(data.range).toHaveLength(0);
+            expect(Array.from(data.position)).toEqual([0, 0, 0, 0, 0, 0]);
         });
 
         test("should combine edge mesh data correctly", () => {
@@ -293,7 +310,7 @@ describe("MeshUtils", () => {
 
             const result = MeshUtils.subFace(mesh, 0);
 
-            expect(result).toBeDefined();
+            expect(result).not.toBeNull();
             expect(result!.position).toEqual(mesh.position);
             expect(result!.index).toEqual(new Uint32Array([0, 1, 2]));
             expect(result!.range).toEqual([]);
@@ -329,7 +346,7 @@ describe("MeshUtils", () => {
 
             const result = MeshUtils.subFaceOutlines(mesh, 0);
 
-            expect(result).toBeDefined();
+            expect(result).not.toBeNull();
             expect(result).toBeInstanceOf(Float32Array);
         });
     });
@@ -417,7 +434,7 @@ describe("MeshUtils", () => {
 
             const result = MeshUtils.subEdge(mesh, 0);
 
-            expect(result).toBeDefined();
+            expect(result).not.toBeNull();
             expect(result!.length).toBe(12); // 4 points * 3 coordinates
             expect(Array.from(result!)).toEqual([0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0]);
         });

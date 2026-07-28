@@ -103,7 +103,7 @@ describe("Break", () => {
 
     test("should have command metadata", () => {
         const data = (Break as any).prototype.data;
-        expect(data).toBeDefined();
+        expect(data).not.toBeNull();
         expect(data.key).toBe("modify.break");
         expect(data.icon).toBe("icon-break");
     });
