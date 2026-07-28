@@ -4,6 +4,7 @@
 import { AppBuilder } from "@chili3d/builder";
 import { type IApplication, Logger } from "@chili3d/core";
 import { Loading } from "./loading";
+import { parseStartupParams } from "./startupParams";
 
 const loading = new Loading();
 document.body.appendChild(loading);
@@ -11,16 +12,14 @@ document.body.appendChild(loading);
 async function handleApplicaionBuilt(app: IApplication) {
     document.body.removeChild(loading);
 
-    const params = new URLSearchParams(window.location.search);
-    const plugin = params.get("plugin");
-    if (plugin) {
+    const { plugins, fileUrl } = parseStartupParams(window.location.search);
+    for (const plugin of plugins) {
         Logger.info(`loading plugin from: ${plugin}`);
         await app.pluginManager.loadFromUrl(plugin);
     }
-    const url = params.get("url") ?? params.get("model");
-    if (url) {
-        Logger.info(`loading file from: ${url}`);
-        await app.loadFileFromUrl(url);
+    if (fileUrl) {
+        Logger.info(`loading file from: ${fileUrl}`);
+        await app.loadFileFromUrl(fileUrl);
     }
 }
 

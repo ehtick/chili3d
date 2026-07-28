@@ -1,124 +1,71 @@
 # Chili3D coding guidelines
 
-This document provides coding guidelines and build instructions for agentic coding agents working in the Chili3D codebase.
-
 ## Build & Test
 
 ```bash
 npm run dev            # Rspack dev server → localhost:8080
 npm run build          # Production build (Rspack + SWC)
-npm run test           # Run all tests (Rstest + Happy-DOM)
-npm run testc          # Tests with coverage
+npm run test           # All tests (Rstest + Happy-DOM); npm run testc = with coverage
 npm run check          # Biome lint + auto-fix (run before commits)
 npm run format         # Biome + clang-format across all files
-npm run build:wasm     # Build C++ → WebAssembly (CMake + Emscripten)
-npm run setup:wasm     # One-time: download OCCT + Emscripten
+npm run build:wasm     # C++ → WebAssembly (CMake + Emscripten); setup:wasm = one-time deps
 
-# Single test file or filter
-npx rstest packages/core/test/result.test.ts
-npx rstest -t "should handle error case"
+npx rstest packages/core/test/result.test.ts   # single file
+npx rstest -t "should handle error case"       # filter by name
 ```
 
 ## Monorepo Structure
 
-Chili3D is a browser-based parametric 3D CAD app — an OCCT C++ kernel compiled to WebAssembly, rendered with Three.js. The TS side is an npm workspace monorepo under `packages/`:
+Browser-based parametric 3D CAD: OCCT C++ kernel compiled to WebAssembly, rendered with Three.js. npm workspace under `packages/`:
 
 ```
 web ──> builder ──> app ──> core
-                  ──> i18n ──> core
-                  ──> three ──> core
+                  ──> i18n / three / wasm ──> core
                   ──> ui ──> core + element
-                  ──> wasm ──> core
 ```
 
-- **`core`** — Everything abstract: shape interfaces (`IShape`, `IShapeFactory`), math (`XYZ`, `Matrix4`, `Plane`), document model, reactive data (`Observable`, `Binding`, `PubSub`), `Result<T,E>`, transactions/undo, commands, serialization, plugin system, service container, UI abstractions
-- **`wasm`** — Concrete `ShapeFactory` calling into OCCT via Emscripten bindings. Exports `initWasm()`.
-- **`three`** — Three.js viewport (`ThreeView`), camera controller, visual objects, highlighter, outline pass, gizmo, mesh export
+- **`core`** — Everything abstract: shape interfaces, math, document model, reactive data (`Observable`, `Binding`, `PubSub`), `Result<T,E>`, undo, commands, serialization, plugins, services, UI abstractions
+- **`wasm`** — Concrete `ShapeFactory` → OCCT via Emscripten; exports `initWasm()`
+- **`three`** — Three.js viewport, camera controller, visuals, highlighter, gizmo, mesh export
 - **`element`** — Custom reactive DOM elements (radio groups, expanders, data converters)
-- **`ui`** — Application chrome: main window, ribbon/toolbar, property panels, project tree, dialogs, toast, status bar
-- **`app`** — Concrete `Application`, body node classes (box, sphere, cylinder, extrude, revolve, sweep, loft, boolean, etc.), command implementations (`create/`, `modify/`, `measure/`, `application/`), `CommandService`, `HotkeyService`
-- **`builder`** — `AppBuilder` with fluent `.useIndexedDB().useWasmOcc().useThree().useUI().build()` chain. Default ribbon layout.
-- **`i18n`** — Locale data (`en`, `zh-cn`, `pt-br`)
-- **`storage`** — IndexedDB persistence
-- **`web`** — Entry point: calls `AppBuilder`, shows loading screen, parses `?plugin=` / `?url=` / `?model=` URL params
+- **`ui`** — App chrome: main window, ribbon, property panels, project tree, dialogs, toast, status bar
+- **`app`** — `Application`, body nodes (`bodys/`), command implementations, `CommandService`, `HotkeyService`
+- **`builder`** — `AppBuilder` fluent chain (`.useIndexedDB().useWasmOcc().useThree().useUI().build()`), default ribbon layout
+- **`i18n`** / **`storage`** / **`web`** — Locale data (en, zh-cn, pt-br) / IndexedDB persistence / entry point (loading screen, `?plugin=`/`?url=`/`?model=` params)
 
-Imports use workspace package names: `import { ... } from "@chili3d/core"`. One root `tsconfig.json` covers all packages (no per-package configs).
+Import via workspace names (`import { ... } from "@chili3d/core"`); one root `tsconfig.json` covers all packages.
 
 ## C++ WASM (`cpp/`)
 
-OCCT v8.0.0 compiled to `chili-wasm.wasm` via Emscripten. Sources in `cpp/src/`:
-
-- `factory.cpp` — shape creation (box, sphere, extrude, revolve, boolean, fillet, chamfer, loft, sweep, pipe)
-- `shape.cpp` — topology traversal, sub-shape queries
-- `converter.cpp` — STEP/IGES/BREP/STL import/export
-- `mesher.cpp` — B-rep tessellation → mesh for Three.js
-- `geometry.cpp` — curve/surface geometry queries
-
-Build output: `packages/wasm/lib/chili-wasm.{wasm,js,d.ts}`. C++ style is WebKit (clang-format). C++ license is LGPL-3.0 (TS is AGPL-3.0).
+OCCT v8.0.0 → `chili-wasm.wasm` via Emscripten. `cpp/src/`: `factory.cpp` (shape creation), `shape.cpp` (topology traversal), `converter.cpp` (STEP/IGES/BREP/STL), `mesher.cpp` (B-rep → mesh), `geometry.cpp` (curve/surface queries). Output: `packages/wasm/lib/chili-wasm.{wasm,js,d.ts}`. C++ style: WebKit (clang-format); license LGPL-3.0 (TS is AGPL-3.0).
 
 ## Key Patterns
 
-### Interface-driven with pluggable backends
-
-`core` defines interfaces; feature packages implement them. `AppBuilder` wires them at startup.
-
-### Result pattern
-
-Fallible operations return `Result<T, E>` (from `core/src/foundation/result.ts`) — `Result.ok(value)` or `Result.err(error)`. Never throw for expected failures.
-
-### Reactive data
-
-Custom observables in `core/src/foundation/`. `Observable` base class uses `getPrivateValue<K>(key)` / `setPrivateValue<K>(key, value)` — setting triggers `emitPropertyChanged`. `ObservableCollection` powers the property editor and project tree.
-
-### Serialization
-
-`@serializable()` decorator on classes, `@serialize()` on fields. Serializes to `{ __cla$$__: "ClassName", ...props }`.
-
-### Body nodes
-
-Live in `packages/app/src/bodys/`. Each extends `ParameterShapeNode`, implements `generateShape(): Result<IShape>`, uses `setPropertyEmitShapeChanged()` to trigger re-evaluation when parameters change.
-
-### Commands
-
-`ICommand` with `execute(application): Promise<void>`. `CancelableCommand` base class adds `cancel()`, `AsyncController`, and a dispose stack.
-
-### Undo/redo
-
-`Transaction` records state snapshots; `History` maintains the stack. Commands create transactions automatically.
-
-### Plugins
-
-Loaded at runtime from URLs or `?plugin=` query param. Plugin manager in `core/src/plugin/` and `app/src/pluginManager.ts`. Example plugins in `plugins/`.
-
-### Global singleton
-
-`getCurrentApplication()` from `core` returns the global `IApplication` — widely accessed instead of DI threading.
-
-### MCP server (`packages/mcp/`)
-
-Wraps the geometry engine for AI-driven CAD. Two tool families:
-
-- **LIVE** (`live_*`) — drives the user's open browser tab. Use when the user wants to see results.
-- **HEADLESS** (`run_cad_program`, `get_properties`, `render_preview`, etc.) — server-side scratchpad for drafting and self-verification before pushing to live view.
-
-All units are millimetres, angles are degrees.
+- **Interface-driven** — `core` defines interfaces; feature packages implement; `AppBuilder` wires at startup.
+- **Result pattern** — Fallible ops return `Result.ok(value)` / `Result.err(error)` (`core/src/foundation/result.ts`); never throw for expected failures.
+- **Reactive data** — `Observable` uses `getPrivateValue(key)` / `setPrivateValue(key, value)`; setting emits `emitPropertyChanged`. `ObservableCollection` powers property editor and project tree.
+- **Serialization** — `@serializable()` on classes, `@serialize()` on fields → `{ __cla$$__: "ClassName", ...props }`.
+- **Body nodes** — `app/src/bodys/`; extend `ParameterShapeNode`, implement `generateShape(): Result<IShape>`, `setPropertyEmitShapeChanged()` triggers re-evaluation.
+- **Commands** — `ICommand.execute(application): Promise<void>`; `CancelableCommand` adds `cancel()`, `AsyncController`, dispose stack.
+- **Undo/redo** — `Transaction` records snapshots, `History` keeps the stack; commands create transactions automatically.
+- **Plugins** — Loaded from URLs or `?plugin=`; manager in `core/src/plugin/` + `app/src/pluginManager.ts`; examples in `plugins/`.
+- **Global singleton** — `getCurrentApplication()` (from `core`) instead of DI threading.
+- **MCP server** (`packages/mcp/`) — `live_*` tools drive the user's open browser tab; headless tools (`run_cad_program`, `render_preview`, etc.) are a server-side scratchpad. Units: millimetres; angles: degrees.
 
 ## Testing
 
-- Rstest (not Jest/Vitest) + Happy-DOM
-- `rstest.config.ts` at root, globals enabled (`describe`, `test`, `expect`)
-- Tests in `packages/*/test/`, co-located with source
-- `TestDocument` helper in `packages/core/src/test-utils`
-- Legacy decorator support enabled
+- Rstest (not Jest/Vitest) + Happy-DOM; root `rstest.config.ts`, globals enabled (`describe`, `test`, `expect`); tests in `packages/*/test/`; legacy decorators enabled.
+- Reuse shared mocks from `@chili3d/core/test-utils` (`TestDocument`, `createMockDocument`, `createMockApplication`, `createMockVisual`, ...) instead of per-package copies; package-specific facades (e.g. `packages/ui/test/_helpers/`) extend them. `initializeI18n()` runs automatically via rstest `setupFiles` — never call it in test files.
+- Assertions must execute: none hidden in event callbacks (unless the callback is also asserted to fire), no tautologies (`x === true || x === false`), no `if (x) expect(...)` — assert the precondition, then the behavior; `await` every promise whose `.then` asserts.
+- Assert behavior, not absence of crashes: bare `not.toThrow()` / `toBeDefined()` is a smell; `querySelector` results need `not.toBeNull()`.
+- Restore global monkeypatches (`PubSub.default.pub`, `globalThis.fetch`, ...) in `finally`/`afterEach`, or use `rs.stubGlobal` + `rs.unstubAllGlobals()`.
+- Type `rs.fn` mocks with the real signature (`rs.fn((_edges: IEdge[]) => ...)`) so `mock.calls` typechecks; use `test.each` for near-identical repeated cases.
 
 ## Code Style
 
-- Biome for lint + format: 4-space indent, 110-char line width, double quotes, semicolons always
-- Interfaces prefixed with `I` (`IShape`, `ICommand`)
-- `camelCase` functions/variables, `PascalCase` classes, `UPPER_SNAKE_CASE` constants
-- Files: `camelCase.ts`
-- CSS Modules for component styles (`*.module.css`)
-- Type-only imports: `import type { IFoo } from "..."`
+- Biome: 4-space indent, 110-col width, double quotes, semicolons always
+- `I`-prefixed interfaces; `camelCase` functions/variables/files; `PascalCase` classes; `UPPER_SNAKE_CASE` constants
+- CSS Modules (`*.module.css`); type-only imports (`import type { IFoo }`)
 - Every TS file starts with the AGPL-3.0 header:
 
 ```ts
@@ -128,7 +75,4 @@ All units are millimetres, angles are degrees.
 
 ## Git
 
-Commits use `<emoji> <type>(<scope>): <description>`:
-- ✨ `feat`  ·  🐛 `fix`  ·  ♻️ `refactor`  ·  ✅ `test`  ·  📝 `docs`  ·  💄 `style`  ·  🔧 `chore`
-
-Scope = package name. Active branch: `dev` → PR to `main`.
+Commits: `<emoji> <type>(<scope>): <description>` — ✨ `feat` · 🐛 `fix` · ♻️ `refactor` · ✅ `test` · 📝 `docs` · 💄 `style` · 🔧 `chore`. Scope = package name. Active branch: `dev` → PR to `main`.

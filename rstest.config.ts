@@ -8,9 +8,10 @@ const configDir = import.meta.dirname;
 export default defineConfig({
     exclude: ["**/cpp/**"],
     coverage: {
-        exclude: ["**/wasm/lib/**"],
+        exclude: ["**/wasm/lib/**", "**/test-utils/**"],
     },
     globals: true,
+    setupFiles: [resolve(configDir, "packages/core/test-utils/setup.ts")],
     testEnvironment: "happy-dom",
     tools: {
         rspack: {

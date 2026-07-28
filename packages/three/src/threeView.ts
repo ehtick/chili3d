@@ -119,6 +119,7 @@ export class ThreeView extends Observable implements IView {
     ) {
         super();
         this.setPrivateValue("name", name);
+        this.setPrivateValue("mode", "solidAndWireframe");
         this._scene = content.scene;
         this._workplane = workplane;
         this._resizeObserver = new ResizeObserver(this._resizerObserverCallback);
@@ -127,7 +128,6 @@ export class ThreeView extends Observable implements IView {
         this._cssRenderer = this.initCssRenderer();
         this._scene.add(this.dynamicLight);
         this._gizmo = this.initGizmo();
-        this.setPrivateValue("mode", "solidAndWireframe");
         this.camera.layers.enableAll();
         this.document.application.views.push(this);
         this.animate();
