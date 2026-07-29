@@ -23,7 +23,7 @@ import {
     type XYZ,
     type XYZLike,
 } from "@chili3d/core";
-import type { ShapeResult, TopoDS_Shape } from "../lib/chili-wasm";
+import type { ShapeResult, ShapesResult, TopoDS_Shape } from "../lib/chili-wasm";
 import { OccCurve } from "./curve";
 import { convertFromContinuity } from "./helper";
 import { OccEdge, OccShape } from "./shape";
@@ -64,6 +64,37 @@ function convertShapeResult(
         res = Result.err("The shape is null.");
     } else {
         res = Result.ok(OccShape.wrap(result.shape));
+    }
+
+    result.delete();
+    return res;
+}
+
+function convertShapesResult(
+    factory: (...params: any[]) => ShapesResult,
+    params: any[],
+    errorString: string,
+): Result<IShape[], string> {
+    let result: ShapesResult;
+    try {
+        result = factory(...params);
+    } catch {
+        return Result.err(errorString);
+    }
+
+    let res: Result<IShape[], string>;
+    if (!result.isOk) {
+        res = Result.err(result.error);
+    } else {
+        const shapes: IShape[] = [];
+        const arr = result.shapes;
+        for (let i = 0; i < arr.length; i++) {
+            const ts = arr[i];
+            if (ts && !ts.isNull()) {
+                shapes.push(OccShape.wrap(ts));
+            }
+        }
+        res = Result.ok(shapes);
     }
 
     result.delete();
@@ -112,6 +143,58 @@ export class ShapeFactory implements IShapeFactory {
             );
         }
         return Result.err("Not OccShape");
+    }
+
+    fillet2d(face: IFace, edge1: IEdge, edge2: IEdge, radius: number): Result<IFace> {
+        if (radius < Precision.Distance) {
+            return Result.err("The radius is too small.");
+        }
+
+        const shapes = ensureOccShape([face, edge1, edge2]);
+        return convertShapeResult(
+            wasm.ShapeFactory.fillet2d,
+            [...shapes, radius],
+            "Fillet2d Error",
+        ) as Result<IFace>;
+    }
+
+    filletEdge2d(edge1: IEdge, edge2: IEdge, radius: number): Result<IEdge[]> {
+        if (radius < Precision.Distance) {
+            return Result.err("The radius is too small.");
+        }
+
+        const edges = ensureOccShape([edge1, edge2]);
+        return convertShapesResult(
+            wasm.ShapeFactory.filletEdge2d,
+            [...edges, radius],
+            "FilletEdge2d Error",
+        ) as Result<IEdge[]>;
+    }
+
+    chamfer2d(face: IFace, edge1: IEdge, edge2: IEdge, distance: number): Result<IFace> {
+        if (distance < Precision.Distance) {
+            return Result.err("The distance is too small.");
+        }
+
+        const shapes = ensureOccShape([face, edge1, edge2]);
+        return convertShapeResult(
+            wasm.ShapeFactory.chamfer2d,
+            [...shapes, distance],
+            "Chamfer2d Error",
+        ) as Result<IFace>;
+    }
+
+    chamferEdge2d(edge1: IEdge, edge2: IEdge, distance: number): Result<IEdge[]> {
+        if (distance < Precision.Distance) {
+            return Result.err("The distance is too small.");
+        }
+
+        const edges = ensureOccShape([edge1, edge2]);
+        return convertShapesResult(
+            wasm.ShapeFactory.chamferEdge2d,
+            [...edges, distance],
+            "ChamferEdge2d Error",
+        ) as Result<IEdge[]>;
     }
 
     removeFeature(shape: IShape, faces: IFace[]): Result<IShape> {

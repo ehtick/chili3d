@@ -76,6 +76,11 @@ export abstract class SelectionHandler implements IEventHandler {
 
     protected abstract highlightNext(view: IView): void;
 
+    /** In multi mode, returning true after a pick completes the selection immediately. */
+    protected canFinishSelection(): boolean {
+        return false;
+    }
+
     pointerDown(view: IView, event: PointerEvent): void {
         event.preventDefault();
         if (event.button === 0 && event.isPrimary) {
@@ -125,7 +130,7 @@ export abstract class SelectionHandler implements IEventHandler {
             const count = this.select(view, event);
             this.cleanHighlights();
             view.update();
-            if (count > 0 && !this.multiMode) this.controller?.success();
+            if (count > 0 && (!this.multiMode || this.canFinishSelection())) this.controller?.success();
         }
         this.pointerEventMap.delete(event.pointerId);
     }

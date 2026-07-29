@@ -47,6 +47,10 @@ export interface IShapeFactory {
     makeThickSolidByJoin(shape: IShape, closingFaces: IShape[], thickness: number): Result<IShape>;
     fillet(shape: IShape, edges: number[], radius: number): Result<IShape>;
     chamfer(shape: IShape, edges: number[], distance: number): Result<IShape>;
+    fillet2d(face: IFace, edge1: IEdge, edge2: IEdge, radius: number): Result<IFace>;
+    chamfer2d(face: IFace, edge1: IEdge, edge2: IEdge, distance: number): Result<IFace>;
+    filletEdge2d(edge1: IEdge, edge2: IEdge, radius: number): Result<IEdge[]>;
+    chamferEdge2d(edge1: IEdge, edge2: IEdge, distance: number): Result<IEdge[]>;
     loft(
         sections: (IVertex | IEdge | IWire)[],
         isSolid: boolean,

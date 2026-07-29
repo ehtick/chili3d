@@ -15,6 +15,9 @@ export abstract class ShapeSelectionHandler extends SelectionHandler {
 
     highlightState: VisualState = VisualStates.edgeHighlight;
 
+    /** In multi mode, finish the pick automatically once this returns true. */
+    canFinish?: (selected: VisualShapeData[]) => boolean;
+
     constructor(
         document: IDocument,
         readonly shapeType: ShapeType,
@@ -98,6 +101,10 @@ export abstract class ShapeSelectionHandler extends SelectionHandler {
             const detected = this.getDetecting();
             if (detected) this.highlightDetecteds(view, [detected]);
         }
+    }
+
+    protected override canFinishSelection(): boolean {
+        return this.canFinish?.(this.document.selection.getSelectedShapes()) ?? false;
     }
 
     private getDetecting() {

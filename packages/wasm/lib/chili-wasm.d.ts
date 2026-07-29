@@ -39,6 +39,13 @@ export interface RemoveFilletResult extends ClassHandle {
   newEdges: Array<TopoDS_Shape>;
 }
 
+export interface ShapesResult extends ClassHandle {
+  isOk: boolean;
+  get error(): string;
+  set error(value: EmbindString);
+  shapes: Array<TopoDS_Shape>;
+}
+
 export interface ShapeFactory extends ClassHandle {
 }
 
@@ -607,12 +614,17 @@ interface EmbindModule {
   };
   ShapeResult: {};
   RemoveFilletResult: {};
+  ShapesResult: {};
   ShapeFactory: {
     makeThickSolidBySimple(_0: TopoDS_Shape, _1: number): ShapeResult;
     fixShape(_0: TopoDS_Shape, _1: number): ShapeResult;
     fixSmallFace(_0: TopoDS_Shape, _1: number): ShapeResult;
     fixSolid(_0: TopoDS_Shape, _1: number): ShapeResult;
     curveProjection(_0: TopoDS_Shape, _1: TopoDS_Shape, _2: gp_Dir): ShapeResult;
+    filletEdge2d(_0: TopoDS_Edge, _1: TopoDS_Edge, _2: number): ShapesResult;
+    chamferEdge2d(_0: TopoDS_Edge, _1: TopoDS_Edge, _2: number): ShapesResult;
+    fillet2d(_0: TopoDS_Face, _1: TopoDS_Edge, _2: TopoDS_Edge, _3: number): ShapeResult;
+    chamfer2d(_0: TopoDS_Face, _1: TopoDS_Edge, _2: TopoDS_Edge, _3: number): ShapeResult;
     polygon(_0: Array<Vector3>): ShapeResult;
     bezier(_0: Array<Vector3>, _1: Array<number>): ShapeResult;
     fillet(_0: TopoDS_Shape, _1: Array<number>, _2: number): ShapeResult;

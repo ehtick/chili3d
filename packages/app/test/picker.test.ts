@@ -325,5 +325,18 @@ describe("Picker", () => {
 
             expect(pickAsyncArgs[3]).toBe(true);
         });
+
+        test("should wire canFinish onto the selection handler", async () => {
+            let handler: any;
+            picker.pickAsync = async (...args: any[]) => {
+                handler = args[0];
+            };
+
+            const controller = new AsyncController();
+            const canFinish = () => true;
+            await picker.pickShape("common.ok" as I18nKeys, controller, { canFinish });
+
+            expect(handler.canFinish).toBe(canFinish);
+        });
     });
 });

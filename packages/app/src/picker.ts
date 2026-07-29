@@ -40,6 +40,7 @@ export class Picker implements IPicker {
         );
         handler.selectedState = options?.selectedState ?? VisualStates.edgeSelected;
         handler.highlightState = options?.highlightState ?? VisualStates.edgeHighlight;
+        handler.canFinish = options?.canFinish;
         await this.pickAsync(handler, prompt, controller, multi);
         return this.document.selection.getSelectedShapes();
     }

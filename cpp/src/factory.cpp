@@ -36,8 +36,15 @@
 #include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepProj_Projection.hxx>
+#include <BRepTools.hxx>
 #include <BRepTools_ReShape.hxx>
+#include <ChFi2d_Builder.hxx>
+#include <ChFi2d_ChamferAPI.hxx>
+#include <ChFi2d_FilletAPI.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <Geom_BezierCurve.hxx>
+#include <Geom_Line.hxx>
+#include <Geom_TrimmedCurve.hxx>
 #include <ShapeAnalysis_Edge.hxx>
 #include <ShapeAnalysis_WireOrder.hxx>
 #include <ShapeFix_Face.hxx>
@@ -68,6 +75,127 @@ struct RemoveFilletResult {
     std::string error;
     ShapeArray newEdges;
 };
+
+struct ShapesResult {
+    ShapeArray shapes;
+    bool isOk;
+    std::string error;
+};
+
+// Compute the plane formed by two edges at their shared vertex from their tangent vectors.
+static std::optional<gp_Dir> computeNormal(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, const TopoDS_Vertex& vertex)
+{
+    double p1 = BRep_Tool::Parameter(vertex, edge1);
+    double p2 = BRep_Tool::Parameter(vertex, edge2);
+
+    double cf, cl;
+    Handle(Geom_Curve) curve1 = BRep_Tool::Curve(edge1, cf, cl);
+    Handle(Geom_Curve) curve2 = BRep_Tool::Curve(edge2, cf, cl);
+
+    gp_Pnt pt;
+    gp_Vec tan1, tan2;
+    curve1->D1(p1, pt, tan1);
+    curve2->D1(p2, pt, tan2);
+
+    gp_Vec normal = tan1.Crossed(tan2);
+    if (normal.Magnitude() < Precision::Angular()) {
+        return std::nullopt;
+    }
+
+    return gp_Dir(normal);
+}
+
+// Find the common vertex shared by two edges. Returns null if none.
+static TopoDS_Vertex findCommonVertex(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2)
+{
+    TopExp_Explorer v1(edge1, TopAbs_VERTEX);
+    for (; v1.More(); v1.Next()) {
+        auto vertex1 = v1.Current();
+        TopExp_Explorer v2(edge2, TopAbs_VERTEX);
+        for (; v2.More(); v2.Next()) {
+            if (vertex1.IsSame(v2.Current())) {
+                return TopoDS::Vertex(vertex1);
+            }
+        }
+    }
+    return TopoDS_Vertex();
+}
+
+// Build a JS array [edge1, edge2, edge3] from three edges.
+static val buildEdgeTriple(const TopoDS_Edge& a, const TopoDS_Edge& b, const TopoDS_Edge& c)
+{
+    val edges = val::array();
+    edges.call<void>("push", a);
+    edges.call<void>("push", b);
+    edges.call<void>("push", c);
+    return edges;
+}
+
+// The curve underlying an edge with its parameter range, unwrapping trimmed curves.
+static Handle(Geom_Curve) basisCurve(const TopoDS_Edge& edge, double& first, double& last)
+{
+    Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+    if (auto trimmed = Handle(Geom_TrimmedCurve)::DownCast(curve))
+        curve = trimmed->BasisCurve();
+    return curve;
+}
+
+struct CornerPlane {
+    gp_Pnt point; // corner reference point (line intersection or common vertex)
+    gp_Dir normal; // normal of the plane containing both edges
+    bool linear = false; // true when found from two support lines; params below are valid
+    double param1 = 0.0; // corner parameter on the first support line
+    double param2 = 0.0; // corner parameter on the second support line
+};
+
+// Compute the corner reference point and the plane for a 2D fillet/chamfer between two
+// edges. Straight edges only need to be coplanar and non-parallel - the corner is the
+// intersection of their support lines, which need not lie on the edges themselves.
+// Non-linear edges fall back to requiring a shared vertex.
+static std::optional<CornerPlane> computeCornerPlane(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2,
+    std::string& error)
+{
+    double f, l;
+    Handle(Geom_Line) line1 = Handle(Geom_Line)::DownCast(basisCurve(edge1, f, l));
+    Handle(Geom_Line) line2 = Handle(Geom_Line)::DownCast(basisCurve(edge2, f, l));
+    if (line1.IsNull() || line2.IsNull()) {
+        error = "Edges must be Line";
+        return std::nullopt;
+    }
+
+    gp_Vec d1(line1->Lin().Direction());
+    gp_Vec d2(line2->Lin().Direction());
+    gp_Vec normal = d1.Crossed(d2);
+    if (normal.Magnitude() < Precision::Angular()) {
+        error = "Edges must not be parallel";
+        return std::nullopt;
+    }
+
+    gp_Vec p12(line1->Lin().Location(), line2->Lin().Location());
+    if (std::abs(p12.Dot(normal) / normal.Magnitude()) > Precision::Confusion()) {
+        error = "Edges must be coplanar";
+        return std::nullopt;
+    }
+
+    // intersection of the support lines: p12 = t1 * d1 - t2 * d2, solved by crossing with d2 and d1 respectively
+    double denom = normal.SquareMagnitude();
+    double t1 = p12.Crossed(d2).Dot(normal) / denom;
+    double t2 = p12.Crossed(d1).Dot(normal) / denom;
+    return CornerPlane { line1->Lin().Location().Translated(d1.Multiplied(t1)), gp_Dir(normal), true, t1,
+        t2 };
+}
+
+// Build an edge whose range covers the corner parameter p. When p cuts the edge in two,
+// only the longer side is kept, so that fillets/chamfers consume the shorter side; when p
+// lies outside, the edge is extended up to p (OCCT fillets can trim but never prolongate).
+static TopoDS_Edge edgeThroughCorner(const Handle(Geom_Curve) & basis, double first, double last, double p)
+{
+    if (p > first && p < last) {
+        return p - first >= last - p ? BRepBuilderAPI_MakeEdge(basis, first, p).Edge()
+                                     : BRepBuilderAPI_MakeEdge(basis, p, last).Edge();
+    }
+    return BRepBuilderAPI_MakeEdge(basis, std::min(first, p), std::max(last, p)).Edge();
+}
 
 class ShapeFactory {
 public:
@@ -616,6 +744,95 @@ public:
         return ShapeResult { makeChamfer.Shape(), true, "" };
     }
 
+    static ShapeResult fillet2d(const TopoDS_Face& face, const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, double radius)
+    {
+        TopoDS_Vertex commonVertex = findCommonVertex(edge1, edge2);
+        if (commonVertex.IsNull()) {
+            return ShapeResult { TopoDS_Shape(), false, "Edges must share a common vertex" };
+        }
+
+        ChFi2d_Builder builder(face);
+        builder.AddFillet(commonVertex, radius);
+        if (builder.Status() != ChFi2d_IsDone) {
+            return ShapeResult { TopoDS_Shape(), false, "Failed to create 2D fillet" };
+        }
+
+        return ShapeResult { builder.Result(), true, "" };
+    }
+
+    static ShapesResult filletEdge2d(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, double radius)
+    {
+        std::string error;
+        auto corner = computeCornerPlane(edge1, edge2, error);
+        if (!corner.has_value()) {
+            return ShapesResult { ShapeArray(val::array()), false, error };
+        }
+
+        TopoDS_Edge e1 = edge1, e2 = edge2;
+        if (corner->linear) {
+            // OCCT fillets can only trim edges, never prolongate them, and pick either
+            // side of a crossing corner: pass edges that already keep only the longer
+            // side and reach the corner, so the result is deterministic
+            double f1, l1, f2, l2;
+            e1 = edgeThroughCorner(basisCurve(edge1, f1, l1), f1, l1, corner->param1);
+            e2 = edgeThroughCorner(basisCurve(edge2, f2, l2), f2, l2, corner->param2);
+        }
+
+        gp_Pln plane(corner->point, corner->normal);
+        ChFi2d_FilletAPI fillet(e1, e2, plane);
+        if (!fillet.Perform(radius)) {
+            return ShapesResult { ShapeArray(val::array()), false, "Failed to create 2D fillet" };
+        }
+
+        TopoDS_Edge newE1, newE2;
+        TopoDS_Edge filletEdge = fillet.Result(corner->point, newE1, newE2);
+        if (filletEdge.IsNull()) {
+            return ShapesResult { ShapeArray(val::array()), false, "Failed to get fillet result" };
+        }
+
+        return ShapesResult { ShapeArray(buildEdgeTriple(newE1, filletEdge, newE2)), true, "" };
+    }
+
+    static ShapeResult chamfer2d(const TopoDS_Face& face, const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, double distance)
+    {
+        ChFi2d_Builder builder(face);
+        builder.AddChamfer(edge1, edge2, distance, distance);
+        if (builder.Status() != ChFi2d_IsDone) {
+            return ShapeResult { TopoDS_Shape(), false, "Failed to create 2D chamfer" };
+        }
+
+        return ShapeResult { builder.Result(), true, "" };
+    }
+
+    static ShapesResult chamferEdge2d(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, double distance)
+    {
+        std::string error;
+        auto corner = computeCornerPlane(edge1, edge2, error);
+        if (!corner.has_value()) {
+            return ShapesResult { ShapeArray(val::array()), false, error };
+        }
+
+        double f1, l1, f2, l2;
+        Handle(Geom_Curve) c1 = basisCurve(edge1, f1, l1);
+        Handle(Geom_Curve) c2 = basisCurve(edge2, f2, l2);
+
+        // for a line the parameter measures arc length, so the cut is at corner +/- distance
+        double p1 = GeomAPI_ProjectPointOnCurve(corner->point, c1).LowerDistanceParameter();
+        double p2 = GeomAPI_ProjectPointOnCurve(corner->point, c2).LowerDistanceParameter();
+
+        // keep the side of the corner that contains the edge midpoint
+        double cut1 = p1 + ((f1 + l1) / 2 > p1 ? distance : -distance);
+        double cut2 = p2 + ((f2 + l2) / 2 > p2 ? distance : -distance);
+        double end1 = cut1 > p1 ? l1 : f1;
+        double end2 = cut2 > p2 ? l2 : f2;
+
+        TopoDS_Edge newE1 = BRepBuilderAPI_MakeEdge(c1, std::min(cut1, end1), std::max(cut1, end1)).Edge();
+        TopoDS_Edge newE2 = BRepBuilderAPI_MakeEdge(c2, std::min(cut2, end2), std::max(cut2, end2)).Edge();
+        TopoDS_Edge chamferEdge = BRepBuilderAPI_MakeEdge(c1->Value(cut1), c2->Value(cut2)).Edge();
+
+        return ShapesResult { ShapeArray(buildEdgeTriple(newE1, chamferEdge, newE2)), true, "" };
+    }
+
     static ShapeResult loft(const ShapeArray& sections, bool isSolid, bool isRuled, GeomAbs_Shape continuity)
     {
         std::vector<TopoDS_Shape> shapeVector = emscripten::vecFromJSArray<TopoDS_Shape>(sections);
@@ -826,6 +1043,11 @@ EMSCRIPTEN_BINDINGS(ShapeFactory)
         .property("error", &RemoveFilletResult::error)
         .property("newEdges", &RemoveFilletResult::newEdges);
 
+    class_<ShapesResult>("ShapesResult")
+        .property("shapes", &ShapesResult::shapes)
+        .property("isOk", &ShapesResult::isOk)
+        .property("error", &ShapesResult::error);
+
     class_<ShapeFactory>("ShapeFactory")
         .class_function("box", &ShapeFactory::box)
         .class_function("cone", &ShapeFactory::cone)
@@ -859,6 +1081,10 @@ EMSCRIPTEN_BINDINGS(ShapeFactory)
         .class_function("combine", &ShapeFactory::combine)
         .class_function("fillet", &ShapeFactory::fillet)
         .class_function("chamfer", &ShapeFactory::chamfer)
+        .class_function("fillet2d", &ShapeFactory::fillet2d)
+        .class_function("chamfer2d", &ShapeFactory::chamfer2d)
+        .class_function("filletEdge2d", &ShapeFactory::filletEdge2d)
+        .class_function("chamferEdge2d", &ShapeFactory::chamferEdge2d)
         .class_function("fixShape", &ShapeFactory::fixShape)
         .class_function("fixSmallFace", &ShapeFactory::fixSmallFace)
         .class_function("fixSolid", &ShapeFactory::fixSolid)

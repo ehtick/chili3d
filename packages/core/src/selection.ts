@@ -15,6 +15,8 @@ export interface PickShapeOptions {
     multi?: boolean;
     selectedState?: VisualState;
     highlightState?: VisualState;
+    /** In multi mode, finish the pick automatically once this returns true. */
+    canFinish?: (selected: VisualShapeData[]) => boolean;
 }
 
 export interface PickNodeOptions {

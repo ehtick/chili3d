@@ -178,6 +178,7 @@ export const I18N_KEYS = [
     "error.input.invalidNumber",
     "error.input.threeNumberCanBeInput",
     "error.input.unsupportedInputs",
+    "error.select.twoEdges",
     "file.format",
     "home.recent",
     "home.welcome",

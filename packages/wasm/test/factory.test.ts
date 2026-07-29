@@ -1,7 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { type IFace, type IShape, type IWire, Line, Plane, ShapeTypes, XYZ } from "@chili3d/core";
+import { type IEdge, type IFace, type IShape, type IWire, Line, Plane, ShapeTypes, XYZ } from "@chili3d/core";
 import { MockShape } from "@chili3d/core/test-utils";
 import type { ShapeFactory } from "../src/factory";
 import type { OccEdge, OccFace, OccSolid } from "../src/shape";
@@ -822,5 +822,246 @@ describe("ShapeFactory — loft with edge sections", () => {
         const wire = factory.wire([c2]).value;
         const result = factory.loft([edge, wire], true, false, "c0");
         expect(result.isOk).toBe(true);
+    });
+});
+
+// ============================================================================
+// 2D Fillet & Chamfer
+// ============================================================================
+
+describe("ShapeFactory — 2D fillet & chamfer", () => {
+    const rectEdges = (dx = 10, dy = 10) => {
+        const rect = factory.rect(plane, dx, dy).value;
+        return rect.findSubShapes(ShapeTypes.edge) as IEdge[];
+    };
+
+    const edgesFromDifferentFaces = () => {
+        const r1 = factory.rect(plane, 10, 10).value;
+        const r2 = factory.rect(shiftedPlane, 10, 10).value;
+        return {
+            face: r1,
+            edge1: r1.findSubShapes(ShapeTypes.edge)[0] as IEdge,
+            edge2: r2.findSubShapes(ShapeTypes.edge)[0] as IEdge,
+        };
+    };
+
+    describe("fillet2d", () => {
+        test("should create a 2D fillet on a rect face", () => {
+            const rect = factory.rect(plane, 10, 10).value as IFace;
+            const edges = rect.findSubShapes(ShapeTypes.edge) as IEdge[];
+            expect(edges.length).toBe(4);
+            // Use two adjacent edges that share a corner vertex
+            const result = factory.fillet2d(rect, edges[0], edges[1], 2);
+            expect(result.isOk).toBe(true);
+            const filletedFace = result.value;
+            expect(filletedFace.shapeType).toBe(ShapeTypes.face);
+        });
+
+        test("should return error when radius is too small", () => {
+            const rect = factory.rect(plane, 10, 10).value as IFace;
+            const edges = rect.findSubShapes(ShapeTypes.edge) as IEdge[];
+            const result = factory.fillet2d(rect, edges[0], edges[1], 0);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("The radius is too small.");
+        });
+
+        test("should return error when edges don't share a common vertex", () => {
+            const { face, edge1, edge2 } = edgesFromDifferentFaces();
+            const result = factory.fillet2d(face, edge1, edge2, 2);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Edges must share a common vertex");
+        });
+    });
+
+    describe("chamfer2d", () => {
+        test("should create a 2D chamfer on a rect face", () => {
+            const rect = factory.rect(plane, 10, 10).value as IFace;
+            const edges = rect.findSubShapes(ShapeTypes.edge) as IEdge[];
+            const result = factory.chamfer2d(rect, edges[0], edges[1], 2);
+            expect(result.isOk).toBe(true);
+            const chamferedFace = result.value as IFace;
+            expect(chamferedFace.shapeType).toBe(ShapeTypes.face);
+        });
+
+        test("should return error when distance is too small", () => {
+            const rect = factory.rect(plane, 10, 10).value as IFace;
+            const edges = rect.findSubShapes(ShapeTypes.edge) as IEdge[];
+            const result = factory.chamfer2d(rect, edges[0], edges[1], 0);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("The distance is too small.");
+        });
+
+        test("should return error when edges are from different faces", () => {
+            const { face, edge1, edge2 } = edgesFromDifferentFaces();
+            const result = factory.chamfer2d(face, edge1, edge2, 2);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Failed to create 2D chamfer");
+        });
+    });
+
+    describe("filletEdge2d", () => {
+        // Two coplanar segments with a gap: the support lines meet at (5, 5, 0).
+        const disjointEdges = () => ({
+            edge1: factory.line(new XYZ({ x: 0, y: 5, z: 0 }), new XYZ({ x: 10, y: 5, z: 0 })).value,
+            edge2: factory.line(new XYZ({ x: 5, y: 0, z: 0 }), new XYZ({ x: 5, y: 3, z: 0 })).value,
+        });
+
+        test("should create 2D fillet edges from two adjacent edges", () => {
+            const edges = rectEdges();
+            const result = factory.filletEdge2d(edges[0], edges[1], 2);
+            expect(result.isOk).toBe(true);
+            const filletEdges = result.value;
+            expect(filletEdges.length).toBe(3);
+            for (const e of filletEdges) {
+                expect(e.shapeType).toBe(ShapeTypes.edge);
+            }
+        });
+
+        test("should return error when radius is too small", () => {
+            const edges = rectEdges();
+            const result = factory.filletEdge2d(edges[0], edges[1], 0);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("The radius is too small.");
+        });
+
+        test("should fillet two disjoint but coplanar edges", () => {
+            const { edge1, edge2 } = disjointEdges();
+            const result = factory.filletEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(true);
+            const filletEdges = result.value;
+            expect(filletEdges.length).toBe(3);
+            for (const e of filletEdges) {
+                expect((e as unknown as OccEdge).length()).toBeGreaterThan(0);
+            }
+        });
+
+        test("should extend edges whose corner lies outside both segments", () => {
+            // Support lines meet at (14, 0, 0), outside both segments.
+            const edge1 = factory.line(new XYZ({ x: 0, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 14, y: 0, z: 0 }), new XYZ({ x: 14, y: 8, z: 0 })).value;
+            const result = factory.filletEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(true);
+            const filletEdges = result.value;
+            expect(filletEdges.length).toBe(3);
+            // edge1 is extended past x=10 up to the tangent point at x=12
+            expect((filletEdges[0] as unknown as OccEdge).length()).toBeGreaterThan(10);
+            // edge2 is trimmed from the corner side: from y=2 to y=8
+            expect((filletEdges[2] as unknown as OccEdge).length()).toBeLessThan(8);
+        });
+
+        test("should keep the longer side when edges cross", () => {
+            // Support lines meet at the origin, cutting both segments in two.
+            const edge1 = factory.line(new XYZ({ x: -2, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 0, y: -8, z: 0 }), new XYZ({ x: 0, y: 1, z: 0 })).value;
+            const result = factory.filletEdge2d(edge1, edge2, 1);
+            expect(result.isOk).toBe(true);
+            const filletEdges = result.value;
+            expect(filletEdges.length).toBe(3);
+            // longer side of edge1 is [0, 10], tangent at x=1 -> length 9
+            expect((filletEdges[0] as unknown as OccEdge).length()).toBeCloseTo(9, 5);
+            // longer side of edge2 is [-8, 0], tangent at y=-1 -> length 7
+            expect((filletEdges[2] as unknown as OccEdge).length()).toBeCloseTo(7, 5);
+        });
+
+        test("should return error when edges are parallel", () => {
+            const edge1 = factory.line(new XYZ({ x: 0, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 0, y: 5, z: 0 }), new XYZ({ x: 10, y: 5, z: 0 })).value;
+            const result = factory.filletEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Edges must not be parallel");
+        });
+
+        test("should return error when edges are not coplanar", () => {
+            const edge1 = factory.line(new XYZ({ x: 0, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 0, y: 0, z: 5 }), new XYZ({ x: 0, y: 10, z: 5 })).value;
+            const result = factory.filletEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Edges must be coplanar");
+        });
+
+        test("should return error when edges are not line", () => {
+            const edge1 = factory.circle(XYZ.unitZ, XYZ.zero, 5).value;
+            const edge2 = factory.circle(XYZ.unitZ, new XYZ({ x: 20, y: 0, z: 0 }), 5).value;
+            const result = factory.filletEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Edges must be Line");
+        });
+    });
+
+    describe("chamferEdge2d", () => {
+        test("should create 2D chamfer edges from two adjacent edges", () => {
+            const edges = rectEdges();
+            const result = factory.chamferEdge2d(edges[0], edges[1], 2);
+            expect(result.isOk).toBe(true);
+            const chamferEdges = result.value;
+            expect(chamferEdges.length).toBe(3);
+            for (const e of chamferEdges) {
+                expect(e.shapeType).toBe(ShapeTypes.edge);
+            }
+        });
+
+        test("should return error when distance is too small", () => {
+            const edges = rectEdges();
+            const result = factory.chamferEdge2d(edges[0], edges[1], 0);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("The distance is too small.");
+        });
+
+        test("should return non-degenerate edges after chamfer", () => {
+            const edges = rectEdges();
+            const result = factory.chamferEdge2d(edges[0], edges[1], 2);
+            expect(result.isOk).toBe(true);
+            // The result should have 3 edges with non-zero length
+            const chamferEdges = result.value;
+            expect(chamferEdges.length).toBe(3);
+            for (const e of chamferEdges) {
+                expect(e.shapeType).toBe(ShapeTypes.edge);
+                // Each edge should have a non-trivial length
+                const occEdge = e as unknown as OccEdge;
+                expect(occEdge.length()).toBeGreaterThan(0);
+            }
+        });
+
+        test("should chamfer two disjoint but coplanar edges", () => {
+            const edge1 = factory.line(new XYZ({ x: 0, y: 5, z: 0 }), new XYZ({ x: 10, y: 5, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 5, y: 0, z: 0 }), new XYZ({ x: 5, y: 3, z: 0 })).value;
+            const result = factory.chamferEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(true);
+            const chamferEdges = result.value;
+            expect(chamferEdges.length).toBe(3);
+            for (const e of chamferEdges) {
+                expect((e as unknown as OccEdge).length()).toBeGreaterThan(0);
+            }
+        });
+
+        test("should keep the longer side when edges cross", () => {
+            // Support lines meet at the origin, cutting both segments in two.
+            const edge1 = factory.line(new XYZ({ x: -2, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 0, y: -8, z: 0 }), new XYZ({ x: 0, y: 1, z: 0 })).value;
+            const result = factory.chamferEdge2d(edge1, edge2, 1);
+            expect(result.isOk).toBe(true);
+            const chamferEdges = result.value;
+            expect(chamferEdges.length).toBe(3);
+            // longer side of edge1 is [0, 10], cut at x=1 -> length 9
+            expect((chamferEdges[0] as unknown as OccEdge).length()).toBeCloseTo(9, 5);
+            // longer side of edge2 is [-8, 0], cut at y=-1 -> length 7
+            expect((chamferEdges[2] as unknown as OccEdge).length()).toBeCloseTo(7, 5);
+        });
+
+        test("should return error when edges are parallel", () => {
+            const edge1 = factory.line(new XYZ({ x: 0, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 0, y: 5, z: 0 }), new XYZ({ x: 10, y: 5, z: 0 })).value;
+            const result = factory.chamferEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Edges must not be parallel");
+        });
+
+        test("should return error when edges are not coplanar", () => {
+            const edge1 = factory.line(new XYZ({ x: 0, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const edge2 = factory.line(new XYZ({ x: 0, y: 0, z: 5 }), new XYZ({ x: 0, y: 10, z: 5 })).value;
+            const result = factory.chamferEdge2d(edge1, edge2, 2);
+            expect(result.isOk).toBe(false);
+            expect(result.error).toBe("Edges must be coplanar");
+        });
     });
 });

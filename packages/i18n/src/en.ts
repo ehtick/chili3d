@@ -183,6 +183,7 @@ export default {
         "error.input.invalidNumber": "Please enter a valid number, separated by ,",
         "error.input.threeNumberCanBeInput": "Reference point is empty, only 3 numbers can be entered",
         "error.input.unsupportedInputs": "Exceeds the maximum number of inputs",
+        "error.select.twoEdges": "Please select two adjacent edges",
         "file.format": "Format",
         "home.recent": "Recent",
         "home.welcome": "Welcome to chili3d",

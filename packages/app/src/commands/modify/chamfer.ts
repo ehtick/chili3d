@@ -1,24 +1,14 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import {
-    command,
-    EditableShapeNode,
-    type ISubEdgeShape,
-    MultistepCommand,
-    property,
-    SelectShapeStep,
-    type ShapeNode,
-    ShapeTypes,
-    Transaction,
-    VisualStates,
-} from "@chili3d/core";
+import { command, type IEdge, type IFace, type IShape, property, type Result } from "@chili3d/core";
+import { EdgeCornerCommand } from "./edgeCornerCommand";
 
 @command({
     key: "modify.chamfer",
     icon: "icon-chamfer",
 })
-export class ChamferCommand extends MultistepCommand {
+export class ChamferCommand extends EdgeCornerCommand {
     @property("common.length")
     get length() {
         return this.getPrivateValue("length", 10);
@@ -28,45 +18,15 @@ export class ChamferCommand extends MultistepCommand {
         this.setProperty("length", value);
     }
 
-    protected override executeMainTask() {
-        Transaction.execute(this.document, `excute ${Object.getPrototypeOf(this).data.name}`, () => {
-            const node = this.stepDatas[0].shapes[0].owner.node as ShapeNode;
-            const edges = this.stepDatas.at(-1)!.shapes.map((x) => (x.shape as ISubEdgeShape).index);
-            const filetShape = shapeFactory.chamfer(node.shape.value, edges, this.length);
-
-            const model = new EditableShapeNode({
-                document: this.document,
-                name: node.name,
-                shape: filetShape,
-                materialId: node.materialId,
-            });
-            model.transform = node.transform;
-
-            (node.parent ?? this.document.modelManager.rootNode).add(model);
-            node.parent?.remove(node);
-            this.document.visual.update();
-        });
+    protected override applyToBody(shape: IShape, edgeIndexes: number[]): Result<IShape> {
+        return shapeFactory.chamfer(shape, edgeIndexes, this.length);
     }
 
-    protected override getSteps() {
-        return [
-            new SelectShapeStep(ShapeTypes.shape, "prompt.select.shape", {
-                shapeFilter: {
-                    allow: (shape) => {
-                        return (
-                            shape.shapeType === ShapeTypes.solid ||
-                            shape.shapeType === ShapeTypes.compound ||
-                            shape.shapeType === ShapeTypes.compoundSolid
-                        );
-                    },
-                },
-                selectedState: VisualStates.faceTransparent,
-            }),
-            new SelectShapeStep(ShapeTypes.edge, "prompt.select.edges", {
-                multiple: true,
-                beforeSelection: () => this.addFirstSelectedState(VisualStates.faceTransparent),
-                afterSelection: () => this.removeFirstSelectedState(VisualStates.faceTransparent),
-            }),
-        ];
+    protected override applyToFace(face: IFace, edge1: IEdge, edge2: IEdge): Result<IShape> {
+        return shapeFactory.chamfer2d(face, edge1, edge2, this.length);
+    }
+
+    protected override applyToEdgePair(edge1: IEdge, edge2: IEdge): Result<IEdge[]> {
+        return shapeFactory.chamferEdge2d(edge1, edge2, this.length);
     }
 }

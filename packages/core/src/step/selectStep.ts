@@ -6,9 +6,9 @@ import type { AsyncController } from "../foundation";
 import type { I18nKeys } from "../i18n";
 import type { ShapeNode } from "../model";
 import type { INodeFilter, IShapeFilter } from "../selectionFilter";
-import { type ShapeType, ShapeTypes, ShapeTypeUtils } from "../shape";
+import { type ShapeType, ShapeTypeUtils } from "../shape";
 import type { SnapResult } from "../snap";
-import type { VisualState } from "../visual";
+import type { VisualShapeData, VisualState } from "../visual";
 import type { IStep } from "./step";
 
 export interface SelectShapeOptions {
@@ -18,6 +18,8 @@ export interface SelectShapeOptions {
     selectedState?: VisualState;
     highlightState?: VisualState;
     keepSelection?: boolean;
+    /** In multiple mode, finish the selection automatically once this returns true. */
+    canFinish?: (selected: VisualShapeData[]) => boolean;
     beforeSelection?: () => void;
     afterSelection?: () => void;
 }
@@ -58,6 +60,7 @@ export class SelectShapeStep extends SelectStep {
             multi: this.options?.multiple,
             selectedState: this.options?.selectedState,
             highlightState: this.options?.highlightState,
+            canFinish: this.options?.canFinish,
         });
         if (shapes.length === 0) return undefined;
         return {

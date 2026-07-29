@@ -183,6 +183,7 @@ export default {
         "error.input.invalidNumber": "输入错误，请输入有效的数字，以,分开",
         "error.input.threeNumberCanBeInput": "参照点为空，只能输入 3 个数",
         "error.input.unsupportedInputs": "超过最大输入数",
+        "error.select.twoEdges": "请选择两条相邻的边",
         "file.format": "文件格式",
         "home.recent": "最近使用",
         "home.welcome": "欢迎使用 chili3d",

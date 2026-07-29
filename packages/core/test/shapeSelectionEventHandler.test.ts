@@ -464,6 +464,81 @@ describe("SubshapeSelectionHandler", () => {
 
             expect(successCalled).toBe(true);
         });
+
+        test("should call controller.success in multi mode when canFinish returns true", () => {
+            const controller = new AsyncController();
+            let successCalled = false;
+            controller.onCompleted(() => {
+                successCalled = true;
+            });
+
+            const { handler, view, selection } = setupSubshapeSelectionHandler({
+                multiMode: true,
+                controller,
+            });
+            handler.canFinish = () => true;
+
+            const shapeData = createVisualShapeData();
+            view.detectShapes = () => [shapeData];
+            selection.setSelectedShapes = () => 1;
+
+            handler.pointerDown(view, createPointerEvent({ pointerId: 1 }));
+            handler.pointerMove(view, createPointerEvent({ pointerId: 1, buttons: 1 }));
+            handler.pointerUp(view, createPointerEvent({ pointerId: 1 }));
+
+            expect(successCalled).toBe(true);
+        });
+
+        test("should not complete in multi mode when canFinish returns false", () => {
+            const controller = new AsyncController();
+            let successCalled = false;
+            controller.onCompleted(() => {
+                successCalled = true;
+            });
+
+            const { handler, view, selection } = setupSubshapeSelectionHandler({
+                multiMode: true,
+                controller,
+            });
+            handler.canFinish = () => false;
+
+            const shapeData = createVisualShapeData();
+            view.detectShapes = () => [shapeData];
+            selection.setSelectedShapes = () => 1;
+
+            handler.pointerDown(view, createPointerEvent({ pointerId: 1 }));
+            handler.pointerMove(view, createPointerEvent({ pointerId: 1, buttons: 1 }));
+            handler.pointerUp(view, createPointerEvent({ pointerId: 1 }));
+
+            expect(successCalled).toBe(false);
+        });
+
+        test("should pass the current selection to canFinish", () => {
+            const controller = new AsyncController();
+            const { handler, view, selection } = setupSubshapeSelectionHandler({
+                multiMode: true,
+                controller,
+            });
+
+            const selected = [createVisualShapeData()];
+            selection.getSelectedShapes = () => selected;
+
+            let received: VisualShapeData[] | undefined;
+            handler.canFinish = (shapes) => {
+                received = shapes;
+                return false;
+            };
+
+            const shapeData = createVisualShapeData();
+            view.detectShapes = () => [shapeData];
+            selection.setSelectedShapes = () => 1;
+
+            handler.pointerDown(view, createPointerEvent({ pointerId: 1 }));
+            handler.pointerMove(view, createPointerEvent({ pointerId: 1, buttons: 1 }));
+            handler.pointerUp(view, createPointerEvent({ pointerId: 1 }));
+
+            expect(received).toBe(selected);
+        });
     });
 
     describe("pointerOut", () => {
