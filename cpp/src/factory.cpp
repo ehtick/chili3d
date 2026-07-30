@@ -141,17 +141,16 @@ static Handle(Geom_Curve) basisCurve(const TopoDS_Edge& edge, double& first, dou
 }
 
 struct CornerPlane {
-    gp_Pnt point; // corner reference point (line intersection or common vertex)
+    gp_Pnt point; // intersection of the two support lines
     gp_Dir normal; // normal of the plane containing both edges
-    bool linear = false; // true when found from two support lines; params below are valid
     double param1 = 0.0; // corner parameter on the first support line
     double param2 = 0.0; // corner parameter on the second support line
 };
 
 // Compute the corner reference point and the plane for a 2D fillet/chamfer between two
-// edges. Straight edges only need to be coplanar and non-parallel - the corner is the
-// intersection of their support lines, which need not lie on the edges themselves.
-// Non-linear edges fall back to requiring a shared vertex.
+// edges. Only straight edges are supported: they must be coplanar and non-parallel, and
+// the corner is the intersection of their support lines, which need not lie on the
+// edges themselves.
 static std::optional<CornerPlane> computeCornerPlane(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2,
     std::string& error)
 {
@@ -181,8 +180,7 @@ static std::optional<CornerPlane> computeCornerPlane(const TopoDS_Edge& edge1, c
     double denom = normal.SquareMagnitude();
     double t1 = p12.Crossed(d2).Dot(normal) / denom;
     double t2 = p12.Crossed(d1).Dot(normal) / denom;
-    return CornerPlane { line1->Lin().Location().Translated(d1.Multiplied(t1)), gp_Dir(normal), true, t1,
-        t2 };
+    return CornerPlane { line1->Lin().Location().Translated(d1.Multiplied(t1)), gp_Dir(normal), t1, t2 };
 }
 
 // Build an edge whose range covers the corner parameter p. When p cuts the edge in two,
@@ -195,6 +193,30 @@ static TopoDS_Edge edgeThroughCorner(const Handle(Geom_Curve) & basis, double fi
                                      : BRepBuilderAPI_MakeEdge(basis, p, last).Edge();
     }
     return BRepBuilderAPI_MakeEdge(basis, std::min(first, p), std::max(last, p)).Edge();
+}
+
+// Endpoints of an edge, evaluated on its underlying curve.
+static void edgeEndPoints(const TopoDS_Edge& edge, gp_Pnt& start, gp_Pnt& end)
+{
+    double first, last;
+    Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+    start = curve->Value(first);
+    end = curve->Value(last);
+}
+
+// ChFi2d may trim either side of the corner, so the kept side is rebuilt
+// deterministically: from the fillet tangent point (whichever arc endpoint lies on this
+// curve) to the end of the edge farthest from the corner.
+static TopoDS_Edge edgeToFarEnd(const Handle(Geom_Curve) & basis, double first, double last,
+    double cornerParam, const gp_Pnt& arcStart, const gp_Pnt& arcEnd)
+{
+    GeomAPI_ProjectPointOnCurve fromStart(arcStart, basis);
+    GeomAPI_ProjectPointOnCurve fromEnd(arcEnd, basis);
+    double tangent = fromStart.LowerDistance() <= fromEnd.LowerDistance()
+        ? fromStart.LowerDistanceParameter()
+        : fromEnd.LowerDistanceParameter();
+    double farEnd = cornerParam - first >= last - cornerParam ? first : last;
+    return BRepBuilderAPI_MakeEdge(basis, std::min(tangent, farEnd), std::max(tangent, farEnd)).Edge();
 }
 
 class ShapeFactory {
@@ -768,27 +790,27 @@ public:
             return ShapesResult { ShapeArray(val::array()), false, error };
         }
 
-        TopoDS_Edge e1 = edge1, e2 = edge2;
-        if (corner->linear) {
-            // OCCT fillets can only trim edges, never prolongate them, and pick either
-            // side of a crossing corner: pass edges that already keep only the longer
-            // side and reach the corner, so the result is deterministic
-            double f1, l1, f2, l2;
-            e1 = edgeThroughCorner(basisCurve(edge1, f1, l1), f1, l1, corner->param1);
-            e2 = edgeThroughCorner(basisCurve(edge2, f2, l2), f2, l2, corner->param2);
-        }
+        double f1, l1, f2, l2;
+        Handle(Geom_Curve) c1 = basisCurve(edge1, f1, l1);
+        Handle(Geom_Curve) c2 = basisCurve(edge2, f2, l2);
+        TopoDS_Edge e1 = edgeThroughCorner(c1, f1, l1, corner->param1);
+        TopoDS_Edge e2 = edgeThroughCorner(c2, f2, l2, corner->param2);
 
         gp_Pln plane(corner->point, corner->normal);
         ChFi2d_FilletAPI fillet(e1, e2, plane);
         if (!fillet.Perform(radius)) {
             return ShapesResult { ShapeArray(val::array()), false, "Failed to create 2D fillet" };
         }
-
         TopoDS_Edge newE1, newE2;
         TopoDS_Edge filletEdge = fillet.Result(corner->point, newE1, newE2);
         if (filletEdge.IsNull()) {
             return ShapesResult { ShapeArray(val::array()), false, "Failed to get fillet result" };
         }
+
+        gp_Pnt arcStart, arcEnd;
+        edgeEndPoints(filletEdge, arcStart, arcEnd);
+        newE1 = edgeToFarEnd(c1, f1, l1, corner->param1, arcStart, arcEnd);
+        newE2 = edgeToFarEnd(c2, f2, l2, corner->param2, arcStart, arcEnd);
 
         return ShapesResult { ShapeArray(buildEdgeTriple(newE1, filletEdge, newE2)), true, "" };
     }

@@ -949,6 +949,21 @@ describe("ShapeFactory — 2D fillet & chamfer", () => {
             expect((filletEdges[2] as unknown as OccEdge).length()).toBeLessThan(8);
         });
 
+        test("should keep the longer side when the corner coincides with an edge start", () => {
+            const edge1 = factory.line(XYZ.zero, { x: 100, y: 0, z: 0 }).value;
+            const edge2 = factory.line({ x: 3, y: -3, z: 0 }, { x: 100, y: -100, z: 0 }).value;
+            const result1 = factory.filletEdge2d(edge1, edge2, 5);
+            expect(result1.isOk).toBe(true);
+            expect(result1.value[0].length()).toBeGreaterThan(60);
+            expect(result1.value[2].length()).toBeGreaterThan(60);
+
+            const edge3 = factory.line({ x: 3, y: -3, z: 0 }, { x: -100, y: 100, z: 0 }).value;
+            const result2 = factory.filletEdge2d(edge1, edge3, 5);
+            expect(result2.isOk).toBe(true);
+            expect(result2.value[0].length()).toBeGreaterThan(60);
+            expect(result2.value[2].length()).toBeGreaterThan(60);
+        });
+
         test("should keep the longer side when edges cross", () => {
             // Support lines meet at the origin, cutting both segments in two.
             const edge1 = factory.line(new XYZ({ x: -2, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
