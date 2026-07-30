@@ -18,6 +18,7 @@ import {
 import type {
     Geom_Curve,
     Geom_Surface,
+    GeomAbs_JoinType,
     GeomAbs_Shape,
     gp_Ax1,
     gp_Ax2,
@@ -223,7 +224,7 @@ export function getActualShape(shape: TopoDS_Shape): TopoDS_Shape {
     }
 }
 
-export function getJoinType(joinType: JoinType) {
+export function getJoinType(joinType: JoinType): GeomAbs_JoinType {
     switch (joinType) {
         case "arc":
             return wasm.GeomAbs_JoinType.GeomAbs_Arc;

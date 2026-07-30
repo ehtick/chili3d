@@ -14,6 +14,7 @@ import {
     type ISolid,
     type IVertex,
     type IWire,
+    type JoinType,
     type Line,
     MathUtils,
     type Plane,
@@ -23,9 +24,9 @@ import {
     type XYZ,
     type XYZLike,
 } from "@chili3d/core";
-import type { ShapeResult, ShapesResult, TopoDS_Shape } from "../lib/chili-wasm";
+import type { ShapeResult, ShapesResult, TopoDS_Edge, TopoDS_Face, TopoDS_Shape } from "../lib/chili-wasm";
 import { OccCurve } from "./curve";
-import { convertFromContinuity } from "./helper";
+import { convertFromContinuity, getJoinType } from "./helper";
 import { OccEdge, OccShape } from "./shape";
 
 function ensureOccShape(shapes: IShape | IShape[]): TopoDS_Shape[] {
@@ -45,9 +46,9 @@ function ensureOccShape(shapes: IShape | IShape[]): TopoDS_Shape[] {
     throw new Error("The OCC kernel only supports OCC geometries.");
 }
 
-function convertShapeResult(
-    factory: (...params: any[]) => ShapeResult,
-    params: any[],
+function convertShapeResult<P extends unknown[] = unknown[]>(
+    factory: (...params: P) => ShapeResult,
+    params: P,
     errorString: string,
 ): Result<IShape, string> {
     let result: ShapeResult;
@@ -70,9 +71,9 @@ function convertShapeResult(
     return res;
 }
 
-function convertShapesResult(
-    factory: (...params: any[]) => ShapesResult,
-    params: any[],
+function convertShapesResult<P extends unknown[] = unknown[]>(
+    factory: (...params: P) => ShapesResult,
+    params: P,
     errorString: string,
 ): Result<IShape[], string> {
     let result: ShapesResult;
@@ -150,10 +151,10 @@ export class ShapeFactory implements IShapeFactory {
             return Result.err("The radius is too small.");
         }
 
-        const shapes = ensureOccShape([face, edge1, edge2]);
+        const [occFace, occEdge1, occEdge2] = ensureOccShape([face, edge1, edge2]);
         return convertShapeResult(
             wasm.ShapeFactory.fillet2d,
-            [...shapes, radius],
+            [occFace as TopoDS_Face, occEdge1 as TopoDS_Edge, occEdge2 as TopoDS_Edge, radius],
             "Fillet2d Error",
         ) as Result<IFace>;
     }
@@ -163,10 +164,10 @@ export class ShapeFactory implements IShapeFactory {
             return Result.err("The radius is too small.");
         }
 
-        const edges = ensureOccShape([edge1, edge2]);
+        const [occEdge1, occEdge2] = ensureOccShape([edge1, edge2]);
         return convertShapesResult(
             wasm.ShapeFactory.filletEdge2d,
-            [...edges, radius],
+            [occEdge1 as TopoDS_Edge, occEdge2 as TopoDS_Edge, radius],
             "FilletEdge2d Error",
         ) as Result<IEdge[]>;
     }
@@ -176,10 +177,10 @@ export class ShapeFactory implements IShapeFactory {
             return Result.err("The distance is too small.");
         }
 
-        const shapes = ensureOccShape([face, edge1, edge2]);
+        const [occFace, occEdge1, occEdge2] = ensureOccShape([face, edge1, edge2]);
         return convertShapeResult(
             wasm.ShapeFactory.chamfer2d,
-            [...shapes, distance],
+            [occFace as TopoDS_Face, occEdge1 as TopoDS_Edge, occEdge2 as TopoDS_Edge, distance],
             "Chamfer2d Error",
         ) as Result<IFace>;
     }
@@ -189,10 +190,10 @@ export class ShapeFactory implements IShapeFactory {
             return Result.err("The distance is too small.");
         }
 
-        const edges = ensureOccShape([edge1, edge2]);
+        const [occEdge1, occEdge2] = ensureOccShape([edge1, edge2]);
         return convertShapesResult(
             wasm.ShapeFactory.chamferEdge2d,
-            [...edges, distance],
+            [occEdge1 as TopoDS_Edge, occEdge2 as TopoDS_Edge, distance],
             "ChamferEdge2d Error",
         ) as Result<IEdge[]>;
     }
@@ -531,10 +532,15 @@ export class ShapeFactory implements IShapeFactory {
             "MakeThickSolidBySimple Error",
         );
     }
-    makeThickSolidByJoin(shape: IShape, closingFaces: IShape[], thickness: number): Result<IShape> {
+    makeThickSolidByJoin(
+        shape: IShape,
+        closingFaces: IShape[],
+        thickness: number,
+        joinType: JoinType,
+    ): Result<IShape> {
         return convertShapeResult(
             wasm.ShapeFactory.makeThickSolidByJoin,
-            [ensureOccShape(shape)[0], ensureOccShape(closingFaces), thickness],
+            [ensureOccShape(shape)[0], ensureOccShape(closingFaces), thickness, getJoinType(joinType)],
             "MakeThickSolidByJoin Error",
         );
     }

@@ -666,7 +666,7 @@ describe("ShapeFactory — advanced operations", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const faces = box.findSubShapes(ShapeTypes.face);
             // Thickening a box by joining on one face succeeds
-            const thickJoinResult = factory.makeThickSolidByJoin(box, [faces[0] as IFace], 0.5);
+            const thickJoinResult = factory.makeThickSolidByJoin(box, [faces[0] as IFace], 0.5, "arc");
             expect(thickJoinResult.isOk).toBe(true);
         });
     });

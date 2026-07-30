@@ -650,12 +650,12 @@ public:
         return ShapeResult { makeThickSolid.Shape(), true, "" };
     }
 
-    static ShapeResult makeThickSolidByJoin(const TopoDS_Shape& shape, const ShapeArray& shapes, double thickness)
+    static ShapeResult makeThickSolidByJoin(const TopoDS_Shape& shape, const ShapeArray& shapes, double thickness, const GeomAbs_JoinType& joinType)
     {
         auto shapesList = shapeArrayToListOfShape(shapes);
 
         BRepOffsetAPI_MakeThickSolid makeThickSolid;
-        makeThickSolid.MakeThickSolidByJoin(shape, shapesList, thickness, 1e-6);
+        makeThickSolid.MakeThickSolidByJoin(shape, shapesList, thickness, 1e-6, BRepOffset_Skin, false, false, joinType);
         if (!makeThickSolid.IsDone()) {
             return ShapeResult { TopoDS_Shape(), false, "Failed to create thick solid" };
         }

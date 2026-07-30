@@ -2,9 +2,12 @@
 // See LICENSE file in the project root for full license information.
 
 import {
+    Combobox,
     command,
     EditableShapeNode,
+    type I18nKeys,
     type IFace,
+    type JoinType,
     MultistepCommand,
     property,
     SelectShapeStep,
@@ -19,6 +22,16 @@ import {
     icon: "icon-shell",
 })
 export class ShellCommand extends MultistepCommand {
+    @property("option.command.joinType", {
+        combobox: Combobox.from(["option.command.joinType.arc", "option.command.joinType.intersection"]),
+    })
+    get joinType(): I18nKeys {
+        return this.getPrivateValue("joinType", "option.command.joinType.arc");
+    }
+    set joinType(value: I18nKeys) {
+        this.setProperty("joinType", value);
+    }
+
     @property("option.command.thickness")
     get thickness() {
         return this.getPrivateValue("thickness", 1);
@@ -32,7 +45,12 @@ export class ShellCommand extends MultistepCommand {
         Transaction.execute(this.document, `excute ${Object.getPrototypeOf(this).data.name}`, () => {
             const node = this.stepDatas[0].shapes[0].owner.node as ShapeNode;
             const faces = this.stepDatas.at(-1)!.shapes.map((x) => x.shape as IFace);
-            const shellShape = shapeFactory.makeThickSolidByJoin(node.shape.value, faces, this.thickness);
+            const shellShape = shapeFactory.makeThickSolidByJoin(
+                node.shape.value,
+                faces,
+                this.thickness,
+                this.mapJoinType(),
+            );
 
             if (!shellShape.isOk) {
                 return;
@@ -73,4 +91,17 @@ export class ShellCommand extends MultistepCommand {
             }),
         ];
     }
+
+    readonly mapJoinType = (): JoinType => {
+        switch (this.joinType) {
+            case "option.command.joinType.arc":
+                return "arc";
+            case "option.command.joinType.intersection":
+                return "intersection";
+            case "option.command.joinType.tangent":
+                return "tangent";
+            default:
+                throw new Error("Unknow joinType");
+        }
+    };
 }
