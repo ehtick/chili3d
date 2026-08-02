@@ -38,6 +38,8 @@
 #include <BRepProj_Projection.hxx>
 #include <BRepTools.hxx>
 #include <BRepTools_ReShape.hxx>
+#include <BRep_Builder.hxx>
+#include <BRep_Tool.hxx>
 #include <ChFi2d_Builder.hxx>
 #include <ChFi2d_ChamferAPI.hxx>
 #include <ChFi2d_FilletAPI.hxx>
@@ -662,6 +664,106 @@ public:
         return ShapeResult { makeThickSolid.Shape(), true, "" };
     }
 
+    // Removes every edge of `shape` that is not in `keepShapes` through the given
+    // ReShape. Returns true if at least one edge was removed.
+    static bool removeNonKeptEdges(
+        BRepTools_ReShape& reshape,
+        const TopoDS_Shape& shape,
+        const NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>& keepShapes)
+    {
+        bool removed = false;
+        for (TopExp_Explorer edgeExplorer(shape, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
+            if (!keepShapes.Contains(edgeExplorer.Current())) {
+                reshape.Remove(edgeExplorer.Current());
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    // Splitting a face with an edge that ends inside the face leaves a dangling "spur"
+    // edge as an open internal wire. UnifySameDomain cannot remove it, and the shared
+    // vertex also blocks unification of the collinear boundary edges it touches. Such
+    // open internal wires are invalid as holes, so drop them before unifying. A spur
+    // wire is dropped entirely only when none of its edges is requested to be kept;
+    // otherwise only the edges that are not in keepShapes are removed from it.
+    // Returns true if anything was removed from `face`.
+    static bool removeSpurWires(
+        BRepTools_ReShape& reshape,
+        const TopoDS_Shape& face,
+        const NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>& keepShapes)
+    {
+        TopExp_Explorer wireExplorer(face, TopAbs_WIRE);
+        if (!wireExplorer.More()) {
+            return false;
+        }
+        bool removed = false;
+        // The first wire is the outer boundary and is always kept.
+        for (wireExplorer.Next(); wireExplorer.More(); wireExplorer.Next()) {
+            const TopoDS_Shape& wire = wireExplorer.Current();
+            if (BRep_Tool::IsClosed(wire)) {
+                continue;
+            }
+            bool hasKeptEdge = false;
+            for (TopExp_Explorer edgeExplorer(wire, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
+                if (keepShapes.Contains(edgeExplorer.Current())) {
+                    hasKeptEdge = true;
+                    break;
+                }
+            }
+            if (!hasKeptEdge) {
+                reshape.Remove(wire);
+                removed = true;
+            } else if (removeNonKeptEdges(reshape, wire, keepShapes)) {
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    // Returns true when `face` has at least one edge and every boundary edge is in `keepShapes`.
+    static bool isFullyKeptFace(
+        const TopoDS_Shape& face,
+        const NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>& keepShapes)
+    {
+        bool hasEdge = false;
+        for (TopExp_Explorer edgeExplorer(face, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
+            if (!keepShapes.Contains(edgeExplorer.Current())) {
+                return false;
+            }
+            hasEdge = true;
+        }
+        return hasEdge;
+    }
+
+    // Prepares `shape` for UnifySameDomain in a single traversal with a single ReShape:
+    // drops spur wires (see removeSpurWires) and detaches faces that are fully bounded
+    // by kept edges. Such faces must survive unification as separate faces: with
+    // AllowInternalEdges enabled, UnifySameDomain would otherwise merge them into their
+    // same-domain neighbors and demote the kept edges to internal edges of the merged
+    // face. Detached faces are appended to `protectedFaces`; the caller sews them back
+    // after unifying. A fully kept face needs no spur check: every edge of it is kept,
+    // so spur removal would be a no-op for it anyway.
+    static TopoDS_Shape preprocessForUnify(
+        const TopoDS_Shape& shape,
+        const NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>& keepShapes,
+        NCollection_List<TopoDS_Shape>& protectedFaces)
+    {
+        BRepTools_ReShape reshape;
+        bool modified = false;
+        for (TopExp_Explorer faceExplorer(shape, TopAbs_FACE); faceExplorer.More(); faceExplorer.Next()) {
+            const TopoDS_Shape& face = faceExplorer.Current();
+            if (!keepShapes.IsEmpty() && isFullyKeptFace(face, keepShapes)) {
+                reshape.Remove(face);
+                protectedFaces.Append(face);
+                modified = true;
+                continue;
+            }
+            modified |= removeSpurWires(reshape, face, keepShapes);
+        }
+        return modified ? reshape.Apply(shape) : shape;
+    }
+
     static ShapeResult simplifyShape(
         const TopoDS_Shape& shape,
         const bool theUnifyEdges,
@@ -672,13 +774,41 @@ public:
     {
         auto keepShapesList = shapeArrayToMapOfShape(keepShapes);
 
-        ShapeUpgrade_UnifySameDomain anUnifier(shape, theUnifyEdges, theUnifyFaces, true);
+        NCollection_List<TopoDS_Shape> protectedFaces;
+        TopoDS_Shape input = preprocessForUnify(shape, keepShapesList, protectedFaces);
+        if (!protectedFaces.IsEmpty() && !TopExp_Explorer(input, TopAbs_FACE).More()) {
+            // Every face is fully bounded by kept edges; nothing can be unified.
+            return ShapeResult { shape, true, "" };
+        }
+
+        ShapeUpgrade_UnifySameDomain anUnifier(input, theUnifyEdges, theUnifyFaces, true);
         anUnifier.SetLinearTolerance(linearTolerance);
         anUnifier.SetAngularTolerance(angularTolerance);
         anUnifier.KeepShapes(keepShapesList);
+        if (!keepShapesList.IsEmpty()) {
+            anUnifier.AllowInternalEdges(true);
+        }
         anUnifier.Build();
 
-        return ShapeResult { anUnifier.Shape(), true, "" };
+        TopoDS_Shape result = anUnifier.Shape();
+        if (!protectedFaces.IsEmpty()) {
+            BRepBuilderAPI_Sewing sewing;
+            sewing.Add(result);
+            for (const auto& face : protectedFaces) {
+                sewing.Add(face);
+            }
+            sewing.Perform();
+            result = sewing.SewedShape();
+            // Preserve the solid wrapper when the detached faces came from a solid
+            // (e.g. flat sheets turned into solids by `sewing`).
+            if (shape.ShapeType() == TopAbs_SOLID && result.ShapeType() == TopAbs_SHELL) {
+                BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(result));
+                if (makeSolid.IsDone()) {
+                    result = makeSolid.Solid();
+                }
+            }
+        }
+        return ShapeResult { result, true, "" };
     }
 
     static ShapeResult booleanOperate(BRepAlgoAPI_BooleanOperation& boolOperater, const ShapeArray& args,
@@ -910,10 +1040,6 @@ public:
         return ShapeResult { fixer.Shape(), true, "" };
     }
 
-    static ShapeResult fixWire(const TopoDS_Wire& wire, double tolerance)
-    {
-    }
-
     static ShapeResult fixSolid(const TopoDS_Shape& shape, double tolerance)
     {
         ShapeFix_Solid fixer;
@@ -923,30 +1049,36 @@ public:
         return ShapeResult { fixer.Shape(), true, "" };
     }
 
-    static bool hasOnlyOneSub(const TopoDS_Shape& shape, TopAbs_ShapeEnum shapeType)
+    static bool hasAnySub(const TopoDS_Shape& shape, TopAbs_ShapeEnum shapeType)
     {
-        size_t size = 0;
         TopExp_Explorer explorer;
-        for (explorer.Init(shape, shapeType); explorer.More(); explorer.Next()) {
-            size += 1;
-            if (size > 1) {
-                return false;
-            }
-        }
-        return size == 1;
+        explorer.Init(shape, shapeType);
+        return explorer.More();
     }
 
-    static TopoDS_Compound shapeWires(const TopoDS_Shape& shape)
+    // Rebuilds `shape` with the removals recorded in `reShape`. Wires whose parent face was
+    // removed are appended alongside the result, so their remaining edges are preserved.
+    static TopoDS_Shape applyKeepingWires(BRepTools_ReShape& reShape,
+        const TopoDS_Shape& shape,
+        const NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>& keptWires)
     {
+        auto result = reShape.Apply(shape);
+        if (keptWires.IsEmpty() && !result.IsNull()) {
+            return result;
+        }
+
         BRep_Builder builder;
         TopoDS_Compound compound;
         builder.MakeCompound(compound);
-
-        TopExp_Explorer explorer;
-        for (explorer.Init(shape, TopAbs_WIRE); explorer.More(); explorer.Next()) {
-            builder.Add(compound, TopoDS::Wire(explorer.Current()));
+        if (!result.IsNull()) {
+            builder.Add(compound, result);
         }
-
+        for (NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>::Iterator it(keptWires); it.More(); it.Next()) {
+            auto keptWire = reShape.Apply(it.Value());
+            if (!keptWire.IsNull() && hasAnySub(keptWire, TopAbs_EDGE)) {
+                builder.Add(compound, keptWire);
+            }
+        }
         return compound;
     }
 
@@ -992,26 +1124,55 @@ public:
         return RemoveFilletResult { defea.Shape(), true, "", ShapeArray(newEdges) };
     }
 
+    // A face referencing a removed edge becomes invalid: drop it, but keep its
+    // wires so the remaining edges are preserved.
+    static void removeFacesUsingEdge(BRepTools_ReShape& reShape,
+        const NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher>& mapEF,
+        const TopoDS_Shape& edge,
+        NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>& removedFaces,
+        NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher>& keptWires)
+    {
+        if (!mapEF.Contains(edge)) {
+            return;
+        }
+        for (const auto& face : mapEF.FindFromKey(edge)) {
+            if (!removedFaces.Add(face)) {
+                continue;
+            }
+            reShape.Remove(face);
+            for (TopExp_Explorer explorer(face, TopAbs_WIRE); explorer.More(); explorer.Next()) {
+                keptWires.Add(explorer.Current());
+            }
+        }
+    }
+
     static ShapeResult removeSubShape(const TopoDS_Shape& shape, const ShapeArray& subShapes)
     {
         std::vector<TopoDS_Shape> subShapesVector = vecFromJSArray<TopoDS_Shape>(subShapes);
-
-        auto source = hasOnlyOneSub(shape, TopAbs_FACE) ? shapeWires(shape) : shape;
-        NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> mapEF;
-        TopExp::MapShapesAndAncestors(source, TopAbs_EDGE, TopAbs_FACE, mapEF);
-        BRepTools_ReShape reShape;
-        for (auto& subShape : subShapesVector) {
-            reShape.Remove(subShape);
-
-            NCollection_List<TopoDS_Shape> faces;
-            if (mapEF.FindFromKey(subShape, faces)) {
-                for (auto& face : faces) {
-                    reShape.Remove(face);
-                }
-            }
+        if (subShapesVector.empty()) {
+            return ShapeResult { shape, false, "Not remove anything" };
         }
 
-        return ShapeResult { reShape.Apply(source), true, "" };
+        NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> mapEF;
+        TopExp::MapShapesAndAncestors(shape, TopAbs_EDGE, TopAbs_FACE, mapEF);
+
+        BRepTools_ReShape reShape;
+        NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher> removedFaces; // dedupe faces dropped because one of their edges was removed
+        NCollection_Map<TopoDS_Shape, TopTools_ShapeMapHasher> keptWires;
+        for (const auto& subShape : subShapesVector) {
+            reShape.Remove(subShape);
+            if (subShape.ShapeType() != TopAbs_EDGE) {
+                continue;
+            }
+            removeFacesUsingEdge(reShape, mapEF, subShape, removedFaces, keptWires);
+        }
+
+        TopoDS_Shape result = applyKeepingWires(reShape, shape, keptWires);
+        if (result.IsSame(shape)) {
+            return ShapeResult { shape, false, "Not remove anything" };
+        }
+
+        return ShapeResult { result, true, "" };
     }
 
     static ShapeResult replaceSubShapes(const TopoDS_Shape& shape,

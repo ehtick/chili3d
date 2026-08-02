@@ -1,7 +1,18 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { type IEdge, type IFace, type IShape, type IWire, Line, Plane, ShapeTypes, XYZ } from "@chili3d/core";
+import {
+    type IEdge,
+    type IFace,
+    type IShape,
+    type IVertex,
+    type IWire,
+    Line,
+    Plane,
+    ShapeTypes,
+    XYZ,
+    type XYZLike,
+} from "@chili3d/core";
 import { MockShape } from "@chili3d/core/test-utils";
 import type { ShapeFactory } from "../src/factory";
 import type { OccEdge, OccFace, OccSolid } from "../src/shape";
@@ -606,6 +617,57 @@ describe("ShapeFactory — feature operations", () => {
             const removeSubResult = factory.removeSubShape(box, [edges[0]]);
             expect(removeSubResult.isOk).toBe(true);
         });
+
+        test("should fail when the sub-shape does not belong to the shape", () => {
+            const box = factory.box(plane, 10, 10, 10).value;
+            const otherBox = factory.box(plane, 10, 10, 10).value;
+            const foreignEdge = otherBox.findSubShapes(ShapeTypes.edge)[0];
+
+            const result = factory.removeSubShape(box, [foreignEdge]);
+            expect(result.isOk).toBe(false);
+            if (!result.isOk) {
+                expect(result.error).toContain("Not remove anything");
+            }
+        });
+
+        test("should keep the wires of the adjacent faces when removing an edge", () => {
+            const box = factory.box(plane, 10, 10, 10).value;
+            const edge = box.findSubShapes(ShapeTypes.edge)[0];
+            const result = factory.removeSubShape(box, [edge]);
+            expect(result.isOk).toBe(true);
+
+            // The two adjacent faces are removed, but their wires
+            // (with the remaining edges) are preserved.
+            const shape = result.value;
+            expect(shape.findSubShapes(ShapeTypes.face).length).toBe(4);
+            expect(shape.findSubShapes(ShapeTypes.edge).length).toBe(11);
+            expect(shape.findSubShapes(ShapeTypes.wire).length).toBe(6);
+        });
+
+        test("should return the remaining wire when removing an edge of a face", () => {
+            const p1 = new XYZ({ x: 0, y: 0, z: 0 });
+            const p2 = new XYZ({ x: 10, y: 0, z: 0 });
+            const p3 = new XYZ({ x: 10, y: 10, z: 0 });
+            const p4 = new XYZ({ x: 0, y: 10, z: 0 });
+            const edges = [
+                unwrapOk(factory.line(p1, p2)) as IEdge,
+                unwrapOk(factory.line(p2, p3)) as IEdge,
+                unwrapOk(factory.line(p3, p4)) as IEdge,
+                unwrapOk(factory.line(p4, p1)) as IEdge,
+            ];
+            const wire = unwrapOk(factory.wire(edges)) as IWire;
+            const face = unwrapOk(factory.face([wire]));
+
+            const edge = face.findSubShapes(ShapeTypes.edge)[0];
+            const result = factory.removeSubShape(face, [edge]);
+            expect(result.isOk).toBe(true);
+
+            // The face is removed, its wire keeps the remaining three edges.
+            const shape = result.value;
+            expect(shape.findSubShapes(ShapeTypes.face).length).toBe(0);
+            expect(shape.findSubShapes(ShapeTypes.wire).length).toBe(1);
+            expect(shape.findSubShapes(ShapeTypes.edge).length).toBe(3);
+        });
     });
 
     describe("replaceSubShape", () => {
@@ -687,6 +749,114 @@ describe("ShapeFactory — advanced operations", () => {
             const box = factory.box(plane, 10, 10, 10).value;
             const result = factory.simplifyShape(box, true, true, [], 1e-5, 1e-5);
             expect(result.isOk).toBe(true);
+        });
+
+        test("should simplify a splited shape", () => {
+            const face = factory.rect(Plane.XY, 10, 10).value;
+            expect(face.findSubShapes(ShapeTypes.edge).length).toBe(4);
+
+            const edge = factory.line({ x: 5, y: 0, z: 0 }, { x: 5, y: 5, z: 0 }).value;
+            const splited = face.split([edge], 1e-6);
+            expect(splited.findSubShapes(ShapeTypes.edge).length).toBe(6);
+
+            const simplify = factory.simplifyShape(splited, true, true, [], 1e-6, 1e-6);
+            expect(simplify.isOk).toBe(true);
+            expect(simplify.value.shapeType).toBe(ShapeTypes.face);
+            expect(simplify.value.findSubShapes(ShapeTypes.wire).length).toBe(1);
+            expect(simplify.value.findSubShapes(ShapeTypes.edge).length).toBe(4);
+        });
+
+        test("should remove non-kept shared edges when kept edges lie between two same-domain faces", () => {
+            // An outer face with a rectangular hole plus an inner face filling the hole,
+            // sewn together so the two faces share the 4 hole edges.
+            const holeWirePoints: XYZLike[] = [
+                { x: 5, y: 5, z: 0 },
+                { x: 15, y: 5, z: 0 },
+                { x: 15, y: 15, z: 0 },
+                { x: 5, y: 15, z: 0 },
+                { x: 5, y: 5, z: 0 },
+            ];
+            const outerWire = factory.polygon([
+                { x: 0, y: 0, z: 0 },
+                { x: 20, y: 0, z: 0 },
+                { x: 20, y: 20, z: 0 },
+                { x: 0, y: 20, z: 0 },
+                { x: 0, y: 0, z: 0 },
+            ]).value;
+            const outerFace = factory.face([outerWire, factory.polygon(holeWirePoints).value]).value;
+            const holeFace = factory.face([factory.polygon(holeWirePoints).value]).value;
+
+            const sewn = factory.sewing([outerFace, holeFace]).value;
+            expect(sewn.findSubShapes(ShapeTypes.face).length).toBe(2);
+            expect(sewn.findSubShapes(ShapeTypes.edge).length).toBe(8);
+
+            const holeEdges = sewn.findSubShapes(ShapeTypes.edge).filter((edge) =>
+                edge.findSubShapes(ShapeTypes.vertex).every((vertex) => {
+                    const p = (vertex as IVertex).point();
+                    return p.x >= 5 - 1e-6 && p.x <= 15 + 1e-6 && p.y >= 5 - 1e-6 && p.y <= 15 + 1e-6;
+                }),
+            );
+            expect(holeEdges.length).toBe(4);
+
+            // Without keepShapes, all four shared edges are removed.
+            const merged = factory.simplifyShape(sewn, true, true, [], 1e-6, 1e-6);
+            expect(merged.isOk).toBe(true);
+            expect(merged.value.findSubShapes(ShapeTypes.face).length).toBe(1);
+            expect(merged.value.findSubShapes(ShapeTypes.edge).length).toBe(4);
+
+            // Keeping 3 of the 4 shared edges must still remove the remaining one;
+            // the kept edges stay as internal edges of the merged face.
+            const kept = factory.simplifyShape(sewn, true, true, holeEdges.slice(0, 3), 1e-6, 1e-6);
+            expect(kept.isOk).toBe(true);
+            expect(kept.value.findSubShapes(ShapeTypes.face).length).toBe(1);
+            expect(kept.value.findSubShapes(ShapeTypes.edge).length).toBe(7);
+        });
+
+        test("should remove non-kept hole edge when two holes are filled by same-size circular faces", () => {
+            // A rectangular face with two circular holes, each filled by a circular face of
+            // the same radius, sewn together so the hole edges are shared between faces.
+            const outerWire = factory.polygon([
+                { x: 0, y: 0, z: 0 },
+                { x: 30, y: 0, z: 0 },
+                { x: 30, y: 20, z: 0 },
+                { x: 0, y: 20, z: 0 },
+                { x: 0, y: 0, z: 0 },
+            ]).value;
+            const holeEdge1 = factory.circle(XYZ.unitZ, { x: 10, y: 10, z: 0 }, 3).value;
+            const holeEdge2 = factory.circle(XYZ.unitZ, { x: 20, y: 10, z: 0 }, 3).value;
+            const outerFace = factory.face([
+                outerWire,
+                factory.wire([holeEdge1]).value,
+                factory.wire([holeEdge2]).value,
+            ]).value;
+            const disk1 = factory.face([
+                factory.wire([factory.circle(XYZ.unitZ, { x: 10, y: 10, z: 0 }, 3).value]).value,
+            ]).value;
+            const disk2 = factory.face([
+                factory.wire([factory.circle(XYZ.unitZ, { x: 20, y: 10, z: 0 }, 3).value]).value,
+            ]).value;
+
+            const sewn = factory.sewing([outerFace, disk1, disk2]).value;
+            expect(sewn.findSubShapes(ShapeTypes.face).length).toBe(3);
+            expect(sewn.findSubShapes(ShapeTypes.edge).length).toBe(6);
+
+            const holeEdgeOf = (centerX: number) =>
+                sewn.findSubShapes(ShapeTypes.edge).filter((edge) => {
+                    const vertices = edge.findSubShapes(ShapeTypes.vertex);
+                    if (vertices.length !== 1) return false;
+                    const p = (vertices[0] as IVertex).point();
+                    return Math.abs(Math.hypot(p.x - centerX, p.y - 10) - 3) < 1e-6;
+                });
+            const keptEdge = holeEdgeOf(10);
+            const removedEdge = holeEdgeOf(20);
+            expect(keptEdge.length).toBe(1);
+            expect(removedEdge.length).toBe(1);
+
+            const simplified = factory.simplifyShape(sewn, true, true, keptEdge, 1e-6, 1e-6);
+            expect(simplified.isOk).toBe(true);
+            expect(simplified.value.findSubShapes(ShapeTypes.face).length).toBe(2);
+            expect(simplified.value.findSubShapes(ShapeTypes.edge).length).toBe(5);
+            expect(holeEdgeOf(10)[0].isSame(keptEdge[0])).toBe(true);
         });
     });
 });

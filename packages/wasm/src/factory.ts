@@ -61,8 +61,6 @@ function convertShapeResult<P extends unknown[] = unknown[]>(
     let res: Result<IShape, string>;
     if (!result.isOk) {
         res = Result.err(result.error);
-    } else if (result.shape.isNull()) {
-        res = Result.err("The shape is null.");
     } else {
         res = Result.ok(OccShape.wrap(result.shape));
     }
