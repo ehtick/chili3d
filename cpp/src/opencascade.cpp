@@ -3,6 +3,7 @@
 
 #include <emscripten/bind.h>
 
+#include <BRepOffset_Mode.hxx>
 #include <BRep_Tool.hxx>
 #include <GeomAbs_JoinType.hxx>
 #include <GeomAbs_Shape.hxx>
@@ -76,6 +77,11 @@ EMSCRIPTEN_BINDINGS(opencascade)
         .value("GeomAbs_Arc", GeomAbs_Arc)
         .value("GeomAbs_Intersection", GeomAbs_Intersection)
         .value("GeomAbs_Tangent", GeomAbs_Tangent);
+
+    enum_<BRepOffset_Mode>("BRepOffset_Mode")
+        .value("BRepOffset_Skin", BRepOffset_Skin)
+        .value("BRepOffset_Pipe", BRepOffset_Pipe)
+        .value("BRepOffset_RectoVerso", BRepOffset_RectoVerso);
 
     enum_<TopAbs_ShapeEnum>("TopAbs_ShapeEnum")
         .value("TopAbs_VERTEX", TopAbs_VERTEX)

@@ -17,6 +17,7 @@ import {
     type JoinType,
     type Line,
     MathUtils,
+    type OffsetMode,
     type Plane,
     Precision,
     Result,
@@ -26,7 +27,7 @@ import {
 } from "@chili3d/core";
 import type { ShapeResult, ShapesResult, TopoDS_Edge, TopoDS_Face, TopoDS_Shape } from "../lib/chili-wasm";
 import { OccCurve } from "./curve";
-import { convertFromContinuity, getJoinType } from "./helper";
+import { convertFromContinuity, getJoinType, getOffsetMode } from "./helper";
 import { OccEdge, OccShape } from "./shape";
 
 function ensureOccShape(shapes: IShape | IShape[]): TopoDS_Shape[] {
@@ -535,10 +536,19 @@ export class ShapeFactory implements IShapeFactory {
         closingFaces: IShape[],
         thickness: number,
         joinType: JoinType,
+        mode: OffsetMode = "skin",
+        intersection: boolean = false,
     ): Result<IShape> {
         return convertShapeResult(
             wasm.ShapeFactory.makeThickSolidByJoin,
-            [ensureOccShape(shape)[0], ensureOccShape(closingFaces), thickness, getJoinType(joinType)],
+            [
+                ensureOccShape(shape)[0],
+                ensureOccShape(closingFaces),
+                thickness,
+                getJoinType(joinType),
+                getOffsetMode(mode),
+                intersection,
+            ],
             "MakeThickSolidByJoin Error",
         );
     }

@@ -4,11 +4,14 @@
 import {
     Combobox,
     command,
+    debounce,
     EditableShapeNode,
     type I18nKeys,
     type IFace,
     type JoinType,
     MultistepCommand,
+    type OffsetMode,
+    PubSub,
     property,
     SelectShapeStep,
     type ShapeNode,
@@ -22,6 +25,8 @@ import {
     icon: "icon-shell",
 })
 export class ShellCommand extends MultistepCommand {
+    private tempVisual?: number;
+
     @property("option.command.joinType", {
         combobox: Combobox.from(["option.command.joinType.arc", "option.command.joinType.intersection"]),
     })
@@ -29,7 +34,29 @@ export class ShellCommand extends MultistepCommand {
         return this.getPrivateValue("joinType", "option.command.joinType.arc");
     }
     set joinType(value: I18nKeys) {
-        this.setProperty("joinType", value);
+        this.setProperty("joinType", value, this.redisplayTempShape);
+    }
+
+    @property("option.command.offsetMode", {
+        combobox: Combobox.from([
+            "option.command.offsetMode.skin",
+            "option.command.offsetMode.pipe",
+            "option.command.offsetMode.rectoVerso",
+        ]),
+    })
+    get offsetMode(): I18nKeys {
+        return this.getPrivateValue("offsetMode", "option.command.offsetMode.skin");
+    }
+    set offsetMode(value: I18nKeys) {
+        this.setProperty("offsetMode", value, this.redisplayTempShape);
+    }
+
+    @property("option.command.intersection")
+    get intersection() {
+        return this.getPrivateValue("intersection", false);
+    }
+    set intersection(value: boolean) {
+        this.setProperty("intersection", value, this.redisplayTempShape);
     }
 
     @property("option.command.thickness")
@@ -38,19 +65,14 @@ export class ShellCommand extends MultistepCommand {
     }
 
     set thickness(value: number) {
-        this.setProperty("thickness", value);
+        this.setProperty("thickness", value, this.redisplayTempShape);
     }
 
     protected override executeMainTask() {
         Transaction.execute(this.document, `excute ${Object.getPrototypeOf(this).data.name}`, () => {
             const node = this.stepDatas[0].shapes[0].owner.node as ShapeNode;
             const faces = this.stepDatas.at(-1)!.shapes.map((x) => x.shape as IFace);
-            const shellShape = shapeFactory.makeThickSolidByJoin(
-                node.shape.value,
-                faces,
-                this.thickness,
-                this.mapJoinType(),
-            );
+            const shellShape = this.getShellShape(faces);
 
             if (!shellShape.isOk) {
                 return;
@@ -70,6 +92,18 @@ export class ShellCommand extends MultistepCommand {
         });
     }
 
+    private getShellShape(faces: IFace[]) {
+        const node = this.stepDatas[0].shapes[0].owner.node as ShapeNode;
+        return shapeFactory.makeThickSolidByJoin(
+            node.shape.value,
+            faces,
+            this.thickness,
+            this.mapJoinType(),
+            this.mapOffsetMode(),
+            this.intersection,
+        );
+    }
+
     protected override getSteps() {
         return [
             new SelectShapeStep(ShapeTypes.shape, "prompt.select.shape", {
@@ -86,11 +120,57 @@ export class ShellCommand extends MultistepCommand {
             }),
             new SelectShapeStep(ShapeTypes.face, "prompt.select.openFaces", {
                 multiple: true,
-                beforeSelection: () => this.addFirstSelectedState(VisualStates.faceTransparent),
-                afterSelection: () => this.removeFirstSelectedState(VisualStates.faceTransparent),
+                beforeSelection: () => {
+                    this.addFirstSelectedState(VisualStates.faceTransparent);
+                    this.document.selection.onShapeChanged.sub(this.onOpenFacesChanged);
+                },
+                afterSelection: () => {
+                    this.removeFirstSelectedState(VisualStates.faceTransparent);
+                    this.document.selection.onShapeChanged.remove(this.onOpenFacesChanged);
+                    if (this.tempVisual) {
+                        this.document.visual.context.removeMesh(this.tempVisual);
+                        this.tempVisual = undefined;
+                    }
+                    const nodeVisual = this.stepDatas.at(0)?.shapes.at(0)?.owner;
+                    if (nodeVisual) {
+                        nodeVisual.visible = true;
+                    }
+                },
             }),
         ];
     }
+
+    private readonly onOpenFacesChanged = debounce(() => {
+        this.redisplayTempShape();
+    }, 20);
+
+    private readonly redisplayTempShape = () => {
+        const selected = this.document.selection.getSelectedShapes();
+        if (this.tempVisual) {
+            this.document.visual.context.removeMesh(this.tempVisual);
+            this.tempVisual = undefined;
+        }
+        const nodeVisual = this.stepDatas.at(0)?.shapes.at(0)?.owner;
+        if (!nodeVisual) return;
+        if (selected.length === 0) {
+            nodeVisual.visible = true;
+            return;
+        }
+
+        const shellShape = this.getShellShape(selected.map((x) => x.shape as IFace));
+        if (!shellShape.isOk) {
+            nodeVisual.visible = true;
+            PubSub.default.pub("showToast", "error.default:{0}", "shell failed");
+            return;
+        }
+        this.disposeStack.add(shellShape.value);
+        nodeVisual.visible = false;
+        this.tempVisual = this.document.visual.context.displayMesh(
+            [shellShape.value.mesh.faces!, shellShape.value.mesh.edges!].filter((x) => x !== undefined),
+        );
+
+        this.document.visual.update();
+    };
 
     readonly mapJoinType = (): JoinType => {
         switch (this.joinType) {
@@ -102,6 +182,19 @@ export class ShellCommand extends MultistepCommand {
                 return "tangent";
             default:
                 throw new Error("Unknow joinType");
+        }
+    };
+
+    readonly mapOffsetMode = (): OffsetMode => {
+        switch (this.offsetMode) {
+            case "option.command.offsetMode.skin":
+                return "skin";
+            case "option.command.offsetMode.pipe":
+                return "pipe";
+            case "option.command.offsetMode.rectoVerso":
+                return "rectoVerso";
+            default:
+                throw new Error("Unknow offsetMode");
         }
     };
 }

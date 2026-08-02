@@ -100,6 +100,11 @@ export interface GeomAbs_JoinTypeValue<T extends number> {
 }
 export type GeomAbs_JoinType = GeomAbs_JoinTypeValue<0>|GeomAbs_JoinTypeValue<2>|GeomAbs_JoinTypeValue<1>;
 
+export interface BRepOffset_ModeValue<T extends number> {
+  value: T;
+}
+export type BRepOffset_Mode = BRepOffset_ModeValue<0>|BRepOffset_ModeValue<1>|BRepOffset_ModeValue<2>;
+
 export interface TopAbs_ShapeEnumValue<T extends number> {
   value: T;
 }
@@ -630,7 +635,7 @@ interface EmbindModule {
     fillet(_0: TopoDS_Shape, _1: Array<number>, _2: number): ShapeResult;
     chamfer(_0: TopoDS_Shape, _1: Array<number>, _2: number): ShapeResult;
     sweep(_0: Array<TopoDS_Shape>, _1: TopoDS_Wire, _2: boolean, _3: boolean): ShapeResult;
-    makeThickSolidByJoin(_0: TopoDS_Shape, _1: Array<TopoDS_Shape>, _2: number, _3: GeomAbs_JoinType): ShapeResult;
+    makeThickSolidByJoin(_0: TopoDS_Shape, _1: Array<TopoDS_Shape>, _2: number, _3: GeomAbs_JoinType, _4: BRepOffset_Mode, _5: boolean): ShapeResult;
     simplifyShape(_0: TopoDS_Shape, _1: boolean, _2: boolean, _3: Array<TopoDS_Shape>, _4: number, _5: number): ShapeResult;
     booleanCommon(_0: Array<TopoDS_Shape>, _1: Array<TopoDS_Shape>): ShapeResult;
     booleanCut(_0: Array<TopoDS_Shape>, _1: Array<TopoDS_Shape>): ShapeResult;
@@ -696,6 +701,7 @@ interface EmbindModule {
   MeshData: {};
   GeomAbs_Shape: {GeomAbs_C0: GeomAbs_ShapeValue<0>, GeomAbs_C1: GeomAbs_ShapeValue<2>, GeomAbs_C2: GeomAbs_ShapeValue<4>, GeomAbs_C3: GeomAbs_ShapeValue<5>, GeomAbs_CN: GeomAbs_ShapeValue<6>, GeomAbs_G1: GeomAbs_ShapeValue<1>, GeomAbs_G2: GeomAbs_ShapeValue<3>};
   GeomAbs_JoinType: {GeomAbs_Arc: GeomAbs_JoinTypeValue<0>, GeomAbs_Intersection: GeomAbs_JoinTypeValue<2>, GeomAbs_Tangent: GeomAbs_JoinTypeValue<1>};
+  BRepOffset_Mode: {BRepOffset_Skin: BRepOffset_ModeValue<0>, BRepOffset_Pipe: BRepOffset_ModeValue<1>, BRepOffset_RectoVerso: BRepOffset_ModeValue<2>};
   TopAbs_ShapeEnum: {TopAbs_VERTEX: TopAbs_ShapeEnumValue<7>, TopAbs_EDGE: TopAbs_ShapeEnumValue<6>, TopAbs_WIRE: TopAbs_ShapeEnumValue<5>, TopAbs_FACE: TopAbs_ShapeEnumValue<4>, TopAbs_SHELL: TopAbs_ShapeEnumValue<3>, TopAbs_SOLID: TopAbs_ShapeEnumValue<2>, TopAbs_COMPOUND: TopAbs_ShapeEnumValue<0>, TopAbs_COMPSOLID: TopAbs_ShapeEnumValue<1>, TopAbs_SHAPE: TopAbs_ShapeEnumValue<8>};
   TopAbs_Orientation: {TopAbs_FORWARD: TopAbs_OrientationValue<0>, TopAbs_REVERSED: TopAbs_OrientationValue<1>, TopAbs_INTERNAL: TopAbs_OrientationValue<2>, TopAbs_EXTERNAL: TopAbs_OrientationValue<3>};
   Standard_Transient: {};

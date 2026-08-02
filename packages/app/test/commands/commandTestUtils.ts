@@ -115,6 +115,7 @@ export function wireCommand<C>(cmd: C): { doc: IDocument; addedNodes: unknown[] 
             clearSelection: rs.fn(),
             getSelectedVisualNodes: (): VisualNode[] => [],
             getSelectedShapes: (): VisualShapeData[] => [],
+            onShapeChanged: { sub: rs.fn(), remove: rs.fn() },
         },
         picker: {
             pickNode: rs.fn(async () => [] as VisualNode[]),

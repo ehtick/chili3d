@@ -8,6 +8,7 @@ import {
     type JoinType,
     type Line,
     Matrix4,
+    type OffsetMode,
     type Orientation,
     Plane,
     type ShapeType,
@@ -16,6 +17,7 @@ import {
     XYZ,
 } from "@chili3d/core";
 import type {
+    BRepOffset_Mode,
     Geom_Curve,
     Geom_Surface,
     GeomAbs_JoinType,
@@ -234,6 +236,19 @@ export function getJoinType(joinType: JoinType): GeomAbs_JoinType {
             return wasm.GeomAbs_JoinType.GeomAbs_Tangent;
         default:
             throw new Error(`Unknown join type: ${joinType}`);
+    }
+}
+
+export function getOffsetMode(mode: OffsetMode): BRepOffset_Mode {
+    switch (mode) {
+        case "skin":
+            return wasm.BRepOffset_Mode.BRepOffset_Skin;
+        case "pipe":
+            return wasm.BRepOffset_Mode.BRepOffset_Pipe;
+        case "rectoVerso":
+            return wasm.BRepOffset_Mode.BRepOffset_RectoVerso;
+        default:
+            throw new Error(`Unknown offset mode: ${mode}`);
     }
 }
 

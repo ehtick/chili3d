@@ -81,6 +81,8 @@ export interface IEdge extends IShape {
 
 export type JoinType = "arc" | "tangent" | "intersection";
 
+export type OffsetMode = "skin" | "pipe" | "rectoVerso";
+
 export interface IWire extends IShape {
     toFace(): Result<IFace>;
     edgeLoop(): IEdge[];

@@ -731,6 +731,27 @@ describe("ShapeFactory — advanced operations", () => {
             const thickJoinResult = factory.makeThickSolidByJoin(box, [faces[0] as IFace], 0.5, "arc");
             expect(thickJoinResult.isOk).toBe(true);
         });
+
+        test.each([
+            { mode: "skin", intersection: false },
+            { mode: "pipe", intersection: false },
+            { mode: "rectoVerso", intersection: true },
+        ] as const)("should create a thick solid with $mode mode, intersection=$intersection", ({
+            mode,
+            intersection,
+        }) => {
+            const box = factory.box(plane, 10, 10, 10).value;
+            const faces = box.findSubShapes(ShapeTypes.face);
+            const thickJoinResult = factory.makeThickSolidByJoin(
+                box,
+                [faces[0] as IFace],
+                0.5,
+                "arc",
+                mode,
+                intersection,
+            );
+            expect(thickJoinResult.isOk).toBe(true);
+        });
     });
 
     describe("curveProjection", () => {

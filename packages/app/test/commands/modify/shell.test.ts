@@ -1,8 +1,8 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { Matrix4, Result, ShapeTypes } from "@chili3d/core";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "@rstest/core";
+import { Matrix4, PubSub, Result, ShapeTypes } from "@chili3d/core";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { ShellCommand } from "../../../src/commands/modify/shell";
 import {
     ensureGlobalStubApp,
@@ -80,6 +80,26 @@ describe("ShellCommand", () => {
         expect(cmd.thickness).toBe(5);
     });
 
+    test("offsetMode should default to skin and intersection to false", () => {
+        const cmd = new ShellCommand();
+        expect(cmd.offsetMode).toBe("option.command.offsetMode.skin");
+        expect(cmd.intersection).toBe(false);
+    });
+
+    test("mapOffsetMode should map each option to its OffsetMode", () => {
+        const cmd = new ShellCommand();
+        cmd.offsetMode = "option.command.offsetMode.skin";
+        expect(cmd.mapOffsetMode()).toBe("skin");
+        cmd.offsetMode = "option.command.offsetMode.pipe";
+        expect(cmd.mapOffsetMode()).toBe("pipe");
+        cmd.offsetMode = "option.command.offsetMode.rectoVerso";
+        expect(cmd.mapOffsetMode()).toBe("rectoVerso");
+        expect(() => {
+            cmd.offsetMode = "option.command.offsetMode.unknown" as any;
+            cmd.mapOffsetMode();
+        }).toThrow("Unknow offsetMode");
+    });
+
     test("getSteps should return two steps", () => {
         const cmd = new ShellCommand();
         const steps = (cmd as any).getSteps();
@@ -126,6 +146,8 @@ describe("ShellCommand", () => {
         test("should pass the selected faces and thickness to shapeFactory.makeThickSolidByJoin", () => {
             const { cmd, shape } = buildShellCommand(3);
             cmd.thickness = 2.5;
+            cmd.offsetMode = "option.command.offsetMode.pipe";
+            cmd.intersection = true;
 
             const provider = (globalThis as any).app.shapeProvider;
             const original = provider.factory;
@@ -151,6 +173,9 @@ describe("ShellCommand", () => {
                 expect(calls[0][0]).toBe(shape); // the original solid
                 expect(calls[0][1]).toHaveLength(3); // the selected open faces
                 expect(calls[0][2]).toBe(2.5); // thickness is the 3rd arg
+                expect(calls[0][3]).toBe("arc"); // joinType is the 4th arg
+                expect(calls[0][4]).toBe("pipe"); // offset mode is the 5th arg
+                expect(calls[0][5]).toBe(true); // intersection is the 6th arg
                 expect(calls[0][1].map((x: any) => x.id)).toEqual(["face-0", "face-1", "face-2"]);
             } finally {
                 Object.defineProperty(provider, "factory", {
@@ -190,6 +215,126 @@ describe("ShellCommand", () => {
                     configurable: true,
                     value: original,
                 });
+            }
+        });
+    });
+
+    describe("onOpenFacesChanged (debounced preview)", () => {
+        test("second step should subscribe and unsubscribe the preview handler", () => {
+            const { cmd, doc } = buildShellCommand(1);
+            const steps = (cmd as any).getSteps();
+            const options = steps[1].options;
+
+            options.beforeSelection();
+            expect(doc.selection.onShapeChanged.sub).toHaveBeenCalledWith((cmd as any).onOpenFacesChanged);
+
+            options.afterSelection();
+            expect(doc.selection.onShapeChanged.remove).toHaveBeenCalledWith((cmd as any).onOpenFacesChanged);
+            expect((cmd as any).stepDatas[0].shapes[0].owner.visible).toBe(true);
+        });
+
+        test("should show a debounced preview with the selected open faces", () => {
+            rs.useFakeTimers();
+            const { cmd, shape, faces, doc } = buildShellCommand(2);
+
+            const provider = (globalThis as any).app.shapeProvider;
+            const original = provider.factory;
+            const calls: any[] = [];
+            Object.defineProperty(provider, "factory", {
+                configurable: true,
+                value: new Proxy(
+                    {},
+                    {
+                        get:
+                            (_t, prop) =>
+                            (...args: any[]) => {
+                                if (prop === "makeThickSolidByJoin") {
+                                    calls.push(args);
+                                    return Result.ok(mockShape());
+                                }
+                                return mockShape();
+                            },
+                    },
+                ),
+            });
+
+            try {
+                const step0Owner = (cmd as any).stepDatas[0].shapes[0].owner;
+                (cmd as any).onOpenFacesChanged(faces.map((f: any) => ({ shape: f })));
+
+                // Debounced: the factory is not called before the delay elapses
+                expect(calls).toHaveLength(0);
+                rs.advanceTimersByTime(25);
+
+                expect(calls).toHaveLength(1);
+                expect(calls[0][0]).toBe(shape); // the original solid
+                expect(calls[0][1].map((x: any) => x.id)).toEqual(["face-0", "face-1"]);
+                // the original visual is hidden and a temp preview mesh is shown
+                expect(step0Owner.visible).toBe(false);
+                expect(doc.visual.context.displayMesh).toHaveBeenCalled();
+                expect(doc.visual.update).toHaveBeenCalled();
+            } finally {
+                Object.defineProperty(provider, "factory", {
+                    configurable: true,
+                    value: original,
+                });
+                rs.useRealTimers();
+            }
+        });
+
+        test("should restore visibility without a preview when the selection is cleared", () => {
+            rs.useFakeTimers();
+            try {
+                const { cmd, doc } = buildShellCommand(1);
+                const step0Owner = (cmd as any).stepDatas[0].shapes[0].owner;
+                step0Owner.visible = false;
+
+                (cmd as any).onOpenFacesChanged([]);
+                rs.advanceTimersByTime(25);
+
+                expect(step0Owner.visible).toBe(true);
+                expect(doc.visual.context.displayMesh).not.toHaveBeenCalled();
+            } finally {
+                rs.useRealTimers();
+            }
+        });
+
+        test("should publish a toast and restore visibility when the preview fails", () => {
+            rs.useFakeTimers();
+            const pubSpy = rs.spyOn(PubSub.default, "pub").mockImplementation(() => {});
+            const { cmd, faces } = buildShellCommand(1);
+
+            const provider = (globalThis as any).app.shapeProvider;
+            const original = provider.factory;
+            Object.defineProperty(provider, "factory", {
+                configurable: true,
+                value: new Proxy(
+                    {},
+                    {
+                        get:
+                            (_t, prop) =>
+                            (..._args: any[]) => {
+                                if (prop === "makeThickSolidByJoin") return Result.err("shell failed");
+                                return mockShape();
+                            },
+                    },
+                ),
+            });
+
+            try {
+                const step0Owner = (cmd as any).stepDatas[0].shapes[0].owner;
+                (cmd as any).onOpenFacesChanged(faces.map((f: any) => ({ shape: f })));
+                rs.advanceTimersByTime(25);
+
+                expect(step0Owner.visible).toBe(true);
+                expect(pubSpy).toHaveBeenCalledWith("showToast", "error.default:{0}", "shell failed");
+            } finally {
+                Object.defineProperty(provider, "factory", {
+                    configurable: true,
+                    value: original,
+                });
+                pubSpy.mockRestore();
+                rs.useRealTimers();
             }
         });
     });

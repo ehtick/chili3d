@@ -4,7 +4,18 @@
 import type { Result } from "../foundation";
 import type { Line, Plane, XYZ, XYZLike } from "../math";
 import type { Continuity, ICurve } from "./curve";
-import type { ICompound, IEdge, IFace, IShape, IShell, ISolid, IVertex, IWire, JoinType } from "./shape";
+import type {
+    ICompound,
+    IEdge,
+    IFace,
+    IShape,
+    IShell,
+    ISolid,
+    IVertex,
+    IWire,
+    JoinType,
+    OffsetMode,
+} from "./shape";
 
 export interface IShapeFactory {
     readonly kernelName: string;
@@ -49,6 +60,8 @@ export interface IShapeFactory {
         openFaces: IShape[],
         thickness: number,
         joinType: JoinType,
+        mode?: OffsetMode,
+        intersection?: boolean,
     ): Result<IShape>;
     fillet(shape: IShape, edges: number[], radius: number): Result<IShape>;
     chamfer(shape: IShape, edges: number[], distance: number): Result<IShape>;

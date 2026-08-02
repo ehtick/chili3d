@@ -29,6 +29,7 @@
 #include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
+#include <BRepOffset_Mode.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCone.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
@@ -652,12 +653,17 @@ public:
         return ShapeResult { makeThickSolid.Shape(), true, "" };
     }
 
-    static ShapeResult makeThickSolidByJoin(const TopoDS_Shape& shape, const ShapeArray& shapes, double thickness, const GeomAbs_JoinType& joinType)
+    static ShapeResult makeThickSolidByJoin(const TopoDS_Shape& shape,
+        const ShapeArray& shapes,
+        double thickness,
+        const GeomAbs_JoinType& joinType,
+        const BRepOffset_Mode& mode,
+        bool intersection)
     {
         auto shapesList = shapeArrayToListOfShape(shapes);
 
         BRepOffsetAPI_MakeThickSolid makeThickSolid;
-        makeThickSolid.MakeThickSolidByJoin(shape, shapesList, thickness, 1e-6, BRepOffset_Skin, false, false, joinType);
+        makeThickSolid.MakeThickSolidByJoin(shape, shapesList, thickness, 1e-6, mode, intersection, false, joinType);
         if (!makeThickSolid.IsDone()) {
             return ShapeResult { TopoDS_Shape(), false, "Failed to create thick solid" };
         }
