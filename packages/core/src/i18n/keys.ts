@@ -99,6 +99,7 @@ export const I18N_KEYS = [
     "command.modify.fillet",
     "command.modify.mirror",
     "command.modify.move",
+    "command.modify.paintBucket",
     "command.modify.removeFeature",
     "command.modify.removeShapes",
     "command.modify.rotate",

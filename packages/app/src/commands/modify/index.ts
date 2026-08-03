@@ -10,6 +10,7 @@ export * from "./explode";
 export * from "./fillet";
 export * from "./mirror";
 export * from "./move";
+export * from "./paintBucket";
 export * from "./removeFeature";
 export * from "./removeSubShapes";
 export * from "./repair";

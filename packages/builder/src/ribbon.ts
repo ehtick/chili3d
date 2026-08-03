@@ -44,7 +44,12 @@ export const DefaultRibbon: RibbonTabProfile[] = [
                     ["modify.fillet", "modify.chamfer", "modify.explode"],
                     ["modify.deleteNode", "modify.removeShapes", "modify.removeFeature"],
                 ],
-                collapsedItems: ["modify.brushAdd", "modify.brushRemove", "modify.brushClear"],
+                collapsedItems: [
+                    "modify.paintBucket",
+                    "modify.brushAdd",
+                    "modify.brushRemove",
+                    "modify.brushClear",
+                ],
             },
             {
                 groupName: "ribbon.group.converter",

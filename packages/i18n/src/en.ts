@@ -104,6 +104,7 @@ export default {
         "command.modify.fillet": "Fillet",
         "command.modify.mirror": "Mirror",
         "command.modify.move": "Move",
+        "command.modify.paintBucket": "Paint Bucket",
         "command.modify.removeFeature": "Remove Feature",
         "command.modify.removeShapes": "Remove Shapes",
         "command.modify.rotate": "Rotate",

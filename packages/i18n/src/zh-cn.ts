@@ -104,6 +104,7 @@ export default {
         "command.modify.fillet": "圆角",
         "command.modify.mirror": "镜像",
         "command.modify.move": "移动",
+        "command.modify.paintBucket": "油漆桶",
         "command.modify.removeFeature": "删除特征",
         "command.modify.removeShapes": "删除子元素",
         "command.modify.rotate": "旋转",
