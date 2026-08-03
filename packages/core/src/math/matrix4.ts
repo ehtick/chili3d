@@ -8,7 +8,7 @@ import { Quaternion } from "./quaternion";
 import { XYZ, type XYZLike } from "./xyz";
 
 export interface Matrix4Options {
-    array: Float32Array | ArrayLike<number>;
+    array: ArrayLike<number>;
 }
 
 /**
@@ -16,10 +16,10 @@ export interface Matrix4Options {
  */
 @serializable()
 export class Matrix4 {
-    private readonly _array: Float32Array;
+    private readonly _array: number[];
 
     constructor(options: Matrix4Options) {
-        this._array = new Float32Array(options.array);
+        this._array = Array.from(options.array);
     }
     @serialize()
     get array(): ReadonlyArray<number> {
@@ -51,7 +51,7 @@ export class Matrix4 {
     }
 
     public add(other: Matrix4): Matrix4 {
-        const array = new Float32Array(16);
+        const array = new Array(16);
         for (let index = 0; index < 16; index++) {
             array[index] = this._array[index] + other._array[index];
         }
@@ -124,7 +124,7 @@ export class Matrix4 {
     }
 
     public static fromArray(array: ArrayLike<number>): Matrix4 {
-        const result = new Float32Array(16);
+        const result = new Array(16);
         for (let index = 0; index < 16; index++) {
             result[index] = array[index];
         }
@@ -212,7 +212,7 @@ export class Matrix4 {
     }
 
     public transpose(): Matrix4 {
-        const result = new Float32Array(16);
+        const result = new Array(16);
         result[0] = this._array[0];
         result[1] = this._array[4];
         result[2] = this._array[8];
