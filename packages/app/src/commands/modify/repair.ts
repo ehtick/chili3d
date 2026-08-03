@@ -5,6 +5,7 @@ import {
     command,
     EditableShapeNode,
     GetOrSelectNodeStep,
+    type IShape,
     MultistepCommand,
     property,
     ShapeNode,
@@ -34,9 +35,12 @@ export class RepairShapeCommand extends MultistepCommand {
                 const shape = shapeNode.shape.value;
                 shape.setTolerance(this.tolerance);
 
-                let repairedShape = shape.shellSewing(this.tolerance);
-                repairedShape = repairedShape.fixShape(this.tolerance);
-                repairedShape = repairedShape.fixSmallFace(this.tolerance);
+                let repairedShape = this.getShapeIfNotNull(shape.shellSewing(this.tolerance), shape);
+                repairedShape = this.getShapeIfNotNull(repairedShape.fixShape(this.tolerance), repairedShape);
+                repairedShape = this.getShapeIfNotNull(
+                    repairedShape.fixSmallFace(this.tolerance),
+                    repairedShape,
+                );
 
                 const model = new EditableShapeNode({
                     document: this.document,
@@ -50,6 +54,10 @@ export class RepairShapeCommand extends MultistepCommand {
             }
             this.document.visual.update();
         });
+    }
+
+    private getShapeIfNotNull(testShape: IShape, defaultShape: IShape) {
+        return testShape.isNull() ? defaultShape : testShape;
     }
 
     protected override getSteps() {

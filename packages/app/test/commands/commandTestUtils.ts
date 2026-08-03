@@ -271,6 +271,7 @@ export function mockShape(overrides: Partial<IShape> = {}): MockShape {
         mesh: fakeMesh,
         matrix: Matrix4.identity(),
         isEqual: () => false,
+        isNull: () => false,
         dispose: () => {},
         transformedMul: track("transformedMul"),
         transformed: track("transformed"),
