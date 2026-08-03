@@ -2,11 +2,13 @@
 // See LICENSE file in the project root for full license information.
 
 import type { Locale } from "@chili3d/core";
+import en from "./en";
 
 export default {
     display: "Русский",
     language: "ru",
     translation: {
+        ...en.translation,
         "arc.angle": "Угол",
         "arc.start": "Начать",
         "axis.x": "Ось X",
@@ -108,6 +110,7 @@ export default {
         "command.modify.removeShapes": "Удалить фигуры",
         "command.modify.rotate": "Повернуть",
         "command.modify.sew": "Прошить",
+        "command.modify.shell": "Оболочка",
         "command.modify.repairShape": "Исправить фигуру",
         "command.modify.simplifyShape": "Упростить",
         "command.modify.checkShape": "Проверить фигуру",
@@ -182,6 +185,7 @@ export default {
         "error.input.invalidNumber": "Вводите номера, разделенные запятой ','",
         "error.input.threeNumberCanBeInput": "Не заполнена котрольная точка, нужно только 3 номера",
         "error.input.unsupportedInputs": "Достигнут предел вводимых номеров",
+        "error.select.twoEdges": "Пожалуйста, выберите две смежные грани",
         "file.format": "Формат",
         "home.recent": "Недавние",
         "home.welcome": "Добро пожаловать в chili3d",
@@ -259,6 +263,7 @@ export default {
         "prompt.select.faces": "Пожалуйста выберите стороны",
         "prompt.select.models": "Пожалуйста выберите модели",
         "prompt.select.noModelSelected": "Модель не выбранна",
+        "prompt.select.openFaces": "Пожалуйста, выберите стороны для открытия",
         "prompt.select.path": "Пожалуйста выберите путь",
         "prompt.select.section": "Пожалуйста выберите секцию",
         "prompt.select.shape": "Пожалуйста выберите фигуру",
