@@ -35,14 +35,13 @@ abstract class ConvertCommand extends CancelableCommand {
         Transaction.execute(this.document, `excute ${Object.getPrototypeOf(this).data.name}`, () => {
             const node = this.create(this.document, models);
             if (!node.isOk) {
-                PubSub.default.pub("showToast", "toast.converter.error");
+                PubSub.default.pub("showToast", "error.default:{0}", node.error);
             } else {
                 this.document.modelManager.rootNode.add(node.value);
+                models.forEach((x) => x.parent?.remove(x));
                 this.document.visual.update();
                 PubSub.default.pub("showToast", "toast.success");
             }
-
-            models.forEach((x) => x.parent?.remove(x));
         });
     }
 

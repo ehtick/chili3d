@@ -151,10 +151,6 @@ export class OccShape implements IShape {
     }
 
     static wrap(shape: TopoDS_Shape, id?: string): IShape {
-        if (shape.isNull()) {
-            throw new Error("Shape is null");
-        }
-
         switch (shape.shapeType()) {
             case wasm.TopAbs_ShapeEnum.TopAbs_COMPOUND:
                 return new OccCompound({ shape: wasm.TopoDS.compound(shape), id });

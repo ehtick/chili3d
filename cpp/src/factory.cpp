@@ -53,6 +53,7 @@
 #include <ShapeFix_Face.hxx>
 #include <ShapeFix_FixSmallFace.hxx>
 #include <ShapeFix_Shape.hxx>
+#include <ShapeFix_ShapeTolerance.hxx>
 #include <ShapeFix_Solid.hxx>
 #include <ShapeFix_Wire.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
@@ -221,6 +222,20 @@ static TopoDS_Edge edgeToFarEnd(const Handle(Geom_Curve) & basis, double first, 
     double farEnd = cornerParam - first >= last - cornerParam ? first : last;
     return BRepBuilderAPI_MakeEdge(basis, std::min(tangent, farEnd), std::max(tangent, farEnd)).Edge();
 }
+
+static std::string mapBuildWireError(const BRepBuilderAPI_WireError& error)
+{
+    switch (error) {
+    case BRepBuilderAPI_EmptyWire:
+        return "Empty Wire";
+    case BRepBuilderAPI_DisconnectedWire:
+        return "Disconnected Wire";
+    case BRepBuilderAPI_NonManifoldWire:
+        return "Non Mainfold Wire";
+    default:
+        return "Done";
+    }
+};
 
 class ShapeFactory {
 public:
@@ -560,7 +575,7 @@ public:
         }
 
         if (!wire.IsDone()) {
-            return ShapeResult { TopoDS_Shape(), false, "Failed to create wire" };
+            return ShapeResult { TopoDS_Shape(), false, mapBuildWireError(wire.Error()) };
         }
         return ShapeResult { wire.Wire(), true, "" };
     }

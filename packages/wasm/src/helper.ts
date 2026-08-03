@@ -148,10 +148,6 @@ export function getOrientation(shape: TopoDS_Shape): Orientation {
 }
 
 export function getShapeType(shape: TopoDS_Shape): ShapeType {
-    if (shape.isNull()) {
-        throw new Error("Shape is null");
-    }
-
     switch (shape.shapeType()) {
         case wasm.TopAbs_ShapeEnum.TopAbs_COMPOUND:
             return ShapeTypes.compound;
@@ -200,10 +196,6 @@ export function getShapeEnum(shapeType: ShapeType): TopAbs_ShapeEnum {
 }
 
 export function getActualShape(shape: TopoDS_Shape): TopoDS_Shape {
-    if (shape.isNull()) {
-        throw new Error("Shape is null");
-    }
-
     switch (shape.shapeType()) {
         case wasm.TopAbs_ShapeEnum.TopAbs_COMPOUND:
             return wasm.TopoDS.compound(shape);

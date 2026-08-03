@@ -3,8 +3,31 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { Matrix4, XYZ } from "@chili3d/core";
+import { convertFromMatrix } from "../src/helper";
 import { testAx3 } from "./helpers";
 import "./setup";
+
+test("should build a wire from two lines sharing a rotated endpoint", () => {
+    const start = { x: 0, y: 0, z: 0 };
+    const end = { x: 10, y: 0, z: 0 };
+    const line1 = wasm.TopoDS.edge(wasm.ShapeFactory.line(start, end).shape);
+
+    // line2 is line1 rotated 90° around its own endpoint (Z axis through `end`),
+    // so both edges share the endpoint exactly and connect even with a tight tolerance.
+    const trsf = convertFromMatrix(Matrix4.fromAxisRad(end, XYZ.unitZ, Math.PI / 3));
+    const line2 = wasm.TopoDS.edge(line1.located(new wasm.TopLoc_Location(trsf), false));
+
+    const result = wasm.ShapeFactory.wire([line1, line2]);
+    expect(result.isOk).toBe(true);
+
+    const wire = result.shape;
+    expect(wire.isNull()).toBe(false);
+    expect(wire.shapeType()).toBe(wasm.TopAbs_ShapeEnum.TopAbs_WIRE);
+    expect(wasm.Shape.findSubShapes(wire, wasm.TopAbs_ShapeEnum.TopAbs_EDGE).length).toBe(2);
+    // the two edges share exactly one vertex, so the wire has 3 unique vertices
+    expect(wasm.Shape.findSubShapes(wire, wasm.TopAbs_ShapeEnum.TopAbs_VERTEX).length).toBe(3);
+});
 
 test("should mesh a box face with expected buffer sizes", () => {
     const box = wasm.ShapeFactory.box(testAx3, 1, 2, 3).shape;
