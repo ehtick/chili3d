@@ -162,7 +162,7 @@ const okResult = (): Result<IShape> => Result.ok(fakeShape as unknown as IShape)
  * down per test since `application.ts` declares the `app` getter with
  * `configurable: true`.
  */
-export function stubGlobalApp(): () => void {
+export function ensureGlobalStubApp(): () => void {
     const previous = Object.getOwnPropertyDescriptor(globalThis, "app");
 
     const stubFactory = new Proxy(
@@ -186,15 +186,6 @@ export function stubGlobalApp(): () => void {
             Object.defineProperty(globalThis, "app", previous);
         }
     };
-}
-
-/**
- * Install the global stub app once for a whole test file (use in `beforeAll`).
- * Pairs with the unexported module flag so repeated calls are cheap, but each
- * install is still restorable via the returned function.
- */
-export function ensureGlobalStubApp(): () => void {
-    return stubGlobalApp();
 }
 
 /**

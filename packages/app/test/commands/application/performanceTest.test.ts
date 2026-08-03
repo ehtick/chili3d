@@ -9,7 +9,7 @@ import {
     OccPerformanceTestCommand,
     PerformanceTestCommand,
 } from "../../../src/commands/application/performanceTest";
-import { stubGlobalApp } from "../commandTestUtils";
+import { ensureGlobalStubApp } from "../commandTestUtils";
 
 /** Access @command decorator metadata added to the prototype at runtime. */
 function commandData(cls: abstract new (...args: never[]) => unknown): Record<string, unknown> {
@@ -44,7 +44,7 @@ describe("OccPerformanceTestCommand", () => {
     });
 
     test("createShape should call shapeFactory.box and add node", () => {
-        const restoreApp = stubGlobalApp();
+        const restoreApp = ensureGlobalStubApp();
         try {
             const cmd = new OccPerformanceTestCommand();
             const mat: Material = { id: "mat-1", name: "test" } as Material;

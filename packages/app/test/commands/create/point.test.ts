@@ -5,11 +5,11 @@ import { XYZ } from "@chili3d/core";
 import { afterAll, beforeAll, describe, expect, test } from "@rstest/core";
 import { PointNode } from "../../../src/bodys/point";
 import { Point } from "../../../src/commands/create/point";
-import { seedStepDatas, stubGlobalApp, wireCommand } from "../commandTestUtils";
+import { ensureGlobalStubApp, seedStepDatas, wireCommand } from "../commandTestUtils";
 
 let restoreApp: () => void;
 beforeAll(() => {
-    restoreApp = stubGlobalApp();
+    restoreApp = ensureGlobalStubApp();
 });
 afterAll(() => restoreApp());
 

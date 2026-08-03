@@ -1,7 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { Matrix4, PubSub, Result, ShapeTypes } from "@chili3d/core";
+import { type IDocument, type IShapeProvider, Matrix4, PubSub, Result, ShapeTypes } from "@chili3d/core";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { ShellCommand } from "../../../src/commands/modify/shell";
 import {
@@ -55,6 +55,36 @@ function buildShellCommand(faceCount = 2) {
     return { cmd, parent, shape, solidNode, faces, doc };
 }
 
+/**
+ * Stub `shapeProvider.factory`: `makeThickSolidByJoin` is handled by the given
+ * callback, every other factory method returns a plain mock shape.
+ * Returns a restore function — call it in `finally`.
+ */
+function stubShapeFactory(onMakeThickSolidByJoin: (args: any[]) => unknown): () => void {
+    const provider = (globalThis as any).app.shapeProvider as IShapeProvider;
+    const original = provider.factory;
+    Object.defineProperty(provider, "factory", {
+        configurable: true,
+        value: new Proxy(
+            {},
+            {
+                get:
+                    (_t, prop) =>
+                    (...args: any[]) =>
+                        prop === "makeThickSolidByJoin" ? onMakeThickSolidByJoin(args) : mockShape(),
+            },
+        ),
+    });
+    return () => {
+        Object.defineProperty(provider, "factory", { configurable: true, value: original });
+    };
+}
+
+/** Make the mock selection report the given faces as the currently selected shapes. */
+function stubSelectedFaces(doc: IDocument, faces: any[]): void {
+    (doc.selection as any).getSelectedShapes = () => faces.map((f) => ({ shape: f }));
+}
+
 describe("ShellCommand", () => {
     let restoreTx: () => void;
     beforeEach(() => {
@@ -76,6 +106,7 @@ describe("ShellCommand", () => {
 
     test("thickness setter should update property", () => {
         const cmd = new ShellCommand();
+        wireCommand(cmd);
         cmd.thickness = 5;
         expect(cmd.thickness).toBe(5);
     });
@@ -88,6 +119,7 @@ describe("ShellCommand", () => {
 
     test("mapOffsetMode should map each option to its OffsetMode", () => {
         const cmd = new ShellCommand();
+        wireCommand(cmd);
         cmd.offsetMode = "option.command.offsetMode.skin";
         expect(cmd.mapOffsetMode()).toBe("skin");
         cmd.offsetMode = "option.command.offsetMode.pipe";
@@ -149,22 +181,10 @@ describe("ShellCommand", () => {
             cmd.offsetMode = "option.command.offsetMode.pipe";
             cmd.intersection = true;
 
-            const provider = (globalThis as any).app.shapeProvider;
-            const original = provider.factory;
             const calls: any[] = [];
-            Object.defineProperty(provider, "factory", {
-                configurable: true,
-                value: new Proxy(
-                    {},
-                    {
-                        get:
-                            (_t, prop) =>
-                            (...args: any[]) => {
-                                if (prop === "makeThickSolidByJoin") calls.push(args);
-                                return mockShape();
-                            },
-                    },
-                ),
+            const restoreFactory = stubShapeFactory((args) => {
+                calls.push(args);
+                return mockShape();
             });
 
             try {
@@ -178,32 +198,14 @@ describe("ShellCommand", () => {
                 expect(calls[0][5]).toBe(true); // intersection is the 6th arg
                 expect(calls[0][1].map((x: any) => x.id)).toEqual(["face-0", "face-1", "face-2"]);
             } finally {
-                Object.defineProperty(provider, "factory", {
-                    configurable: true,
-                    value: original,
-                });
+                restoreFactory();
             }
         });
 
         test("should not modify the document when the shell operation fails", () => {
             const { cmd, parent, doc } = buildShellCommand();
 
-            const provider = (globalThis as any).app.shapeProvider;
-            const original = provider.factory;
-            Object.defineProperty(provider, "factory", {
-                configurable: true,
-                value: new Proxy(
-                    {},
-                    {
-                        get:
-                            (_t, prop) =>
-                            (..._args: any[]) => {
-                                if (prop === "makeThickSolidByJoin") return Result.err("shell failed");
-                                return mockShape();
-                            },
-                    },
-                ),
-            });
+            const restoreFactory = stubShapeFactory(() => Result.err("shell failed"));
 
             try {
                 (cmd as any).executeMainTask();
@@ -211,10 +213,7 @@ describe("ShellCommand", () => {
                 expect(parent.removed).toHaveLength(0);
                 expect(doc.visual.update).not.toHaveBeenCalled();
             } finally {
-                Object.defineProperty(provider, "factory", {
-                    configurable: true,
-                    value: original,
-                });
+                restoreFactory();
             }
         });
     });
@@ -237,30 +236,17 @@ describe("ShellCommand", () => {
             rs.useFakeTimers();
             const { cmd, shape, faces, doc } = buildShellCommand(2);
 
-            const provider = (globalThis as any).app.shapeProvider;
-            const original = provider.factory;
             const calls: any[] = [];
-            Object.defineProperty(provider, "factory", {
-                configurable: true,
-                value: new Proxy(
-                    {},
-                    {
-                        get:
-                            (_t, prop) =>
-                            (...args: any[]) => {
-                                if (prop === "makeThickSolidByJoin") {
-                                    calls.push(args);
-                                    return Result.ok(mockShape());
-                                }
-                                return mockShape();
-                            },
-                    },
-                ),
+            const restoreFactory = stubShapeFactory((args) => {
+                calls.push(args);
+                return Result.ok(mockShape());
             });
 
             try {
                 const step0Owner = (cmd as any).stepDatas[0].shapes[0].owner;
-                (cmd as any).onOpenFacesChanged(faces.map((f: any) => ({ shape: f })));
+                // The handler ignores event args and reads the selection itself
+                stubSelectedFaces(doc, faces);
+                (cmd as any).onOpenFacesChanged();
 
                 // Debounced: the factory is not called before the delay elapses
                 expect(calls).toHaveLength(0);
@@ -274,10 +260,7 @@ describe("ShellCommand", () => {
                 expect(doc.visual.context.displayMesh).toHaveBeenCalled();
                 expect(doc.visual.update).toHaveBeenCalled();
             } finally {
-                Object.defineProperty(provider, "factory", {
-                    configurable: true,
-                    value: original,
-                });
+                restoreFactory();
                 rs.useRealTimers();
             }
         });
@@ -289,7 +272,7 @@ describe("ShellCommand", () => {
                 const step0Owner = (cmd as any).stepDatas[0].shapes[0].owner;
                 step0Owner.visible = false;
 
-                (cmd as any).onOpenFacesChanged([]);
+                (cmd as any).onOpenFacesChanged();
                 rs.advanceTimersByTime(25);
 
                 expect(step0Owner.visible).toBe(true);
@@ -302,37 +285,20 @@ describe("ShellCommand", () => {
         test("should publish a toast and restore visibility when the preview fails", () => {
             rs.useFakeTimers();
             const pubSpy = rs.spyOn(PubSub.default, "pub").mockImplementation(() => {});
-            const { cmd, faces } = buildShellCommand(1);
+            const { cmd, faces, doc } = buildShellCommand(1);
 
-            const provider = (globalThis as any).app.shapeProvider;
-            const original = provider.factory;
-            Object.defineProperty(provider, "factory", {
-                configurable: true,
-                value: new Proxy(
-                    {},
-                    {
-                        get:
-                            (_t, prop) =>
-                            (..._args: any[]) => {
-                                if (prop === "makeThickSolidByJoin") return Result.err("shell failed");
-                                return mockShape();
-                            },
-                    },
-                ),
-            });
+            const restoreFactory = stubShapeFactory(() => Result.err("shell failed"));
 
             try {
                 const step0Owner = (cmd as any).stepDatas[0].shapes[0].owner;
-                (cmd as any).onOpenFacesChanged(faces.map((f: any) => ({ shape: f })));
+                stubSelectedFaces(doc, faces);
+                (cmd as any).onOpenFacesChanged();
                 rs.advanceTimersByTime(25);
 
                 expect(step0Owner.visible).toBe(true);
                 expect(pubSpy).toHaveBeenCalledWith("showToast", "error.default:{0}", "shell failed");
             } finally {
-                Object.defineProperty(provider, "factory", {
-                    configurable: true,
-                    value: original,
-                });
+                restoreFactory();
                 pubSpy.mockRestore();
                 rs.useRealTimers();
             }
