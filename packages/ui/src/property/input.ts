@@ -109,7 +109,7 @@ export class InputProperty extends PropertyBase {
     };
 
     private readonly setValue = (input: HTMLInputElement) => {
-        if (this.isReadOnly()) return;
+        if (this.isReadOnly() || input.value === "") return;
 
         const newValue = this.converter?.convertBack?.(input.value);
         if (!newValue?.isOk) {
