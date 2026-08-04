@@ -4,7 +4,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Matrix4, XYZ } from "@chili3d/core";
-import { convertFromMatrix } from "../src/helper";
+import type { Geom_Plane } from "../lib/chili-wasm";
+import { convertFromMatrix, fromPln } from "../src/helper";
 import { testAx3 } from "./helpers";
 import "./setup";
 
@@ -89,6 +90,46 @@ test("should check point containment in a solid", () => {
     expect(wasm.Solid.containsPoint(box, { x: 1, y: 1, z: 1 }, true, 0.1)).toBe(true);
     expect(wasm.Solid.containsPoint(box, { x: 1, y: 1, z: 1 }, false, 0.1)).toBe(false);
     expect(wasm.Solid.containsPoint(box, { x: 1.5, y: 1.5, z: 1.5 }, false, 0.1)).toBe(false);
+});
+
+test("should fuse a box with its mirror copy across a box face", () => {
+    const box = wasm.ShapeFactory.box(testAx3, 1, 1, 1).shape;
+
+    // find the planar face at x = 1 to use as the mirror plane
+    const faces = wasm.Shape.findSubShapes(box, wasm.TopAbs_ShapeEnum.TopAbs_FACE);
+    const mirrorPln = faces
+        .map((f) => wasm.Face.surface(wasm.TopoDS.face(f)).get())
+        .filter((s) => s !== null && wasm.Transient.isInstance(s, "Geom_Plane"))
+        .map((s) => (s as Geom_Plane).pln())
+        .find((pln) => {
+            const ax = pln.position();
+            return Math.abs(ax.location().x - 1) < 1e-7 && Math.abs(Math.abs(ax.direction().x) - 1) < 1e-7;
+        });
+    expect(mirrorPln).not.toBeUndefined();
+
+    const plane = fromPln(mirrorPln!);
+    const mirrorMatrix = Matrix4.createMirrorWithPlane(plane);
+
+    // copy the box through the mirror matrix: the copy spans x in [1, 2]
+    // (BRepBuilderAPI_Transform rebuilds the geometry — a mirror cannot be a TopLoc location)
+    const trsf = convertFromMatrix(mirrorMatrix);
+    const mirrored = wasm.Shape.transformed(box, trsf);
+
+    // NOTE: fuse before any Solid.volume call — BRepGProp on the mirrored solid
+    // corrupts the subsequent boolean operation (observed empirically).
+    const fuse = wasm.ShapeFactory.booleanFuse([box], [mirrored]);
+    expect(fuse.isOk).toBe(true);
+    const fused = fuse.shape;
+    expect(fused.isNull()).toBe(false);
+
+    expect(wasm.Solid.volume(wasm.TopoDS.solid(mirrored))).toBeCloseTo(1, 6);
+
+    // two unit boxes sharing one face fuse into a single solid of volume 2 spanning x in [0, 2]
+    const solids = wasm.Shape.findSubShapes(fused, wasm.TopAbs_ShapeEnum.TopAbs_SOLID);
+    expect(solids.length).toBe(1);
+    expect(wasm.Solid.volume(wasm.TopoDS.solid(solids[0]))).toBeCloseTo(2, 6);
+    expect(wasm.Solid.containsPoint(fused, { x: 1.5, y: 0.5, z: 0.5 }, false, 1e-7)).toBe(true);
+    expect(wasm.Solid.containsPoint(fused, { x: 2.5, y: 0.5, z: 0.5 }, false, 1e-7)).toBe(false);
 });
 
 test("initWasm can be called repeatedly and the module stays functional", async () => {

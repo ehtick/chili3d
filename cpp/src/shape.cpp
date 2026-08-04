@@ -11,6 +11,7 @@
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
 #include <BRepExtrema_ExtCC.hxx>
 #include <BRepGProp.hxx>
 #include <BRepGProp_Face.hxx>
@@ -93,6 +94,13 @@ public:
     {
         BRepBuilderAPI_Copy copy(shape);
         return copy.Shape();
+    }
+
+    static TopoDS_Shape transformed(const TopoDS_Shape& shape, const gp_Trsf& trsf)
+    {
+        BRepBuilderAPI_Transform transform(trsf);
+        transform.Perform(shape, true);
+        return transform.Shape();
     }
 
     static void clean(TopoDS_Shape& shape)
@@ -561,6 +569,7 @@ EMSCRIPTEN_BINDINGS(Shape)
         .class_function("extremaDistance", &Shape::extremaDistance)
         .class_function("clean", &Shape::clean)
         .class_function("clone", &Shape::clone)
+        .class_function("transformed", &Shape::transformed)
         .class_function("findAncestor", &Shape::findAncestor)
         .class_function("findSubShapes", &Shape::findSubShapes)
         .class_function("getDirectSubShapes", &Shape::getDirectSubShapes)

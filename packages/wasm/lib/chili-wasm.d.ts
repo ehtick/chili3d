@@ -810,6 +810,7 @@ interface EmbindModule {
     extremaDistance(_0: TopoDS_Shape, _1: TopoDS_Shape): number;
     clean(_0: TopoDS_Shape): void;
     clone(_0: TopoDS_Shape): TopoDS_Shape;
+    transformed(_0: TopoDS_Shape, _1: gp_Trsf): TopoDS_Shape;
     sectionSS(_0: TopoDS_Shape, _1: TopoDS_Shape): TopoDS_Shape;
     isClosed(_0: TopoDS_Shape): boolean;
     check(_0: TopoDS_Shape): boolean;
