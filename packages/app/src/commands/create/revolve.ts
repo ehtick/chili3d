@@ -18,13 +18,13 @@ import {
     VisualStates,
 } from "@chili3d/core";
 import { RevolvedNode } from "../../bodys";
-import { CreateCommand } from "../createCommand";
+import { CreateFromSelectionCommand } from "../createCommand";
 
 @command({
     key: "create.revol",
     icon: "icon-revolve",
 })
-export class Revolve extends CreateCommand {
+export class Revolve extends CreateFromSelectionCommand {
     @property("common.angle")
     public get angle() {
         return this.getPrivateValue("angle", 360);

@@ -214,6 +214,7 @@ export const I18N_KEYS = [
     "model.visible",
     "option.command.circularPattern",
     "option.command.continuity",
+    "option.command.deleteObjects",
     "option.command.insertPoint",
     "option.command.intersection",
     "option.command.isConnected",

@@ -20,8 +20,11 @@ import {
     type ShapeMeshData,
     type ShapeType,
     ShapeTypes,
+    type SnapResult,
+    Transaction,
     VisualConfig,
 } from "@chili3d/core";
+import { selectedWholeShapeNodes } from "../createCommand";
 
 @command({
     key: "create.loft",
@@ -30,6 +33,7 @@ import {
 export class LoftCommand extends CancelableCommand {
     private visual: number | undefined = undefined;
     private readonly shapes: IShape[] = [];
+    private readonly selectedDatas: SnapResult[] = [];
     private shape: Result<IShape> = Result.err("None shape");
     private readonly _continuity = Continuities[0];
 
@@ -72,6 +76,14 @@ export class LoftCommand extends CancelableCommand {
         });
     }
 
+    @property("option.command.deleteObjects")
+    get deleteObjects() {
+        return this.getPrivateValue("deleteObjects", true);
+    }
+    set deleteObjects(value: boolean) {
+        this.setProperty("deleteObjects", value);
+    }
+
     @property("common.confirm")
     readonly confirm = () => {
         this.controller?.success();
@@ -90,12 +102,20 @@ export class LoftCommand extends CancelableCommand {
                 }
 
                 this.shapes.push(data.shapes[0].shape.transformedMul(data.nodes![0].worldTransform()));
+                this.selectedDatas.push(data);
                 this.displayVisual();
             }
 
-            this.document.modelManager.addNode(
-                new EditableShapeNode({ document: this.document, name: "loft", shape: this.shape }),
-            );
+            Transaction.execute(this.document, "loft", () => {
+                this.document.modelManager.addNode(
+                    new EditableShapeNode({ document: this.document, name: "loft", shape: this.shape }),
+                );
+                if (this.deleteObjects) {
+                    selectedWholeShapeNodes(this.selectedDatas).forEach((node) => {
+                        node.parent?.remove(node);
+                    });
+                }
+            });
         } finally {
             this.clearVisual();
         }

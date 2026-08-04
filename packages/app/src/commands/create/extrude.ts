@@ -16,13 +16,13 @@ import {
     ShapeTypes,
 } from "@chili3d/core";
 import { closedProfileToFace, ExtrudeNode } from "../../bodys";
-import { CreateCommand } from "../createCommand";
+import { CreateFromSelectionCommand } from "../createCommand";
 
 @command({
     key: "create.extrude",
     icon: "icon-prism",
 })
-export class ExtrudeCommand extends CreateCommand {
+export class ExtrudeCommand extends CreateFromSelectionCommand {
     protected override geometryNode(): GeometryNode {
         const shape = this.transformdFirstShape(this.stepDatas[0], false);
         const { point, normal } = this.getAxis(shape);

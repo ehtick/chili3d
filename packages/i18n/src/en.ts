@@ -219,6 +219,7 @@ export default {
         "model.visible": "Visible",
         "option.command.circularPattern": "Circular Pattern",
         "option.command.continuity": "Continuity",
+        "option.command.deleteObjects": "Delete Objects",
         "option.command.insertPoint": "Insert Point",
         "option.command.intersection": "Intersection",
         "option.command.isConnected": "Connected",

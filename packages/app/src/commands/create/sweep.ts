@@ -13,13 +13,13 @@ import {
     VisualStates,
 } from "@chili3d/core";
 import { SweepedNode } from "../../bodys";
-import { CreateCommand } from "../createCommand";
+import { CreateFromSelectionCommand } from "../createCommand";
 
 @command({
     key: "create.sweep",
     icon: "icon-sweep",
 })
-export class Sweep extends CreateCommand {
+export class Sweep extends CreateFromSelectionCommand {
     @property("option.command.isRoundCorner")
     get round() {
         return this.getPrivateValue("round", false);

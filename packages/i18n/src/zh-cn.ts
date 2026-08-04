@@ -219,6 +219,7 @@ export default {
         "model.visible": "可见",
         "option.command.circularPattern": "弧形阵列",
         "option.command.continuity": "连续性",
+        "option.command.deleteObjects": "删除对象",
         "option.command.insertPoint": "插入点",
         "option.command.intersection": "相交",
         "option.command.isConnected": "相连",
