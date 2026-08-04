@@ -13,6 +13,7 @@ import {
     type IShape,
     type IShapeFilter,
     type ISubEdgeShape,
+    type ITrimmedCurve,
     MultistepCommand,
     Precision,
     PubSub,
@@ -46,10 +47,18 @@ interface SupportCurve {
     value(u: number): XYZ;
 }
 
+function getBasisCurve(curve: ICurve) {
+    let basisCurve = curve;
+    while ((basisCurve as ITrimmedCurve).basisCurve) {
+        basisCurve = (basisCurve as ITrimmedCurve).basisCurve;
+    }
+    return basisCurve;
+}
+
 /** The support curve of an edge; undefined when the edge is neither straight nor an arc. */
 function supportCurve(edge: IEdge): SupportCurve | undefined {
     const curve = edge.curve;
-    const basis = CurveUtils.isTrimmed(curve) ? curve.basisCurve : curve;
+    const basis = getBasisCurve(curve);
     const range = {
         first: curve.firstParameter(),
         last: curve.lastParameter(),

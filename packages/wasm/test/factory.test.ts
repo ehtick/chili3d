@@ -1169,6 +1169,28 @@ describe("ShapeFactory — 2D fillet & chamfer", () => {
             expect((filletEdges[2] as unknown as OccEdge).length()).toBeCloseTo(7, 5);
         });
 
+        test("should fillet offset edges at their offset position", () => {
+            // Offsetting along Z shifts in-plane: edge1 to y=-2, edge2 to x=2.
+            // The support lines meet at (2, -2, 0), inside edge1, outside edge2.
+            const edge1 = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 }))) as OccEdge;
+            const edge2 = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 0, y: 10, z: 0 }))) as OccEdge;
+            const offset1 = unwrapOk(edge1.offset(2, XYZ.unitZ)) as OccEdge;
+            const offset2 = unwrapOk(edge2.offset(2, XYZ.unitZ)) as OccEdge;
+            const result = factory.filletEdge2d(offset1, offset2, 1);
+            expect(result.isOk).toBe(true);
+            const filletEdges = result.value;
+            expect(filletEdges.length).toBe(3);
+            // tangent points at (3, -2, 0) and (2, -1, 0): kept sides lie on the offset lines
+            const newE1 = filletEdges[0] as unknown as OccEdge;
+            expect(newE1.length()).toBeCloseTo(7, 5);
+            expect(newE1.curve.startPoint().y).toBeCloseTo(-2, 5);
+            expect(newE1.curve.endPoint().y).toBeCloseTo(-2, 5);
+            const newE2 = filletEdges[2] as unknown as OccEdge;
+            expect(newE2.length()).toBeCloseTo(11, 5);
+            expect(newE2.curve.startPoint().x).toBeCloseTo(2, 5);
+            expect(newE2.curve.endPoint().x).toBeCloseTo(2, 5);
+        });
+
         test("should return error when edges are parallel", () => {
             const edge1 = factory.line(new XYZ({ x: 0, y: 0, z: 0 }), new XYZ({ x: 10, y: 0, z: 0 })).value;
             const edge2 = factory.line(new XYZ({ x: 0, y: 5, z: 0 }), new XYZ({ x: 10, y: 5, z: 0 })).value;
@@ -1252,6 +1274,30 @@ describe("ShapeFactory — 2D fillet & chamfer", () => {
             expect((chamferEdges[0] as unknown as OccEdge).length()).toBeCloseTo(9, 5);
             // longer side of edge2 is [-8, 0], cut at y=-1 -> length 7
             expect((chamferEdges[2] as unknown as OccEdge).length()).toBeCloseTo(7, 5);
+        });
+
+        test("should chamfer offset edges at their offset position", () => {
+            // Offsetting along Z shifts in-plane: edge1 to y=-2, edge2 to x=2.
+            // The support lines meet at (2, -2, 0), inside edge1, outside edge2.
+            const edge1 = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 }))) as OccEdge;
+            const edge2 = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 0, y: 10, z: 0 }))) as OccEdge;
+            const offset1 = unwrapOk(edge1.offset(2, XYZ.unitZ)) as OccEdge;
+            const offset2 = unwrapOk(edge2.offset(2, XYZ.unitZ)) as OccEdge;
+            const result = factory.chamferEdge2d(offset1, offset2, 1);
+            expect(result.isOk).toBe(true);
+            const chamferEdges = result.value;
+            expect(chamferEdges.length).toBe(3);
+            // cut points at (3, -2, 0) and (2, -1, 0) on the offset lines
+            const newE1 = chamferEdges[0] as unknown as OccEdge;
+            expect(newE1.length()).toBeCloseTo(7, 5);
+            expect(newE1.curve.startPoint().y).toBeCloseTo(-2, 5);
+            expect(newE1.curve.endPoint().y).toBeCloseTo(-2, 5);
+            const chamferEdge = chamferEdges[1] as unknown as OccEdge;
+            expect(chamferEdge.length()).toBeCloseTo(Math.SQRT2, 5);
+            const newE2 = chamferEdges[2] as unknown as OccEdge;
+            expect(newE2.length()).toBeCloseTo(11, 5);
+            expect(newE2.curve.startPoint().x).toBeCloseTo(2, 5);
+            expect(newE2.curve.endPoint().x).toBeCloseTo(2, 5);
         });
 
         test("should return error when edges are parallel", () => {

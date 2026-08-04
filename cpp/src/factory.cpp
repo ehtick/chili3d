@@ -47,6 +47,7 @@
 #include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <Geom_BezierCurve.hxx>
 #include <Geom_Line.hxx>
+#include <Geom_OffsetCurve.hxx>
 #include <Geom_TrimmedCurve.hxx>
 #include <ShapeAnalysis_Edge.hxx>
 #include <ShapeAnalysis_WireOrder.hxx>
@@ -135,10 +136,32 @@ static val buildEdgeTriple(const TopoDS_Edge& a, const TopoDS_Edge& b, const Top
     return edges;
 }
 
-// The curve underlying an edge with its parameter range, unwrapping trimmed curves.
+// Line equivalent of a curve, unwrapping trimmed and offset curves (an offset of a line
+// is the same line translated, with the same parametrization). Null when not linear.
+static Handle(Geom_Line) asLine(const Handle(Geom_Curve) & curve)
+{
+    if (auto trimmed = Handle(Geom_TrimmedCurve)::DownCast(curve))
+        return asLine(trimmed->BasisCurve());
+    if (auto line = Handle(Geom_Line)::DownCast(curve))
+        return line;
+    if (auto offset = Handle(Geom_OffsetCurve)::DownCast(curve)) {
+        if (auto basisLine = asLine(offset->BasisCurve())) {
+            gp_Vec shift(basisLine->Value(0.0), offset->Value(0.0));
+            return new Geom_Line(
+                gp_Lin(basisLine->Lin().Location().Translated(shift), basisLine->Lin().Direction()));
+        }
+    }
+    return nullptr;
+}
+
+// The curve underlying an edge with its parameter range, unwrapping trimmed curves. An
+// offset of a line is replaced by the equivalent plain line, so that fillet/chamfer
+// operate at the offset position instead of the pre-offset one.
 static Handle(Geom_Curve) basisCurve(const TopoDS_Edge& edge, double& first, double& last)
 {
     Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+    if (auto line = asLine(curve))
+        return line;
     if (auto trimmed = Handle(Geom_TrimmedCurve)::DownCast(curve))
         curve = trimmed->BasisCurve();
     return curve;

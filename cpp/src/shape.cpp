@@ -384,8 +384,20 @@ public:
     static TopoDS_Edge trim(const TopoDS_Edge& edge, double start, double end)
     {
         double u1(0.0), u2(0.0);
-        auto curve = BRep_Tool::Curve(edge, u1, u2);
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, u1, u2);
+        // A Geom_OffsetCurve on a trimmed basis is bounded by the basis trim range,
+        // rebase it on the untrimmed basis so trimming beyond the edge range works.
+        Handle(Geom_OffsetCurve) offsetCurve = Handle(Geom_OffsetCurve)::DownCast(curve);
+        if (!offsetCurve.IsNull()) {
+            Handle(Geom_TrimmedCurve) trimmedBasis = Handle(Geom_TrimmedCurve)::DownCast(offsetCurve->BasisCurve());
+            if (!trimmedBasis.IsNull()) {
+                curve = new Geom_OffsetCurve(trimmedBasis->BasisCurve(), offsetCurve->Offset(), offsetCurve->Direction());
+            }
+        }
         BRepBuilderAPI_MakeEdge builder(curve, start, end);
+        if (!builder.IsDone()) {
+            return TopoDS_Edge();
+        }
         return builder.Edge();
     }
 
