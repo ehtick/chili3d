@@ -5,11 +5,13 @@ import {
     GeometryUtils,
     type I18nKeys,
     type IDocument,
+    type IEdge,
     type IFace,
     type IShape,
+    type IWire,
     ParameterShapeNode,
     property,
-    type Result,
+    Result,
     ShapeTypes,
     serializable,
     serialize,
@@ -19,6 +21,19 @@ export interface PrismOptions {
     document: IDocument;
     section: IShape;
     length: number;
+}
+
+/**
+ * Convert a closed profile to a face. A wire is used directly; a closed edge
+ * (e.g. a circle) is first built into a wire.
+ */
+export function closedProfileToFace(section: IShape): Result<IFace> {
+    if (section.shapeType === ShapeTypes.wire) {
+        return shapeFactory.face([section as IWire]);
+    }
+    const wire = shapeFactory.wire([section as IEdge]);
+    if (!wire.isOk) return Result.err(wire.error);
+    return shapeFactory.face([wire.value]);
 }
 
 @serializable()
@@ -58,6 +73,14 @@ export class ExtrudeNode extends ParameterShapeNode {
             if (!sur.isPlanar()) {
                 return shapeFactory.makeThickSolidBySimple(this.section, this.length);
             }
+        } else if (
+            (this.section.shapeType === ShapeTypes.wire || this.section.shapeType === ShapeTypes.edge) &&
+            this.section.isClosed()
+        ) {
+            // Extruding a closed profile (wire or circle edge) as a face produces a solid instead of a shell.
+            const face = closedProfileToFace(this.section);
+            if (!face.isOk) return Result.err(face.error);
+            return shapeFactory.prism(face.value, vec);
         }
         return shapeFactory.prism(this.section, vec);
     }

@@ -15,7 +15,7 @@ import {
     type ShapeType,
     ShapeTypes,
 } from "@chili3d/core";
-import { ExtrudeNode } from "../../bodys";
+import { closedProfileToFace, ExtrudeNode } from "../../bodys";
 import { CreateCommand } from "../createCommand";
 
 @command({
@@ -55,6 +55,14 @@ export class ExtrudeCommand extends CreateCommand {
                     const sur = (shape as IFace).surface();
                     if (!sur.isPlanar()) {
                         return [this.meshCreatedShape("makeThickSolidBySimple", shape, dist)];
+                    }
+                } else if (
+                    (shape.shapeType === ShapeTypes.wire || shape.shapeType === ShapeTypes.edge) &&
+                    shape.isClosed()
+                ) {
+                    const face = closedProfileToFace(shape);
+                    if (face.isOk) {
+                        return [this.meshCreatedShape("prism", face.value, vec)];
                     }
                 }
                 return [this.meshCreatedShape("prism", shape, vec)];

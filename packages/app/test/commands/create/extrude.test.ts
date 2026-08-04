@@ -65,6 +65,7 @@ describe("ExtrudeCommand", () => {
                         shape: {
                             shapeType: ShapeTypes.face,
                             normal: () => [XYZ.zero, XYZ.unitZ],
+                            isClosed: () => false,
                         } as Partial<IShape>,
                         point: XYZ.zero,
                     },

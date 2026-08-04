@@ -3,10 +3,10 @@
 
 import type { IDocument, IShape } from "@chili3d/core";
 import { Result, ShapeTypes, XYZ } from "@chili3d/core";
-import { createMockDocument } from "@chili3d/core/test-utils";
+import { createMockDocument, createMockEdgeCurve } from "@chili3d/core/test-utils";
 import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { ExtrudeNode } from "../../src/bodys/extrude";
-import { createMockShape, createMockWire, setupShapeFactoryMock } from "./_utils";
+import { createMockEdge, createMockShape, createMockWire, setupShapeFactoryMock } from "./_utils";
 
 describe("ExtrudeNode", () => {
     let doc: IDocument;
@@ -91,6 +91,68 @@ describe("ExtrudeNode", () => {
             expect(prism).toHaveBeenCalledTimes(1);
             expect(prism.mock.calls[0].length).toBe(2);
             expect(prism.mock.calls[0][0]).toBe(section);
+        });
+
+        test("should convert closed wire to face and prism the face to produce a solid", () => {
+            const closedWire = Object.assign(createMockWire(), { isClosed: () => true });
+            const faceShape = createMockShape();
+            const face = rs.fn((_wires: any[]) => Result.ok(faceShape as any));
+            const prism = rs.fn((_shape: IShape, _vec: XYZ) => Result.ok(createMockShape() as any));
+            setupShapeFactoryMock({ face, prism });
+            const node = new ExtrudeNode({ document: doc, section: closedWire, length: 10 });
+            const result = node.generateShape();
+            expect(face).toHaveBeenCalledWith([closedWire]);
+            expect(prism).toHaveBeenCalledTimes(1);
+            expect(prism.mock.calls[0][0]).toBe(faceShape);
+            expect(result.isOk).toBe(true);
+        });
+
+        test("should return Result.err when face creation fails for closed wire", () => {
+            const closedWire = Object.assign(createMockWire(), { isClosed: () => true });
+            const prism = rs.fn((_shape: IShape, _vec: XYZ) => Result.ok(createMockShape() as any));
+            setupShapeFactoryMock({ face: () => Result.err("face creation failed"), prism });
+            const node = new ExtrudeNode({ document: doc, section: closedWire, length: 10 });
+            const result = node.generateShape();
+            expect(result.isOk).toBe(false);
+            expect(prism).not.toHaveBeenCalled();
+        });
+
+        test("should convert closed edge (circle) to wire then face before prism", () => {
+            const circle = createMockEdge({ curve: createMockEdgeCurve() });
+            const wireShape = createMockWire();
+            const faceShape = createMockShape();
+            const wire = rs.fn((_edges: any[]) => Result.ok(wireShape as any));
+            const face = rs.fn((_wires: any[]) => Result.ok(faceShape as any));
+            const prism = rs.fn((_shape: IShape, _vec: XYZ) => Result.ok(createMockShape() as any));
+            setupShapeFactoryMock({ wire, face, prism });
+            const node = new ExtrudeNode({ document: doc, section: circle, length: 10 });
+            const result = node.generateShape();
+            expect(wire).toHaveBeenCalledWith([circle]);
+            expect(face).toHaveBeenCalledWith([wireShape]);
+            expect(prism).toHaveBeenCalledTimes(1);
+            expect(prism.mock.calls[0][0]).toBe(faceShape);
+            expect(result.isOk).toBe(true);
+        });
+
+        test("should return Result.err when wire creation fails for closed edge", () => {
+            const circle = createMockEdge({ curve: createMockEdgeCurve() });
+            const prism = rs.fn((_shape: IShape, _vec: XYZ) => Result.ok(createMockShape() as any));
+            setupShapeFactoryMock({ wire: () => Result.err("wire creation failed"), prism });
+            const node = new ExtrudeNode({ document: doc, section: circle, length: 10 });
+            const result = node.generateShape();
+            expect(result.isOk).toBe(false);
+            expect(prism).not.toHaveBeenCalled();
+        });
+
+        test("should prism open edge directly without creating a face", () => {
+            const openEdge = createMockEdge({ isClosed: () => false, curve: createMockEdgeCurve() });
+            const prism = rs.fn((_shape: IShape, _vec: XYZ) => Result.ok(createMockShape() as any));
+            setupShapeFactoryMock({ prism });
+            const node = new ExtrudeNode({ document: doc, section: openEdge, length: 10 });
+            const result = node.generateShape();
+            expect(prism).toHaveBeenCalledTimes(1);
+            expect(prism.mock.calls[0][0]).toBe(openEdge);
+            expect(result.isOk).toBe(true);
         });
 
         test("should return Result.err when shapeFactory.prism fails", () => {
