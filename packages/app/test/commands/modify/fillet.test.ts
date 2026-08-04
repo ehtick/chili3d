@@ -36,6 +36,7 @@ function buildFilletCommand(edges: number[], opts: { bodyType?: ShapeType } = {}
     const parent = doc.modelManager.rootNode as unknown as TrackingParent;
     const solidNode = {
         name: "solid0",
+        document: doc,
         shape: { value: shape },
         transform: Matrix4.identity(),
         materialId: "mat-1",

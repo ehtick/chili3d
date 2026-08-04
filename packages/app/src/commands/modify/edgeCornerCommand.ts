@@ -47,7 +47,7 @@ function faceContaining(parent: IShape, sub: ISubEdgeShape): IFace | undefined {
 }
 
 /** Two adjacent sub-edges of a wire, ordered along the wire flow. */
-interface OrderedCorner {
+export interface OrderedCorner {
     edge1: IEdge;
     edge2: IEdge;
     index1: number;
@@ -55,7 +55,7 @@ interface OrderedCorner {
 }
 
 /** Order the two sub-edges along the wire flow (handles the closed-wire wrap). */
-function orderCornerEdges(
+export function orderCornerEdges(
     allEdges: IEdge[],
     sub1: ISubEdgeShape,
     sub2: ISubEdgeShape,
@@ -71,6 +71,30 @@ function orderCornerEdges(
         [index1, index2] = [index2, index1];
     }
     return { edge1, edge2, index1, index2 };
+}
+
+/**
+ * Replace a shape node by an EditableShapeNode holding the new shape, keeping
+ * the name, material, transform and position in the node tree. When the node
+ * already is an EditableShapeNode only its shape is swapped.
+ */
+export function replaceShapeNode(node: ShapeNode, shape: IShape) {
+    if (node instanceof EditableShapeNode) {
+        node.shape = Result.ok(shape);
+    } else {
+        const model = new EditableShapeNode({
+            document: node.document,
+            name: node.name,
+            shape,
+            materialId: node.materialId,
+        });
+        model.transform = node.transform;
+
+        (node.parent ?? node.document.modelManager.rootNode).add(model);
+        node.parent?.remove(node);
+    }
+
+    node.document.visual.update();
 }
 
 /** Splice the corner triple into the wire edges in place of the two old edges. */
@@ -122,7 +146,8 @@ export abstract class EdgeCornerCommand extends MultistepCommand {
             PubSub.default.pub("displayError", newShape.error);
             return;
         }
-        this.replaceNode(node, newShape.value);
+
+        replaceShapeNode(node, newShape.value);
     }
 
     private computeNewShape(shapes: VisualShapeData[], parent: IShape, node: ShapeNode): Result<IShape> {
@@ -147,25 +172,6 @@ export abstract class EdgeCornerCommand extends MultistepCommand {
                   shapes[0].shape as ISubEdgeShape,
                   shapes[1].shape as ISubEdgeShape,
               );
-    }
-
-    private replaceNode(node: ShapeNode, shape: IShape) {
-        if (node instanceof EditableShapeNode) {
-            node.shape = Result.ok(shape);
-        } else {
-            const model = new EditableShapeNode({
-                document: this.document,
-                name: node.name,
-                shape,
-                materialId: node.materialId,
-            });
-            model.transform = node.transform;
-
-            (node.parent ?? this.document.modelManager.rootNode).add(model);
-            node.parent?.remove(node);
-        }
-
-        this.document.visual.update();
     }
 
     /** Modify the corner between two adjacent edges of a wire and rebuild the wire. */

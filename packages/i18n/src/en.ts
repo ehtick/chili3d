@@ -101,6 +101,7 @@ export default {
         "command.modify.chamfer": "Chamfer",
         "command.modify.deleteNode": "Delete Node",
         "command.modify.explode": "Explode",
+        "command.modify.extend": "Extend",
         "command.modify.fillet": "Fillet",
         "command.modify.mirror": "Mirror",
         "command.modify.move": "Move",

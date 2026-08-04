@@ -96,6 +96,7 @@ export const I18N_KEYS = [
     "command.modify.chamfer",
     "command.modify.deleteNode",
     "command.modify.explode",
+    "command.modify.extend",
     "command.modify.fillet",
     "command.modify.mirror",
     "command.modify.move",

@@ -101,6 +101,7 @@ export default {
         "command.modify.chamfer": "倒角",
         "command.modify.deleteNode": "删除",
         "command.modify.explode": "分解",
+        "command.modify.extend": "延伸",
         "command.modify.fillet": "圆角",
         "command.modify.mirror": "镜像",
         "command.modify.move": "移动",

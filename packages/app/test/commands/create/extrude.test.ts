@@ -142,6 +142,7 @@ describe("ExtrudeCommand", () => {
                             curve: {
                                 basisCurve: { axis: undefined, dn: () => XYZ.unitX, direction: undefined },
                             },
+                            isClosed: () => false,
                         } as Partial<IShape>,
                         point: XYZ.zero,
                     },
