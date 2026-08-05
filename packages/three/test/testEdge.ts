@@ -24,7 +24,7 @@ import {
     Result,
     type ShapeType,
     ShapeTypes,
-    type XYZ,
+    XYZ,
     type XYZLike,
 } from "@chili3d/core";
 
@@ -128,6 +128,25 @@ export class TestEdge implements IEdge {
     }
     length(): number {
         return this.start.distanceTo(this.end);
+    }
+    firstParameter(): number {
+        return 0;
+    }
+    lastParameter(): number {
+        return this.length();
+    }
+    pointAt(parameter: number): XYZ {
+        const direction = this.end.sub(this.start).normalize() ?? XYZ.unitX;
+        return this.start.add(direction.multiply(parameter));
+    }
+    startPoint(): XYZ {
+        return this.start;
+    }
+    endPoint(): XYZ {
+        return this.end;
+    }
+    ends(): [start: XYZ, end: XYZ] {
+        return [this.start, this.end];
     }
     get curve(): ITrimmedCurve {
         throw new Error("Method not implemented.");

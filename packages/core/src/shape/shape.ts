@@ -73,6 +73,12 @@ export interface IEdge extends IShape {
     intersect(other: IEdge | Line): { parameter: number; point: XYZ }[];
     length(): number;
     get curve(): ITrimmedCurve;
+    firstParameter(): number;
+    lastParameter(): number;
+    pointAt(parameter: number): XYZ;
+    startPoint(): XYZ;
+    endPoint(): XYZ;
+    ends(): [start: XYZ, end: XYZ];
     offset(distance: number, dir: XYZ): Result<IEdge>;
     trim(start: number, end: number): IEdge;
     hasContinuity(face1: IFace, face2: IFace): boolean;

@@ -465,6 +465,31 @@ export class OccEdge extends OccShape implements IEdge {
         return wasm.Edge.curveLength(this.edge);
     }
 
+    firstParameter(): number {
+        return wasm.Edge.firstParameter(this.edge);
+    }
+
+    lastParameter(): number {
+        return wasm.Edge.lastParameter(this.edge);
+    }
+
+    pointAt(parameter: number): XYZ {
+        return toXYZ(wasm.Edge.pointAt(this.edge, parameter));
+    }
+
+    startPoint(): XYZ {
+        return toXYZ(wasm.Edge.startPoint(this.edge));
+    }
+
+    endPoint(): XYZ {
+        return toXYZ(wasm.Edge.endPoint(this.edge));
+    }
+
+    ends(): [start: XYZ, end: XYZ] {
+        const points = wasm.Edge.ends(this.edge);
+        return [toXYZ(points[0]), toXYZ(points[1])];
+    }
+
     private _curve: ITrimmedCurve | undefined;
     get curve(): ITrimmedCurve {
         this._curve ??= gc((c) => {

@@ -56,6 +56,7 @@
 #include <BRepClass3d_SolidClassifier.hxx>
 #include <BRepClass_FaceClassifier.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
+#include <ShapeAnalysis_Edge.hxx>
 #include <ShapeFix_ShapeTolerance.hxx>
 #include <ShapeUpgrade_ShellSewing.hxx>
 
@@ -373,6 +374,46 @@ public:
         return props.Mass();
     }
 
+    static double firstParameter(const TopoDS_Edge& edge)
+    {
+        BRepAdaptor_Curve adaptor(edge);
+        return adaptor.FirstParameter();
+    }
+
+    static double lastParameter(const TopoDS_Edge& edge)
+    {
+        BRepAdaptor_Curve adaptor(edge);
+        return adaptor.LastParameter();
+    }
+
+    static Vector3 pointAt(const TopoDS_Edge& edge, double parameter)
+    {
+        BRepAdaptor_Curve adaptor(edge);
+        return Vector3::fromPnt(adaptor.Value(parameter));
+    }
+
+    static Vector3 startPoint(const TopoDS_Edge& edge)
+    {
+        ShapeAnalysis_Edge analysis;
+        return Vector3::fromPnt(BRep_Tool::Pnt(analysis.FirstVertex(edge)));
+    }
+
+    static Vector3 endPoint(const TopoDS_Edge& edge)
+    {
+        ShapeAnalysis_Edge analysis;
+        return Vector3::fromPnt(BRep_Tool::Pnt(analysis.LastVertex(edge)));
+    }
+
+    static Vector3Array ends(const TopoDS_Edge& edge)
+    {
+        ShapeAnalysis_Edge analysis;
+        std::vector<Vector3> points = {
+            Vector3::fromPnt(BRep_Tool::Pnt(analysis.FirstVertex(edge))),
+            Vector3::fromPnt(BRep_Tool::Pnt(analysis.LastVertex(edge))),
+        };
+        return Vector3Array(val::array(points));
+    }
+
     static Handle(Geom_TrimmedCurve) curve(const TopoDS_Edge& edge)
     {
         double start(0.0), end(0.0);
@@ -601,6 +642,12 @@ EMSCRIPTEN_BINDINGS(Shape)
         .class_function("fromCurve", &Edge::fromCurve, allow_raw_pointers())
         .class_function("curve", &Edge::curve)
         .class_function("curveLength", &Edge::curveLength)
+        .class_function("firstParameter", &Edge::firstParameter)
+        .class_function("lastParameter", &Edge::lastParameter)
+        .class_function("pointAt", &Edge::pointAt)
+        .class_function("startPoint", &Edge::startPoint)
+        .class_function("endPoint", &Edge::endPoint)
+        .class_function("ends", &Edge::ends)
         .class_function("trim", &Edge::trim)
         .class_function("intersect", &Edge::intersect)
         .class_function("offset", &Edge::offset);
