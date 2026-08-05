@@ -289,7 +289,11 @@ export class ObjectSnap extends BaseSnap {
     }
 
     private getIntersectionKey(s1: VisualShapeData, s2: VisualShapeData) {
-        return s1.shape.id < s2.shape.id ? `${s1.shape.id}:${s2.shape.id}` : `${s2.shape.id}:${s1.shape.id}`;
+        // Cloned nodes share shape ids, so the owner node id must be part of the key —
+        // otherwise intersections of a different node pair would hit the wrong cache entry.
+        const k1 = `${s1.owner.node.id}:${s1.shape.id}`;
+        const k2 = `${s2.owner.node.id}:${s2.shape.id}`;
+        return k1 < k2 ? `${k1}:${k2}` : `${k2}:${k1}`;
     }
 
     private findIntersections(view: IView, s1: VisualShapeData, s2: VisualShapeData): SnapResult[] {

@@ -114,6 +114,52 @@ describe("SelectionManager", () => {
         });
     });
 
+    // ── setSelectedShapes ───────────────────────────────────────────
+
+    describe("setSelectedShapes", () => {
+        function createShapeData(id: string, owner: object, indexes: number[] = []): VisualShapeData {
+            return {
+                shape: { id, shapeType: 0 },
+                owner,
+                transform: undefined,
+                indexes,
+            } as unknown as VisualShapeData;
+        }
+
+        test("should toggle off when clicking the same shape again", () => {
+            const owner = {};
+            const shape = createShapeData("shape-1", owner);
+            selection.setSelectedShapes([shape], 0, false);
+
+            const count = selection.setSelectedShapes([createShapeData("shape-1", owner)], 0, true);
+
+            expect(count).toBe(0);
+            expect(selection.getSelectedShapes()).toHaveLength(0);
+        });
+
+        test("should not toggle off a shape with the same id owned by another visual", () => {
+            // cloned nodes share the same shape id (see SelectionManager.isSameShapeData)
+            const first = createShapeData("shape-1", {});
+            const second = createShapeData("shape-1", {});
+            selection.setSelectedShapes([first], 0, false);
+
+            const count = selection.setSelectedShapes([second], 0, true);
+
+            expect(count).toBe(2);
+            expect(selection.getSelectedShapes()).toEqual([first, second]);
+        });
+
+        test("should distinguish sub-shapes of the same shape by indexes", () => {
+            const owner = {};
+            const face0 = createShapeData("shape-1", owner, [0]);
+            selection.setSelectedShapes([face0], 0, false);
+
+            const count = selection.setSelectedShapes([createShapeData("shape-1", owner, [1])], 0, true);
+
+            expect(count).toBe(2);
+        });
+    });
+
     // ── getSelectedShapes ───────────────────────────────────────────
 
     describe("getSelectedShapes", () => {

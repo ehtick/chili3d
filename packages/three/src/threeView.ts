@@ -496,12 +496,14 @@ export class ThreeView extends Observable implements IView {
         shapeFilter?: IShapeFilter,
     ): VisualShapeData[] {
         const result: VisualShapeData[] = [];
-        const added = new Set<string>();
         const addShape = (
             shapes: IShape[] | readonly IShape[],
             worldTransform: Matrix4,
             visual: ThreeVisualObject,
         ) => {
+            // Dedupe within a single visual only: cloned nodes share shape ids across
+            // visuals, and each visual's shape is a distinct detection result.
+            const added = new Set<string>();
             for (const shape of shapes) {
                 if (added.has(shape.id)) continue;
                 if (shapeFilter && !shapeFilter.allow(shape, worldTransform)) continue;
@@ -565,15 +567,15 @@ export class ThreeView extends Observable implements IView {
         shapeFilter?: IShapeFilter,
     ): VisualShapeData[] {
         const result: VisualShapeData[] = [];
-        const added = new Set<string>();
 
+        // No cross-visual dedupe here: cloned nodes share shape ids, and each visual's
+        // sub-shapes are distinct results. Within-visual duplicates are already removed
+        // by collectSubShapeEntries.
         for (const visual of visuals) {
             const worldMatrix = visual.worldTransform();
             const entries = this.collectSubShapeEntries(shapeType, visual);
 
             for (const entry of entries) {
-                if (added.has(entry.shape.id)) continue;
-
                 if (!this.isShapeInRect(entry.shape, entry.transform, worldMatrix, minX, minY, maxX, maxY)) {
                     continue;
                 }
@@ -584,7 +586,6 @@ export class ThreeView extends Observable implements IView {
                     continue;
                 }
 
-                added.add(entry.shape.id);
                 result.push({
                     owner: visual,
                     shape: entry.shape,

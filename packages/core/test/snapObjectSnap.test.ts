@@ -53,6 +53,7 @@ function createEdgeShapeData(overrides?: Partial<VisualShapeData>): VisualShapeD
         } as never,
         owner: {
             node: {
+                id: "node-1",
                 document: {
                     visual: {
                         highlighter: {
@@ -91,6 +92,7 @@ function createVertexShapeData(point?: XYZ): VisualShapeData {
         } as never,
         owner: {
             node: {
+                id: "node-1",
                 document: {
                     visual: {
                         highlighter: {
@@ -1219,7 +1221,27 @@ describe("ObjectSnap", () => {
             const key1 = getKey(shape1, shape2);
             const key2 = getKey(shape2, shape1);
             expect(key1).toBe(key2);
-            expect(key1).toBe("aaa:bbb");
+            expect(key1).toBe("node-1:aaa:node-1:bbb");
+        });
+
+        test("should distinguish same-id shapes owned by different nodes (cloned nodes)", () => {
+            const ownerOf = (id: string) => ({ node: { id } }) as never;
+            const shape1 = createEdgeShapeData({ owner: ownerOf("node-1") });
+            const shape2 = createEdgeShapeData({ owner: ownerOf("node-2") });
+
+            const snap = new ObjectSnap(ObjectSnapTypes.intersection);
+            const getKey = (s1: VisualShapeData, s2: VisualShapeData): string =>
+                (
+                    snap as unknown as {
+                        getIntersectionKey: (a: VisualShapeData, b: VisualShapeData) => string;
+                    }
+                ).getIntersectionKey(s1, s2);
+
+            const clonePair = getKey(shape1, shape2);
+            const selfPair = getKey(shape1, shape1);
+
+            expect(clonePair).toBe("node-1:edge-1:node-2:edge-1");
+            expect(clonePair).not.toBe(selfPair);
         });
     });
 

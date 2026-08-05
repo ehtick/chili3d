@@ -4,10 +4,14 @@
 import {
     BoundingBox,
     Config,
+    EditableShapeNode,
     type IView,
     Matrix4,
+    MultiShapeNode,
     Plane,
     Ray,
+    Result,
+    type ShapeNode,
     ShapeTypes,
     type VisualNode,
     XY,
@@ -31,7 +35,7 @@ import { Constants } from "../src/constants";
 import { ThreeGeometry } from "../src/threeGeometry";
 import { ThreeView } from "../src/threeView";
 import type { ThreeVisualContext } from "../src/threeVisualContext";
-import { ThreeComponentObject, ThreeMeshObject, ThreeVisualObject } from "../src/threeVisualObject";
+import { ThreeComponentObject, ThreeMeshObject, type ThreeVisualObject } from "../src/threeVisualObject";
 import {
     createTestComponentNode,
     createTestGeometryNode,
@@ -680,6 +684,60 @@ describe("ThreeView — detectShapesRect", () => {
         const { view } = createTestView();
         const result = view.detectShapesRect(ShapeTypes.shape, 90, 90, 10, 10);
         expect(Array.isArray(result)).toBe(true);
+    });
+});
+
+// ============================================================================
+// ThreeView — rect detection dedupe (cloned nodes share shape ids)
+// ============================================================================
+
+describe("ThreeView — rect detection dedupe", () => {
+    function createShapeNodeDuck(shape: object): ShapeNode {
+        const node = Object.create(EditableShapeNode.prototype) as EditableShapeNode;
+        (node as any)._shape = Result.ok(shape);
+        return node;
+    }
+
+    function createVisualDuck(node: object): ThreeVisualObject {
+        return { node, worldTransform: () => Matrix4.identity() } as unknown as ThreeVisualObject;
+    }
+
+    test("detectWholeShapesInRect keeps same-id shapes from different visuals", () => {
+        const { view } = createTestView();
+        const visualA = createVisualDuck(createShapeNodeDuck({ id: "shared-id" }));
+        const visualB = createVisualDuck(createShapeNodeDuck({ id: "shared-id" }));
+
+        const result = (view as any).detectWholeShapesInRect([visualA, visualB]);
+
+        expect(result).toHaveLength(2);
+        expect(result[0].owner).toBe(visualA);
+        expect(result[1].owner).toBe(visualB);
+    });
+
+    test("detectWholeShapesInRect still dedupes same-id shapes within one visual", () => {
+        const { view } = createTestView();
+        const node = Object.create(MultiShapeNode.prototype) as MultiShapeNode;
+        (node as any)._shapes = [{ id: "dup-id" }, { id: "dup-id" }];
+        const visual = createVisualDuck(node);
+
+        const result = (view as any).detectWholeShapesInRect([visual]);
+
+        expect(result).toHaveLength(1);
+    });
+
+    test("detectSubShapesInRect keeps same-id sub-shapes from different visuals", () => {
+        const { view, context } = createTestView();
+        // createTestGeometryNode always uses face id "f1" — same as two cloned nodes
+        const geoA = new ThreeGeometry(createTestGeometryNode(), context);
+        const geoB = new ThreeGeometry(createTestGeometryNode(), context);
+        // Skip screen projection; the dedupe behavior under test runs before it matters
+        (view as any).isShapeInRect = () => true;
+
+        const result = (view as any).detectSubShapesInRect(ShapeTypes.face, [geoA, geoB], 0, 0, 100, 100);
+
+        expect(result).toHaveLength(2);
+        expect(result[0].owner).toBe(geoA);
+        expect(result[1].owner).toBe(geoB);
     });
 });
 
