@@ -191,6 +191,66 @@ describe("ShapeFactory — curves & wires", () => {
             expect(result.isOk).toBe(true);
             expect(result.value.shapeType).toBe(ShapeTypes.wire);
         });
+
+        test("should return error for disconnected edges", () => {
+            const e1 = factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 })).value;
+            const e2 = factory.line(new XYZ({ x: 20, y: 0, z: 0 }), new XYZ({ x: 30, y: 0, z: 0 })).value;
+            const result = factory.wire([e1, e2]);
+            expect(result.isOk).toBe(false);
+        });
+    });
+
+    describe("wire ordering", () => {
+        const lineEdge = (x1: number, y1: number, x2: number, y2: number) =>
+            unwrapOk(factory.line({ x: x1, y: y1, z: 0 }, { x: x2, y: y2, z: 0 })) as IEdge;
+
+        // Thin L-shaped band outline (6 edges); the inner long edge is derived from an
+        // offset curve (near-coincident endpoints used to break the old wire ordering).
+        const bandEdges = (): IEdge[] => {
+            const bottom = lineEdge(0, 0, 200, 0);
+            const offseted = bottom.offset(-12, XYZ.unitZ);
+            if (!offseted.isOk) throw new Error(`offset failed: ${offseted.error}`);
+            const curve = offseted.value.curve;
+            const p1 = curve.parameter({ x: 78, y: 12, z: 0 }, curve.length() * 0.5);
+            const p2 = curve.parameter({ x: 200, y: 12, z: 0 }, curve.length());
+            const inner = offseted.value.trim(p1!, p2!);
+            return [
+                bottom,
+                lineEdge(200, 0, 200, 12),
+                inner,
+                lineEdge(78, 12, 38, 102),
+                lineEdge(38, 102, 26, 96),
+                lineEdge(26, 96, 0, 0),
+            ];
+        };
+
+        function* permutations<T>(arr: T[]): Generator<T[]> {
+            if (arr.length <= 1) {
+                yield [...arr];
+                return;
+            }
+            for (let i = 0; i < arr.length; i++) {
+                const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+                for (const perm of permutations(rest)) {
+                    yield [arr[i], ...perm];
+                }
+            }
+        }
+
+        test("should build the same face regardless of edge order", () => {
+            const edges = bandEdges();
+            let count = 0;
+            for (const perm of permutations(edges)) {
+                count++;
+                const wire = factory.wire(perm);
+                expect(wire.isOk).toBe(true);
+                const face = factory.face([wire.value as IWire]);
+                expect(face.isOk).toBe(true);
+                // hexagon area via shoelace: 6180
+                expect(face.value.area()).toBeCloseTo(6180, 6);
+            }
+            expect(count).toBe(720);
+        });
     });
 });
 

@@ -1,7 +1,7 @@
 // Part of the Chili3d Project, under the AGPL-3.0 License.
 // See LICENSE file in the project root for full license information.
 
-import { type Line, MathUtils, type XYZ } from "../math";
+import { type Line, MathUtils, type XYZ, type XYZLike } from "../math";
 import type { IGeometry } from "./geometry";
 
 export type CurveType =
@@ -24,10 +24,10 @@ export interface ICurve extends IGeometry {
     uniformAbscissaByLength(length: number): XYZ[];
     uniformAbscissaByCount(curveCount: number): XYZ[];
     length(): number;
-    parameter(point: XYZ, tolerance: number): number | undefined;
+    parameter(point: XYZLike, tolerance: number): number | undefined;
     firstParameter(): number;
     lastParameter(): number;
-    project(point: XYZ): XYZ[];
+    project(point: XYZLike): XYZ[];
     value(parameter: number): XYZ;
     isCN(n: number): boolean;
     trim(u1: number, u2: number): ITrimmedCurve;

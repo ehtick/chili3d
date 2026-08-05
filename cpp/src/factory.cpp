@@ -11,6 +11,7 @@
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Defeaturing.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -50,7 +51,6 @@
 #include <Geom_OffsetCurve.hxx>
 #include <Geom_TrimmedCurve.hxx>
 #include <ShapeAnalysis_Edge.hxx>
-#include <ShapeAnalysis_WireOrder.hxx>
 #include <ShapeFix_Face.hxx>
 #include <ShapeFix_FixSmallFace.hxx>
 #include <ShapeFix_Shape.hxx>
@@ -563,25 +563,73 @@ public:
         return ShapeResult { makeEdge.Edge(), true, "" };
     }
 
-    static void orderEdge(BRepBuilderAPI_MakeWire& wire, const std::vector<TopoDS_Edge>& edges)
+    struct EdgeEndpoints {
+        gp_Pnt first;
+        gp_Pnt last;
+    };
+
+    // Returns the unused edge that continues the chain within confusion tolerance (and
+    // whether it connects backwards), or ends.size() when nothing connects.
+    static size_t nextChainEdge(
+        const std::vector<EdgeEndpoints>& ends, const std::vector<bool>& used, const gp_Pnt& chainEnd, bool& reversed)
     {
-        ShapeAnalysis_WireOrder order;
-        ShapeAnalysis_Edge analysis;
-        for (auto& edge : edges) {
-            order.Add(BRep_Tool::Pnt(analysis.FirstVertex(edge)).XYZ(),
-                BRep_Tool::Pnt(analysis.LastVertex(edge)).XYZ());
-        }
-        order.Perform(true);
-        if (order.IsDone()) {
-            for (int i = 0; i < order.NbEdges(); i++) {
-                int index = order.Ordered(i + 1);
-                auto edge = edges[abs(index) - 1];
-                if (index < 0) {
-                    edge.Reverse();
-                }
-                wire.Add(edge);
+        size_t next = ends.size();
+        double best = Precision::Confusion();
+        for (size_t i = 1; i < ends.size(); i++) {
+            if (used[i]) {
+                continue;
+            }
+            double dFirst = chainEnd.Distance(ends[i].first);
+            double dLast = chainEnd.Distance(ends[i].last);
+            if (dFirst < best) {
+                best = dFirst;
+                next = i;
+                reversed = false;
+            }
+            if (dLast < best) {
+                best = dLast;
+                next = i;
+                reversed = true;
             }
         }
+        return next;
+    }
+
+    // Chains edges into a wire deterministically: from the first edge, repeatedly append the
+    // unused edge whose endpoint is nearest to the chain end, reversing it when it connects
+    // backwards. ShapeAnalysis_WireOrder was dropped: with near-coincident endpoints (e.g.
+    // edges from an offset curve) it could assign a wrong orientation, twisting the wire.
+    static bool orderEdge(BRepBuilderAPI_MakeWire& wire, const std::vector<TopoDS_Edge>& edges)
+    {
+        ShapeAnalysis_Edge analysis;
+        std::vector<EdgeEndpoints> ends;
+        ends.reserve(edges.size());
+        for (const auto& edge : edges) {
+            ends.push_back(
+                { BRep_Tool::Pnt(analysis.FirstVertex(edge)), BRep_Tool::Pnt(analysis.LastVertex(edge)) });
+        }
+
+        std::vector<bool> used(edges.size(), false);
+        used[0] = true;
+        wire.Add(edges[0]);
+        gp_Pnt chainEnd = ends[0].last;
+
+        for (size_t count = 1; count < edges.size(); count++) {
+            bool reversed = false;
+            size_t next = nextChainEdge(ends, used, chainEnd, reversed);
+            if (next == edges.size()) {
+                return false; // remaining edges are disconnected from the chain
+            }
+
+            TopoDS_Edge edge = edges[next];
+            chainEnd = reversed ? ends[next].first : ends[next].last;
+            if (reversed) {
+                edge.Reverse();
+            }
+            wire.Add(edge);
+            used[next] = true;
+        }
+        return true;
     }
 
     static ShapeResult wire(const EdgeArray& edges)
@@ -590,11 +638,21 @@ public:
         if (edgesVec.size() == 0) {
             return ShapeResult { TopoDS_Shape(), false, "No edges provided" };
         }
+
+        // BRepBuilderAPI_MakeWire replaces coincident vertices of the added edges in place
+        // (vertex sharing). Repeated calls with the same input edges would progressively
+        // corrupt them, so build from copies instead.
+        std::vector<TopoDS_Edge> copies;
+        copies.reserve(edgesVec.size());
+        for (auto& edge : edgesVec) {
+            copies.push_back(TopoDS::Edge(BRepBuilderAPI_Copy(edge).Shape()));
+        }
+
         BRepBuilderAPI_MakeWire wire;
-        if (edgesVec.size() == 1) {
-            wire.Add(edgesVec[0]);
-        } else {
-            orderEdge(wire, edgesVec);
+        if (copies.size() == 1) {
+            wire.Add(copies[0]);
+        } else if (!orderEdge(wire, copies)) {
+            return ShapeResult { TopoDS_Shape(), false, mapBuildWireError(BRepBuilderAPI_DisconnectedWire) };
         }
 
         if (!wire.IsDone()) {

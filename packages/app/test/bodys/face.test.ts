@@ -2,11 +2,21 @@
 // See LICENSE file in the project root for full license information.
 
 import type { IDocument, IEdge, IWire } from "@chili3d/core";
-import { Result } from "@chili3d/core";
-import { createMockDocument } from "@chili3d/core/test-utils";
+import { Result, XYZ } from "@chili3d/core";
+import { createMockDocument, createMockEdgeCurve } from "@chili3d/core/test-utils";
 import { beforeEach, describe, expect, rs, test } from "@rstest/core";
 import { FaceNode } from "../../src/bodys/face";
 import { createMockEdge, createMockShape, createMockWire, setupShapeFactoryMock } from "./_utils";
+
+function mockLineEdge(x1: number, y1: number, x2: number, y2: number) {
+    return createMockEdge({
+        curve: createMockEdgeCurve({
+            start: new XYZ({ x: x1, y: y1, z: 0 }),
+            end: new XYZ({ x: x2, y: y2, z: 0 }),
+            valueFn: (t: number) => new XYZ({ x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t, z: 0 }),
+        }),
+    });
+}
 
 describe("FaceNode", () => {
     let doc: IDocument;
@@ -58,7 +68,7 @@ describe("FaceNode", () => {
                 face: () => Result.ok(mockFace),
             });
             const node = new FaceNode({ document: doc, shapes: [createMockEdge()] as any });
-            const newShapes = [createMockWire(), createMockEdge({ isClosed: () => true })] as any;
+            const newShapes = [createMockWire(), mockLineEdge(0, 0, 10, 0)] as any;
             node.shapes = newShapes;
             expect(node.shapes).toBe(newShapes);
         });
@@ -94,7 +104,7 @@ describe("FaceNode", () => {
             setupShapeFactoryMock({ wire, face });
             const node = new FaceNode({
                 document: doc,
-                shapes: [createMockEdge({ isClosed: () => true })] as any,
+                shapes: [mockLineEdge(0, 0, 10, 0)] as any,
             });
             const result = node.generateShape();
             expect(result.isOk).toBe(true);
@@ -102,6 +112,59 @@ describe("FaceNode", () => {
             expect(wire.mock.calls[0][0].length).toBe(1);
             expect(face).toHaveBeenCalledTimes(1);
             expect(face.mock.calls[0][0].length).toBe(1);
+        });
+
+        test("should group disjoint edge loops into separate wires", () => {
+            const mockWire = createMockWire();
+            const wire = rs.fn((_edges: IEdge[]) => Result.ok(mockWire));
+            const face = rs.fn((_wires: IWire[]) => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ wire, face });
+            // two disjoint rectangles, edges interleaved and unordered
+            const outer = [
+                mockLineEdge(0, 0, 100, 0),
+                mockLineEdge(100, 0, 100, 100),
+                mockLineEdge(100, 100, 0, 100),
+                mockLineEdge(0, 100, 0, 0),
+            ] as unknown as IEdge[];
+            const inner = [
+                mockLineEdge(10, 10, 90, 10),
+                mockLineEdge(90, 10, 90, 90),
+                mockLineEdge(90, 90, 10, 90),
+                mockLineEdge(10, 90, 10, 10),
+            ] as unknown as IEdge[];
+            const shapes = [outer[0], inner[0], outer[1], inner[1], inner[2], outer[2], inner[3], outer[3]];
+            const node = new FaceNode({ document: doc, shapes: shapes });
+            const result = node.generateShape();
+            expect(result.isOk).toBe(true);
+            expect(wire).toHaveBeenCalledTimes(2);
+            const groups = wire.mock.calls.map((c) => c[0] as IEdge[]);
+            expect(groups.every((g) => g.length === 4)).toBe(true);
+            const [first, second] = groups;
+            expect(outer.every((e) => first.includes(e)) || outer.every((e) => second.includes(e))).toBe(
+                true,
+            );
+            expect(inner.every((e) => first.includes(e)) || inner.every((e) => second.includes(e))).toBe(
+                true,
+            );
+            expect(face).toHaveBeenCalledTimes(1);
+            expect(face.mock.calls[0][0].length).toBe(2);
+        });
+
+        test("should combine wires with grouped edge loops", () => {
+            const existingWire = createMockWire();
+            const wire = rs.fn((_edges: IEdge[]) => Result.ok(createMockWire()));
+            const face = rs.fn((_wires: IWire[]) => Result.ok(createMockShape()));
+            setupShapeFactoryMock({ wire, face });
+            const node = new FaceNode({
+                document: doc,
+                shapes: [existingWire, mockLineEdge(0, 0, 10, 0), mockLineEdge(10, 0, 10, 10)] as any,
+            });
+            const result = node.generateShape();
+            expect(result.isOk).toBe(true);
+            expect(wire).toHaveBeenCalledTimes(1);
+            expect(face).toHaveBeenCalledTimes(1);
+            expect(face.mock.calls[0][0].length).toBe(2);
+            expect(face.mock.calls[0][0][0]).toBe(existingWire);
         });
 
         test("should use wire shapes directly without creating new wire", () => {
@@ -121,7 +184,7 @@ describe("FaceNode", () => {
             });
             const node = new FaceNode({
                 document: doc,
-                shapes: [createMockEdge({ isClosed: () => false })] as any,
+                shapes: [mockLineEdge(0, 0, 10, 0)] as any,
             });
             expect(() => node.generateShape()).toThrow("Cannot create wire from open shapes");
         });

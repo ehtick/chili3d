@@ -603,6 +603,50 @@ describe("OccEdge", () => {
         expect(() => edge.hasContinuity(faces[0] as IFace, fake)).toThrow("Invalid face types");
         expect(() => edge.continuity(faces[0] as IFace, fake)).toThrow("Invalid face types");
     });
+
+    test("startPoint / endPoint return the edge endpoints", () => {
+        const edge = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 }))) as OccEdge;
+        const start = edge.startPoint();
+        const end = edge.endPoint();
+        expect(start.x).toBeCloseTo(0);
+        expect(start.y).toBeCloseTo(0);
+        expect(start.z).toBeCloseTo(0);
+        expect(end.x).toBeCloseTo(10);
+        expect(end.y).toBeCloseTo(0);
+        expect(end.z).toBeCloseTo(0);
+    });
+
+    test("startPoint / endPoint match the trimmed curve endpoints", () => {
+        const box = createBox(factory, 10, 20, 30);
+        const edge = box.findSubShapes(ShapeTypes.edge)[0] as OccEdge;
+        const curveStart = edge.curve.startPoint();
+        const curveEnd = edge.curve.endPoint();
+        expect(edge.startPoint().isEqualTo(curveStart)).toBe(true);
+        expect(edge.endPoint().isEqualTo(curveEnd)).toBe(true);
+    });
+
+    test("firstParameter / lastParameter return the parameter range", () => {
+        const edge = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 }))) as OccEdge;
+        expect(edge.firstParameter()).toBeCloseTo(0);
+        expect(edge.lastParameter()).toBeCloseTo(10);
+    });
+
+    test("pointAt returns the midpoint at the middle parameter", () => {
+        const edge = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 }))) as OccEdge;
+        const mid = edge.pointAt((edge.firstParameter() + edge.lastParameter()) / 2);
+        expect(mid.x).toBeCloseTo(5);
+        expect(mid.y).toBeCloseTo(0);
+        expect(mid.z).toBeCloseTo(0);
+    });
+
+    test("ends returns start and end points in one call", () => {
+        const edge = unwrapOk(factory.line(XYZ.zero, new XYZ({ x: 10, y: 0, z: 0 }))) as OccEdge;
+        const [start, end] = edge.ends();
+        expect(start.isEqualTo(edge.startPoint())).toBe(true);
+        expect(end.isEqualTo(edge.endPoint())).toBe(true);
+        expect(start.x).toBeCloseTo(0);
+        expect(end.x).toBeCloseTo(10);
+    });
 });
 
 // ============================================================================

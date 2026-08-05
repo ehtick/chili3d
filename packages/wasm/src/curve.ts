@@ -22,6 +22,7 @@ import {
     Line,
     type Matrix4,
     XYZ,
+    type XYZLike,
 } from "@chili3d/core";
 import type {
     Geom_BezierCurve,
@@ -166,11 +167,11 @@ export class OccCurve extends OccGeometry implements ICurve, IDisposable {
         return this.curve.lastParameter();
     }
 
-    parameter(point: XYZ, tolerance: number): number | undefined {
+    parameter(point: XYZLike, tolerance: number): number | undefined {
         return wasm.Curve.parameter(this.curve, point, tolerance);
     }
 
-    project(point: XYZ): XYZ[] {
+    project(point: XYZLike): XYZ[] {
         return wasm.Curve.projects(this.curve, point)
             .map((p) => new XYZ(p))
             .toSorted((a, b) => a.distanceTo(point) - b.distanceTo(point));

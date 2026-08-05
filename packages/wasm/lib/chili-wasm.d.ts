@@ -833,9 +833,15 @@ interface EmbindModule {
     fromCurve(_0: Geom_Curve | null): TopoDS_Edge;
     curve(_0: TopoDS_Edge): Handle_Geom_TrimmedCurve;
     curveLength(_0: TopoDS_Edge): number;
+    firstParameter(_0: TopoDS_Edge): number;
+    lastParameter(_0: TopoDS_Edge): number;
     trim(_0: TopoDS_Edge, _1: number, _2: number): TopoDS_Edge;
     offset(_0: TopoDS_Edge, _1: gp_Dir, _2: number): TopoDS_Edge;
+    ends(_0: TopoDS_Edge): Array<Vector3>;
     intersect(_0: TopoDS_Edge, _1: TopoDS_Edge): Array<PointAndParameter>;
+    pointAt(_0: TopoDS_Edge, _1: number): Vector3;
+    startPoint(_0: TopoDS_Edge): Vector3;
+    endPoint(_0: TopoDS_Edge): Vector3;
   };
   Wire: {
     offset(_0: TopoDS_Wire, _1: number, _2: GeomAbs_JoinType): TopoDS_Shape;
