@@ -24,6 +24,7 @@ import {
 } from "@chili3d/core";
 import { FaceNode } from "../../bodys/face";
 import { WireNode } from "../../bodys/wire";
+import { RepairShapeCommand, repairShape } from "../modify";
 
 abstract class ConvertCommand extends CancelableCommand {
     async executeAsync(): Promise<void> {
@@ -152,7 +153,9 @@ export class ConvertToSolid extends ConvertCommand {
         faces.forEach((x) => x.dispose());
         if (!shape.isOk) return Result.err(shape.error);
 
-        const solid = new EditableShapeNode({ document, name: "solid", shape });
+        const repaired = repairShape(shape.value, 1e-7);
+        shape.value.dispose();
+        const solid = new EditableShapeNode({ document, name: "solid", shape: repaired });
         return Result.ok(solid);
     }
 }

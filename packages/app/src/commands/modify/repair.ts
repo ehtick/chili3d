@@ -12,6 +12,16 @@ import {
     Transaction,
 } from "@chili3d/core";
 
+export function repairShape(shape: IShape, tolerance: number) {
+    const getShapeIfNotNull = (testShape: IShape, defaultShape: IShape) => {
+        return testShape.isNull() ? defaultShape : testShape;
+    };
+    let repairedShape = getShapeIfNotNull(shape.shellSewing(tolerance), shape);
+    repairedShape = getShapeIfNotNull(repairedShape.fixShape(tolerance), repairedShape);
+    repairedShape = getShapeIfNotNull(repairedShape.fixSmallFace(tolerance), repairedShape);
+    return repairedShape;
+}
+
 @command({
     key: "modify.repairShape",
     icon: "icon-repair",
@@ -35,12 +45,7 @@ export class RepairShapeCommand extends MultistepCommand {
                 const shape = shapeNode.shape.value;
                 shape.setTolerance(this.tolerance);
 
-                let repairedShape = this.getShapeIfNotNull(shape.shellSewing(this.tolerance), shape);
-                repairedShape = this.getShapeIfNotNull(repairedShape.fixShape(this.tolerance), repairedShape);
-                repairedShape = this.getShapeIfNotNull(
-                    repairedShape.fixSmallFace(this.tolerance),
-                    repairedShape,
-                );
+                const repairedShape = repairShape(shape, this.tolerance);
 
                 const model = new EditableShapeNode({
                     document: this.document,
@@ -54,10 +59,6 @@ export class RepairShapeCommand extends MultistepCommand {
             }
             this.document.visual.update();
         });
-    }
-
-    private getShapeIfNotNull(testShape: IShape, defaultShape: IShape) {
-        return testShape.isNull() ? defaultShape : testShape;
     }
 
     protected override getSteps() {
