@@ -31,21 +31,17 @@ export class SnapLengthAtAxisHandler extends SnapEventHandler<LengthAtAxisSnapDa
 
     protected getPointFromInput(view: IView, text: string): SnapResult {
         const dist = this.calculateDistance(Number(text));
-        const point = this.calculatePoint(dist);
-        return { view, point, distance: dist, shapes: [], type: "input" };
+        const point = this.data.point.add(this.data.direction.multiply(dist));
+        return { view, point, distance: Math.abs(dist), shapes: [], type: "input" };
     }
 
     private calculateDistance(inputValue: number): number {
-        return this.shouldReverse() ? -inputValue : inputValue;
+        return this.isSnapedOnNegativeSide() ? -inputValue : inputValue;
     }
 
-    private calculatePoint(distance: number): XYZ {
-        return this.data.point.add(this.data.direction.multiply(distance));
-    }
-
-    private shouldReverse() {
+    private isSnapedOnNegativeSide() {
         return (
-            this._snaped?.point &&
+            this._snaped?.point !== undefined &&
             this._snaped.point.sub(this.data.point).dot(this.data.direction) < -Precision.Distance
         );
     }
@@ -100,7 +96,14 @@ export class SnapLengthAtPlaneHandler extends SnapEventHandler<SnapLengthAtPlane
     }
 
     private calculatePointFromCoordinates(coords: number[], plane: Plane): XYZ {
-        return this.data.point().add(plane.xvec.multiply(coords[0])).add(plane.yvec.multiply(coords[1]));
+        const dx = this.followSnapedSign(coords[0], plane.xvec);
+        const dy = this.followSnapedSign(coords[1], plane.yvec);
+        return this.data.point().add(plane.xvec.multiply(dx)).add(plane.yvec.multiply(dy));
+    }
+
+    private followSnapedSign(value: number, axis: XYZ): number {
+        const offset = this._snaped?.point?.sub(this.data.point()).dot(axis);
+        return offset !== undefined && offset < -Precision.Distance ? -value : value;
     }
 
     protected inputError(text: string): I18nKeys | undefined {

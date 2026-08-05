@@ -33,7 +33,7 @@ export class AxisSnap implements ISnap {
         return {
             view: data.view,
             point,
-            distance: dot,
+            distance: Math.abs(dot),
             shapes: [],
             type: "axis",
         };

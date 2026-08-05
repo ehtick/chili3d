@@ -134,6 +134,13 @@ describe("Rect", () => {
             const text = withStaticWorkplane(() => data.prompt({ point: new XYZ({ x: 4, y: 2, z: 0 }) }));
             expect(text).toBe("4.00, 2.00");
         });
+
+        test("prompt should show absolute dx,dy in negative quadrant", () => {
+            const cmd = rectCmd(new XYZ({ x: 0, y: 0, z: 0 }), new XYZ({ x: 1, y: 0, z: 0 }));
+            const data = (cmd as any).nextSnapData();
+            const text = withStaticWorkplane(() => data.prompt({ point: new XYZ({ x: -4, y: -2, z: 0 }) }));
+            expect(text).toBe("4.00, 2.00");
+        });
     });
 
     describe("rectDataFromTwoSteps", () => {

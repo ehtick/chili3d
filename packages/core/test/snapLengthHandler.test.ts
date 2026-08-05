@@ -197,7 +197,7 @@ describe("SnapLengthAtAxisHandler — getPointFromInput", () => {
         expect(result.distance).toBe(10);
     });
 
-    test("should calculate point with negative distance when snapped is on negative side", () => {
+    test("should follow snapped direction for positive input", () => {
         const lengthData: LengthAtAxisSnapData = {
             point: XYZ.zero,
             direction: XYZ.unitX,
@@ -210,8 +210,36 @@ describe("SnapLengthAtAxisHandler — getPointFromInput", () => {
         const view = createHandlerMockView();
         const result = handler["getPointFromInput"](view, "10");
         expect(result.point!.x).toBe(-10);
-        // distance should be the absolute value
-        expect(Math.abs(result.distance!)).toBe(10);
+        // displayed distance stays absolute
+        expect(result.distance).toBe(10);
+    });
+
+    test("should reverse snapped direction for negative input", () => {
+        const lengthData: LengthAtAxisSnapData = {
+            point: XYZ.zero,
+            direction: XYZ.unitX,
+        };
+        const handler = new SnapLengthAtAxisHandler(document, controller, lengthData);
+        // Set snapped point on negative X side
+        (handler as unknown as { _snaped: { point: XYZ } })._snaped = {
+            point: new XYZ({ x: -1, y: 0, z: 0 }),
+        };
+        const view = createHandlerMockView();
+        const result = handler["getPointFromInput"](view, "-10");
+        expect(result.point!.x).toBe(10);
+        expect(result.distance).toBe(10);
+    });
+
+    test("should go along negative direction for negative input without snapped point", () => {
+        const lengthData: LengthAtAxisSnapData = {
+            point: XYZ.zero,
+            direction: XYZ.unitX,
+        };
+        const handler = new SnapLengthAtAxisHandler(document, controller, lengthData);
+        const view = createHandlerMockView();
+        const result = handler["getPointFromInput"](view, "-10");
+        expect(result.point!.x).toBe(-10);
+        expect(result.distance).toBe(10);
     });
 });
 
@@ -291,6 +319,38 @@ describe("SnapLengthAtPlaneHandler — getPointFromInput", () => {
         const view = createHandlerMockView({ workplane: Plane.XY });
         const result = handler["getPointFromInput"](view, "10,20");
         expect(result.point).not.toBeNull();
+        expect(result.point!.x).toBe(10);
+        expect(result.point!.y).toBe(20);
+    });
+
+    test("should follow snapped quadrant signs for coordinates input", () => {
+        const lengthData: SnapLengthAtPlaneData = {
+            point: () => XYZ.zero,
+            plane: () => Plane.XY,
+        };
+        const handler = new SnapLengthAtPlaneHandler(document, controller, lengthData);
+        // snapped in the (-x, +y) quadrant
+        (handler as unknown as { _snaped: { point: XYZ } })._snaped = {
+            point: new XYZ({ x: -1, y: 1, z: 0 }),
+        };
+        const view = createHandlerMockView({ workplane: Plane.XY });
+        const result = handler["getPointFromInput"](view, "10,20");
+        expect(result.point!.x).toBe(-10);
+        expect(result.point!.y).toBe(20);
+    });
+
+    test("should reverse snapped quadrant sign for negative coordinate", () => {
+        const lengthData: SnapLengthAtPlaneData = {
+            point: () => XYZ.zero,
+            plane: () => Plane.XY,
+        };
+        const handler = new SnapLengthAtPlaneHandler(document, controller, lengthData);
+        // snapped in the (-x, +y) quadrant
+        (handler as unknown as { _snaped: { point: XYZ } })._snaped = {
+            point: new XYZ({ x: -1, y: 1, z: 0 }),
+        };
+        const view = createHandlerMockView({ workplane: Plane.XY });
+        const result = handler["getPointFromInput"](view, "-10,20");
         expect(result.point!.x).toBe(10);
         expect(result.point!.y).toBe(20);
     });

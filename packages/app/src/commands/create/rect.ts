@@ -50,7 +50,7 @@ export abstract class RectCommandBase extends CreateCommand {
             validator: this.handleValid,
             prompt: (snaped: SnapResult) => {
                 const data = this.rectDataFromTemp(snaped.point!);
-                return `${data.dx.toFixed(2)}, ${data.dy.toFixed(2)}`;
+                return `${Math.abs(data.dx).toFixed(2)}, ${Math.abs(data.dy).toFixed(2)}`;
             },
         };
     };
