@@ -203,10 +203,7 @@ export class OccShape implements IShape {
 
     transformedMul(matrix: Matrix4): IShape {
         return gc((c) => {
-            const location = c(this._shape.getLocation());
-            const trsf = c(location.transformation());
-            const m = convertToMatrix(trsf).multiply(matrix);
-            return OccShape.wrap(wasm.Shape.transformed(this._shape, c(convertFromMatrix(m))));
+            return OccShape.wrap(wasm.Shape.transformed(this._shape, c(convertFromMatrix(matrix))));
         });
     }
 

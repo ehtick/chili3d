@@ -234,6 +234,26 @@ describe("OccShape — transform", () => {
         const moved = box.transformedMul(translation);
         expect(moved.boundingBox().min.x).toBeCloseTo(20, 0);
     });
+
+    test("transformedMul must not apply the shape's own location twice", () => {
+        // Sub-shapes can carry a non-identity location: the top face of a prism is
+        // located at z=30 via its TopLoc_Location. transformedMul(identity) must
+        // keep it in place, and a translation must apply exactly once.
+        const rect = unwrapOk(factory.rect(Plane.XY, 10, 10));
+        const face = (
+            rect.shapeType === ShapeTypes.face ? rect : unwrapOk(factory.face([rect as any]))
+        ) as IFace;
+        const solid = unwrapOk(factory.prism(face, XYZ.unitZ.multiply(30)));
+        const faces = solid.findSubShapes(ShapeTypes.face) as IFace[];
+        const top = faces.reduce((a, b) => (a.boundingBox().max.z > b.boundingBox().max.z ? a : b));
+        expect(top.boundingBox().max.z).toBeCloseTo(30, 6);
+
+        const kept = top.transformedMul(Matrix4.identity());
+        expect(kept.boundingBox().max.z).toBeCloseTo(30, 6);
+
+        const shifted = top.transformedMul(Matrix4.fromTranslation(0, 0, 5));
+        expect(shifted.boundingBox().max.z).toBeCloseTo(35, 6);
+    });
 });
 
 // ============================================================================
